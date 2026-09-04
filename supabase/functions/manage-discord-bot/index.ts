@@ -3,6 +3,7 @@ import { getPlatformSecret } from '../_shared/platform-secrets.ts';
 import { isPlatformAdminAccount } from '../_shared/platform-admin.ts';
 import { requirePanelSession } from '../_shared/panel-session.ts';
 import { deliverDiscordRoute, routeCandidates, validDiscordChannelId } from '../_shared/discord-delivery.ts';
+import { mergeModuleDefinitions, readGlobalModules, sanitizeModuleOverrides } from '../_shared/global-bot-settings.ts';
 
 const DISCORD_API = 'https://discord.com/api/v10';
 const MODULES: Record<string, { label: string; premium: boolean; title: string; description: string; color: number; buttons: any[] }> = {
@@ -177,8 +178,8 @@ async function memberRoleIds(db: any, guildId: string, discordId: string) {
   return Array.isArray(member?.roles) ? member.roles.map((value: any) => String(value)) : [];
 }
 
-function payload(moduleKey: string, donation: boolean) {
-  const definition = MODULES[moduleKey];
+function payload(moduleKey: string, donation: boolean, definitions = MODULES) {
+  const definition = definitions[moduleKey];
   const rows: any[] = [];
   for (let index = 0; index < definition.buttons.length; index += 5) rows.push({ type: 1, components: definition.buttons.slice(index, index + 5).map((button: any) => ({ type: 2, style: button.style, label: button.label, custom_id: button.id })) });
   if (donation) rows.push({ type: 1, components: [{ type: 2, style: 5, label: 'Donează pentru dezvoltare', url: 'https://revolut.me/mariomihail' }] });
@@ -224,6 +225,17 @@ Deno.serve(async (request) => {
     const reconciliation = action === 'bootstrap' && platformAdmin ? await reconcileInstallations(db) : null;
     const guilds = await ownedGuilds(db, { ...discord, access_token: accessToken }, applicationId, platformAdmin, diagnostics);
     if (action === 'bootstrap') return reply(request, { ok: true, user: { id: String(discord.id), username: clean(discord.global_name || discord.username, 120), platform_admin: platformAdmin }, platform_admin: platformAdmin, guilds, diagnostics, reconciliation, modules: Object.fromEntries(Object.entries(MODULES).map(([key, value]) => [key, { label: value.label, premium: value.premium, log_key: LOG_ROUTES[key] || '', log_label: LOG_LABELS[LOG_ROUTES[key] || ''] || '' }])) });
+    if (action === 'global_config' || action === 'save_global_config') {
+      if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate modifica setările globale ale botului.' }, 403);
+      const current = await readGlobalModules(db);
+      if (action === 'save_global_config') {
+        const modules = sanitizeModuleOverrides(MODULES, body.modules);
+        const { error } = await db.from('discovery_bot_global_settings').upsert({ id: 'global', modules, updated_by_discord_id: String(discord.id), updated_at: new Date().toISOString() }, { onConflict: 'id' });
+        if (error) throw error;
+        return reply(request, { ok: true, modules: mergeModuleDefinitions(MODULES, modules) });
+      }
+      return reply(request, { ok: true, modules: mergeModuleDefinitions(MODULES, current) });
+    }
     const guildId = clean(body.guild_id, 30);
     const selectedGuild = guilds.find((guild: any) => guild.id === guildId);
     if (!selectedGuild) return reply(request, { error: platformAdmin ? 'Serverul nu este disponibil sau botul nu este instalat.' : 'Serverul nu este disponibil: trebuie să fii owner și botul trebuie să fie instalat.' }, 403);
@@ -339,7 +351,7 @@ Deno.serve(async (request) => {
     }
     if (action === 'publish') {
       const moduleKey = clean(body.module, 50);
-      const definition = MODULES[moduleKey];
+      const definition = mergeModuleDefinitions(MODULES, await readGlobalModules(db))[moduleKey];
       if (!definition) return reply(request, { error: 'Modul invalid.' }, 400);
       if (definition.premium && !allowedPremium) return reply(request, { error: 'Acest modul este disponibil după activarea Premium sau pe durata trialului.' }, 403);
       const configured = settings?.discord_channel_routes?.[moduleKey]?.primary;
