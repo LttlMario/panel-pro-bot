@@ -20,7 +20,7 @@
   const render = () => {
     const query = String($('search').value || '').trim().toLowerCase();
     const rows = state.guilds.filter((g) => [g.name, g.id, g.owner ? 'owner' : '', g.plan].join(' ').toLowerCase().includes(query));
-    $('list').innerHTML = rows.length ? rows.map((g) => `<article class="bot-card"><p class="eyebrow">Panel Pro Bot · Supabase separat</p><h2>${esc(g.name || 'Server Discord')}</h2><p class="meta">Guild ID: <code>${esc(g.id)}</code><br>${state.platformAdmin ? 'Administrator global' : g.owner ? 'Owner server' : 'Server administrabil'} · ${esc(plan(g))}</p><div class="badges"><span class="badge live">Instalat</span><span class="badge">${esc(plan(g))}</span></div><div class="card-actions"><a class="button cyan" href="discord-bot-discovery.html?guild_id=${encodeURIComponent(g.id)}">⚙️ Configurează botul</a>${state.platformAdmin ? `<button class="button" type="button" data-global="rename" data-guild="${esc(g.id)}">✏️ Redenumește</button><button class="button" type="button" data-global="trial" data-guild="${esc(g.id)}">⏱ +30 zile Trial</button><button class="button" type="button" data-global="premium" data-guild="${esc(g.id)}">⭐ Acordă Premium</button><button class="button" type="button" data-global="remove" data-guild="${esc(g.id)}">🗑️ Elimină instalarea</button>` : ''}</div></article>`).join('') : '<div class="empty">Nu există servere Panel Pro Bot eligibile pentru această sesiune Discord.</div>';
+    $('list').innerHTML = rows.length ? rows.map((g) => `<article class="bot-card"><p class="eyebrow">Panel Pro Bot · Supabase separat</p><h2>${esc(g.name || 'Server Discord')}</h2><p class="meta">Guild ID: <code>${esc(g.id)}</code><br>${state.platformAdmin ? 'Administrator global' : g.owner ? 'Owner server' : 'Server administrabil'} · ${esc(plan(g))}</p><div class="badges"><span class="badge live">Instalat</span><span class="badge">${esc(plan(g))}</span></div><div class="card-actions"><a class="button cyan" href="discord-bot.html?guild_id=${encodeURIComponent(g.id)}">⚙️ Configurează botul</a>${state.platformAdmin ? `<button class="button" type="button" data-global="rename" data-guild="${esc(g.id)}">✏️ Redenumește</button><button class="button" type="button" data-global="trial" data-guild="${esc(g.id)}">⏱ +30 zile Trial</button><button class="button" type="button" data-global="premium" data-guild="${esc(g.id)}">⭐ Acordă Premium</button><button class="button" type="button" data-global="remove" data-guild="${esc(g.id)}">🗑️ Elimină instalarea</button>` : ''}</div></article>`).join('') : '<div class="empty">Nu există servere Panel Pro Bot eligibile pentru această sesiune Discord.</div>';
     document.querySelectorAll('[data-global]').forEach((button) => button.addEventListener('click', () => runGlobal(button.dataset.global, button.dataset.guild)));
   };
   const runGlobal = async (action, guildId) => {
@@ -50,6 +50,7 @@
     state.busy = true; status('Se verifică serverele în Discovery…');
     try {
       const result = await call({ action: 'bootstrap' });
+      if (location.pathname.endsWith('administrare-globala.html') && result.platform_admin !== true) throw new Error('Acces permis doar administratorului global.');
       state.guilds = result.guilds || [];
       state.platformAdmin = result.platform_admin === true;
       $('global-admin').classList.toggle('hidden', !state.platformAdmin);
