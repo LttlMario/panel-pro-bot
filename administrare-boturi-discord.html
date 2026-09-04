@@ -12,16 +12,17 @@
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-100">
   <div class="app-shell">
-    <header class="app-header"><a class="brand" href="administrare-boturi-discord.html"><img src="img/logo-192.png" alt="Panel Pro Bot"><span><small>Discord only</small>Panel Pro Bot</span></a><span class="header-status">Dashboard administrare bot</span></header>
-    <aside class="sidebar"><p class="side-title">Panou de control</p><nav class="side-nav" aria-label="Navigație principală"><a class="active" href="administrare-boturi-discord.html">📊 Dashboard</a><a href="discord-bot-discovery.html">⚙️ Configurare bot</a><a href="discord-bot.html">📘 Despre Panel Pro Bot</a></nav><div class="side-divider"></div><nav class="side-nav" aria-label="Linkuri utile"><a href="discovery-login.html">↪ Schimbă contul Discord</a><a href="https://panel-pro.ro" target="_blank" rel="noopener">🌐 Panel Pro Web</a></nav></aside>
+    <header id="bot-header" class="app-header"></header>
+    <aside id="bot-sidebar" class="sidebar"></aside>
     <main class="content">
     <section class="bot-admin-hero"><div><p class="eyebrow">Panel Pro Bot · Discord-only</p><h1>Dashboard Panel Pro Bot</h1><p>Vezi serverele eligibile și intră direct în configurarea canalelor, rolurilor și modulelor. Acest dashboard folosește baza de date separată a botului.</p></div><div class="actions"><a class="button cyan" href="discord-bot-discovery.html">⚙️ Configurează botul</a></div></section>
     <p id="status" class="status" role="status">Se încarcă serverele Discord…</p>
     <section class="toolbar-card"><div class="toolbar"><input id="search" type="search" placeholder="Caută după server, Guild ID sau organizație…" autocomplete="off"><button id="refresh" class="button primary" type="button">↻ Actualizează</button></div></section>
     <section id="list" class="bot-grid"><div class="empty">Se încarcă registrul boturilor…</div></section>
     </main>
-    <footer class="app-footer"><span><strong>Panel Pro Bot</strong> · administrare Discord separată</span><span>© 2026 Panel Pro</span></footer>
+    <footer id="bot-footer" class="app-footer"></footer>
   </div>
+  <script src="js/bot-layout.js?v=20260904-layout" defer></script>
   <script src="js/discovery-bot-admin.js?v=20260904-separated-db"></script>
 </body>
 </html>
