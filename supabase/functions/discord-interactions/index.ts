@@ -4,6 +4,7 @@ import { resolvePackageFeatures } from '../_shared/package-features.ts';
 import { getPlatformSecret } from '../_shared/platform-secrets.ts';
 import { deliverDiscordRoute, requestDiscordTarget, routeCandidates } from '../_shared/discord-delivery.ts';
 import { discordPremiumAccess, discordPremiumButton, discordPremiumConfigured, discordPremiumMessage, discordPremiumModule } from '../_shared/discord-premium.ts';
+import { readGlobalModules } from '../_shared/global-bot-settings.ts';
 
 const DISCORD_PUBLIC_KEY = () => String(Deno.env.get('DISCORD_PUBLIC_KEY') || Deno.env.get('DISCORD_APPLICATION_PUBLIC_KEY') || '').trim();
 const DISCORD_API = 'https://discord.com/api/v10';
@@ -157,7 +158,7 @@ async function ensureDiscordOnlyOrganization(db: any, interaction: any) {
   await db.from('discovery_lifecycle_events').insert({ organization_id: organizationId, event_type: 'discord_only_initialized', actor_discord_id: discordId, details: { guild_id: guildId } });
   return { organization_id: organizationId, kind: 'primary' };
 }
-const controlPayload = (routeKey: string, trialText = '', includeDonation = true, includePremium = true, includeTrial = false) => {
+const controlPayload = async (db: any, routeKey: string, trialText = '', includeDonation = true, includePremium = true, includeTrial = false) => {
   const definitions: Record<string, { title: string; description: string; color: number; buttons: any[] }> = {
     organization: { title: '📢 Anunțuri · Organizație', description: 'Publică anunțuri, întrebări și sondaje pentru organizație.', color: 0x8b5cf6, buttons: [{ label: 'Publică anunț', style: 1, id: 'panel:announcements:organization:create:announcement' }, { label: 'Pune întrebare', style: 2, id: 'panel:announcements:organization:create:question' }, { label: 'Creează sondaj', style: 3, id: 'panel:announcements:organization:create:poll' }] },
     departments: { title: '📢 Anunțuri · Angajați', description: 'Publică anunțuri, întrebări și sondaje pentru angajați.', color: 0x8b5cf6, buttons: [{ label: 'Publică anunț', style: 1, id: 'panel:announcements:departments:create:announcement' }, { label: 'Pune întrebare', style: 2, id: 'panel:announcements:departments:create:question' }, { label: 'Creează sondaj', style: 3, id: 'panel:announcements:departments:create:poll' }] },
@@ -175,7 +176,9 @@ const controlPayload = (routeKey: string, trialText = '', includeDonation = true
     event_reminders: { title: '🗓️ Evenimente și remindere', description: 'Înregistrează evenimente și trimite remindere automate pe durata aleasă.', color: 0xf59e0b, buttons: [{ label: 'Adaugă eveniment', style: 1, id: 'panel:discovery:reminder_create' }, { label: 'Info remindere', style: 2, id: 'panel:discovery:reminder_info' }] },
     contract_identity_weekly: { title: '📋 Raport săptămânal contracte', description: 'Generează exportul săptămânal cu numele și CNP-ul angajaților.', color: 0x14b8a6, buttons: [{ label: 'Generează raport', style: 1, id: 'panel:discovery:weekly_report' }, { label: 'Info raport', style: 2, id: 'panel:discovery:report_info' }] },
   };
-  const definition = definitions[routeKey] || { title: `⚙️ ${PANEL_ROUTE_LABELS[routeKey] || 'Panel Pro'}`, description: 'Embed de administrare Panel Pro.', color: 0x5865f2, buttons: [] };
+  const base = definitions[routeKey] || { title: `⚙️ ${PANEL_ROUTE_LABELS[routeKey] || 'Panel Pro'}`, description: 'Embed de administrare Panel Pro.', color: 0x5865f2, buttons: [] };
+  const override = (await readGlobalModules(db))[routeKey] || {};
+  const definition = { ...base, ...override, buttons: Array.isArray(override.buttons) ? override.buttons.map((button: any, index: number) => ({ ...base.buttons[index], ...button })).filter((button: any) => button?.id) : base.buttons };
     const components: any[] = [];
     for (let index = 0; index < definition.buttons.length && components.length < 4; index += 5) {
       components.push({ type: 1, components: definition.buttons.slice(index, index + 5).map((button: any) => ({ type: 2, style: button.style, label: button.label, custom_id: button.id })) });
@@ -1948,7 +1951,7 @@ Deno.serve(async (request) => {
             if (!syncResponse.ok) throw new Error(String(syncData?.error || 'Statusul live nu a putut fi publicat.'));
             return interactionMessage(`Statusul live a fost publicat și va fi actualizat automat. În pontaj: **${Number(syncData.active || 0)}**, în pauză: **${Number(syncData.paused || 0)}**.`);
           }
-          await deliverDiscordRoute(db, { discord_channel_routes: settings.discord_channel_routes }, routeKey, JSON.stringify(controlPayload(routeKey, trialText, !premiumActive, !premiumActive, !premiumActive && !trialValue)), { postOnly: true });
+          await deliverDiscordRoute(db, { discord_channel_routes: settings.discord_channel_routes }, routeKey, JSON.stringify(await controlPayload(db, routeKey, trialText, !premiumActive, !premiumActive, !premiumActive && !trialValue)), { postOnly: true });
           return interactionMessage(`Embedul **${PANEL_ROUTE_LABELS[routeKey]}** a fost publicat în <#${route.channel_id}>.`);
         }, 'Embedul nu a putut fi publicat.');
       }
