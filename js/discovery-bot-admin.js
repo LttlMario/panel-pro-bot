@@ -20,7 +20,7 @@
   const render = () => {
     const query = String($('search').value || '').trim().toLowerCase();
     const rows = state.guilds.filter((g) => [g.name, g.id, g.owner ? 'owner' : '', g.plan].join(' ').toLowerCase().includes(query));
-    $('list').innerHTML = rows.length ? rows.map((g) => `<article class="bot-card"><p class="eyebrow">Bot Discovery · Supabase nou</p><h2>${esc(g.name || 'Server Discord')}</h2><p class="meta">Guild ID: <code>${esc(g.id)}</code><br>${g.owner ? 'Owner server' : 'Server administrabil'} · ${esc(plan(g))}</p><div class="badges"><span class="badge live">Instalat</span><span class="badge">${esc(plan(g))}</span></div><div class="card-actions"><a class="button cyan" href="discord-bot-discovery.html?guild_id=${encodeURIComponent(g.id)}">🤖 Configurează Discovery</a></div></article>`).join('') : '<div class="empty">Nu există servere Discovery eligibile pentru această sesiune Discord.</div>';
+    $('list').innerHTML = rows.length ? rows.map((g) => `<article class="bot-card"><p class="eyebrow">Panel Pro Bot · Supabase separat</p><h2>${esc(g.name || 'Server Discord')}</h2><p class="meta">Guild ID: <code>${esc(g.id)}</code><br>${g.owner ? 'Owner server' : 'Server administrabil'} · ${esc(plan(g))}</p><div class="badges"><span class="badge live">Instalat</span><span class="badge">${esc(plan(g))}</span></div><div class="card-actions"><a class="button cyan" href="discord-bot-discovery.html?guild_id=${encodeURIComponent(g.id)}">🤖 Configurează Discovery</a></div></article>`).join('') : '<div class="empty">Nu există servere Discovery eligibile pentru această sesiune Discord.</div>';
   };
   const load = async () => {
     if (state.busy) return;
@@ -33,10 +33,10 @@
       const failures = Array.isArray(diagnostics.bot_check_failures) ? diagnostics.bot_check_failures : [];
       const botIdentity = diagnostics.bot_identity?.id ? ` Botul Discovery detectat: ${diagnostics.bot_identity.username || diagnostics.bot_identity.id}.` : ` Tokenul botului răspunde cu HTTP ${diagnostics.bot_identity?.http_status || 0}.`;
       const detail = state.guilds.length ? botIdentity : ` Discord vede ${diagnostics.oauth_guild_count || 0} servere, dintre care ${diagnostics.owner_guild_count || 0} sunt cu owner. Botul a verificat ${diagnostics.bot_check_count || 0};${failures.length ? ` nu este instalat sau nu are acces în: ${failures.map((item) => item.guild_name || item.guild_id).join(', ')}.` : ' nu a găsit niciun server eligibil.'}${botIdentity}`;
-      status(`Au fost găsite ${state.guilds.length} servere eligibile pentru botul Discovery.${detail}`, state.guilds.length ? 'ok' : 'error');
+      status(`Au fost găsite ${state.guilds.length} servere eligibile pentru botul Panel Pro Bot.${detail}`, state.guilds.length ? 'ok' : 'error');
     }
     catch (error) {
-      const loginLink = !token() ? ' <a class="button cyan" href="discovery-login.html">Conectează-te cu Discord</a>' : '';
+      const loginLink = !token() ? ' <a class="button cyan" href="bot-login.html">Conectează-te cu Discord</a>' : '';
       $('list').innerHTML = `<div class="empty">${esc(error.message)}${loginLink}</div>`;
       status(error.message, 'error');
     }
