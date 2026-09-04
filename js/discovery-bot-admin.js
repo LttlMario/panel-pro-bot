@@ -36,7 +36,7 @@
       status(`Au fost găsite ${state.guilds.length} servere eligibile pentru botul Panel Pro Bot.${detail}`, state.guilds.length ? 'ok' : 'error');
     }
     catch (error) {
-      const loginLink = !token() ? ' <a class="button cyan" href="bot-login.html">Conectează-te cu Discord</a>' : '';
+      const loginLink = !token() ? ' <a class="button cyan" href="index.html">Conectează-te cu Discord</a>' : '';
       $('list').innerHTML = `<div class="empty">${esc(error.message)}${loginLink}</div>`;
       status(error.message, 'error');
     }

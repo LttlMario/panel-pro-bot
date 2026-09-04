@@ -11,7 +11,7 @@
   }
 
   if (sidebar) {
-    sidebar.innerHTML = `<p class="side-title">Panou de control</p><nav class="side-nav" aria-label="Navigație principală"><a class="${page === 'administrare-boturi-discord.html' ? 'active' : ''}" href="administrare-boturi-discord.html">📊 Dashboard</a><a class="${page === 'discord-bot-discovery.html' ? 'active' : ''}" href="discord-bot-discovery.html">⚙️ Configurare bot</a><a class="${page === 'discord-bot.html' ? 'active' : ''}" href="discord-bot.html">📘 Despre Panel Pro Bot</a></nav><div class="side-divider"></div><nav class="side-nav" aria-label="Linkuri utile"><a href="bot-login.html">↪ Schimbă contul Discord</a><a href="https://panel-pro.ro" target="_blank" rel="noopener">🌐 Panel Pro Web</a></nav>`;
+    sidebar.innerHTML = `<p class="side-title">Panou de control</p><nav class="side-nav" aria-label="Navigație principală"><a class="${page === 'administrare-boturi-discord.html' ? 'active' : ''}" href="administrare-boturi-discord.html">📊 Dashboard</a><a class="${page === 'discord-bot-discovery.html' ? 'active' : ''}" href="discord-bot-discovery.html">⚙️ Configurare bot</a><a class="${page === 'discord-bot.html' ? 'active' : ''}" href="discord-bot.html">📘 Despre Panel Pro Bot</a></nav><div class="side-divider"></div><nav class="side-nav" aria-label="Linkuri utile"><a href="index.html">↪ Schimbă contul Discord</a><a href="https://panel-pro.ro" target="_blank" rel="noopener">🌐 Panel Pro Web</a></nav>`;
   }
 
   if (footer) {
