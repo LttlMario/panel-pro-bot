@@ -278,7 +278,7 @@ Deno.serve(async (request) => {
     const globalOnlyAction = ['custom_modules', 'save_custom_modules', 'global_config', 'save_global_config'].includes(action);
     const guilds = globalOnlyAction
       ? []
-      : await ownedGuilds(db, { ...discord, access_token: accessToken }, applicationId, personalView ? false : platformAdmin, diagnostics);
+      : await ownedGuilds(db, { ...discord, access_token: accessToken }, applicationId, platformAdmin || !personalView, diagnostics);
     if (action === 'bootstrap') {
       const { data: customSetting, error: customSettingError } = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
       if (customSettingError) throw customSettingError;
