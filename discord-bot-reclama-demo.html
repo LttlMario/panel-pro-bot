@@ -27,5 +27,5 @@
     const show=(index)=>{current=(index+slides.length)%slides.length;slides.forEach((slide,i)=>slide.classList.toggle('active',i===current));counter.textContent=`${current+1} / ${slides.length}`;const progress=document.querySelector('.progress i');progress.style.animation='none';void progress.offsetWidth;progress.style.animation='progress 5s linear infinite'};
     setInterval(()=>show(current+1),5000);document.querySelector('.ad').addEventListener('click',()=>show(current+1));
   </script>
-</body>
+</body><script>if(!sessionStorage.getItem('discovery_access_token')&&!sessionStorage.getItem('discord_bot_admin_token'))location.replace('index.html');</script>
 </html>

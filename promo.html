@@ -33,5 +33,5 @@
     document.addEventListener('keydown',(event)=>{if(event.code==='Space'){event.preventDefault();setPaused(!paused)}else if(event.key==='ArrowLeft'){show(current-1);restart()}else if(event.key==='ArrowRight'){show(current+1);restart()}});
     restart();
   </script>
-</body>
+</body><script>if(window.top===window.self&&!sessionStorage.getItem('discovery_access_token')&&!sessionStorage.getItem('discord_bot_admin_token'))location.replace('index.html');</script>
 </html>
