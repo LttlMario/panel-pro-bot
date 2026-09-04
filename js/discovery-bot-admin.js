@@ -4,6 +4,14 @@
   const KEY = 'sb_publishable_LfngX7pwFruPw35_ZUdO4Q_MGAHoeW0';
   const APPLICATION_ID = '1531023771211792384';
   const state = { guilds: [], busy: false, platformAdmin: false };
+  if (location.pathname.endsWith('administrare-globala.html')) { const navScript = document.createElement('script'); navScript.src = 'js/global-nav.js?v=20260904-nav'; document.head.appendChild(navScript); }
+  if (location.pathname.endsWith('administrare-globala.html')) {
+    const hero = document.querySelector('.hero');
+    if (hero) hero.insertAdjacentHTML('beforeend', '<a class="button cyan" href="administrare-module.html">🧩 Constructor module</a>');
+    const navigation = document.querySelector('#bot-sidebar .side-nav');
+    if (navigation && !navigation.querySelector('a[href="administrare-module.html"]')) navigation.insertAdjacentHTML('beforeend', '<a href="administrare-module.html">🧩 Constructor module</a>');
+    setTimeout(() => { const lateNavigation = document.querySelector('#bot-sidebar .side-nav'); if (lateNavigation && !lateNavigation.querySelector('a[href="administrare-module.html"]')) lateNavigation.insertAdjacentHTML('beforeend', '<a href="administrare-module.html">🧩 Constructor module</a>'); }, 0);
+  }
   const $ = (id) => document.getElementById(id);
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const token = () => sessionStorage.getItem('discovery_access_token') || sessionStorage.getItem('discord_bot_admin_token') || '';
@@ -53,7 +61,9 @@
       if (location.pathname.endsWith('administrare-globala.html') && result.platform_admin !== true) throw new Error('Acces permis doar administratorului global.');
       state.guilds = result.guilds || [];
       state.platformAdmin = result.platform_admin === true;
-      $('global-admin').classList.toggle('hidden', !state.platformAdmin);
+      sessionStorage.setItem('discovery_platform_admin', state.platformAdmin ? 'true' : 'false');
+      if (state.platformAdmin) document.querySelectorAll('a[href="administrare-globala.html"],a[href="administrare-module.html"],a[href="configurare-bot.html"]').forEach((link) => { link.style.display = 'block'; });
+      $('global-admin')?.classList.toggle('hidden', !state.platformAdmin);
       render();
       const diagnostics = result.diagnostics || {};
       const failures = Array.isArray(diagnostics.bot_check_failures) ? diagnostics.bot_check_failures : [];

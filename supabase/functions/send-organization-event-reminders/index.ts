@@ -44,8 +44,13 @@ async function send(db: any, settings: any, event: any, daysRemaining: number, m
   const candidates = routeCandidates(settings, 'event_reminders');
   if (!candidates.some((item) => item.candidates.length)) throw new Error('Nu există nicio destinație Discord configurată.');
   const result = await deliverDiscordRoute(db, settings, 'event_reminders', JSON.stringify(payload), { postOnly: true });
-  if (!result.results.length) throw new Error(result.failures.join(' | ') || 'Discord nu a acceptat notificarea.');
-  return result;
+  const logCandidates = routeCandidates(settings, 'log_event_reminders');
+  const logResult = logCandidates.some((item) => item.candidates.length)
+    ? await deliverDiscordRoute(db, settings, 'log_event_reminders', JSON.stringify(payload), { postOnly: true })
+    : { results: [], failures: [] };
+  const failures = [...(result.failures || []), ...(logResult.failures || [])];
+  if (!result.results.length) throw new Error(failures.join(' | ') || 'Discord nu a acceptat notificarea.');
+  return { ...result, results: [...result.results, ...(logResult.results || [])], failures };
 }
 
 Deno.serve(async (request) => {

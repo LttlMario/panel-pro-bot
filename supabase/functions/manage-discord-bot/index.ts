@@ -26,21 +26,35 @@ const MODULES: Record<string, { label: string; premium: boolean; title: string; 
 const LOG_ROUTES: Record<string, string> = {
   organization: 'log_announcements_organization', departments: 'log_announcements_departments', pontaj: 'log_pontaj',
   requests_organization: 'log_requests_organization', requests_departments: 'log_requests_departments', contracts: 'log_contracts',
-  actions_organization: 'log_actions_organization', marketplace: 'log_marketplace', illegal_marketplace: 'log_illegal_marketplace', stash: 'log_stash', stash_requests: 'log_stash_requests', stash_donations: 'log_stash_donations'
+  actions_organization: 'log_actions_organization', marketplace: 'log_marketplace', illegal_marketplace: 'log_illegal_marketplace', stash: 'log_stash', stash_requests: 'log_stash_requests', stash_donations: 'log_stash_donations', event_reminders: 'log_event_reminders'
 };
 const LOG_LABELS: Record<string, string> = {
   log_announcements_organization: 'Log anunțuri organizație', log_announcements_departments: 'Log anunțuri angajați', log_pontaj: 'Log pontaj',
   log_requests_organization: 'Log învoiri organizație', log_requests_departments: 'Log învoiri angajați', log_contracts: 'Log contracte',
-  log_actions_organization: 'Log acțiuni organizație', log_marketplace: 'Log Marketplace legal', log_illegal_marketplace: 'Log Marketplace ilegal', log_stash: 'Log Stash', log_stash_requests: 'Log cereri Stash', log_stash_donations: 'Log donații Stash'
+  log_actions_organization: 'Log acțiuni organizație', log_marketplace: 'Log Marketplace legal', log_illegal_marketplace: 'Log Marketplace ilegal', log_stash: 'Log Stash', log_stash_requests: 'Log cereri Stash', log_stash_donations: 'Log donații Stash', log_event_reminders: 'Log evenimente și remindere'
 };
 const headersFor = (request: Request) => {
   const origin = String(request.headers.get('origin') || '');
-  const allowed = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) || origin === 'https://panel-pro.ro' || origin === 'https://bot.panel-pro.ro' ? origin : 'https://bot.panel-pro.ro';
+  const allowed = /^https?:\/\/(?:[a-z0-9-]+\.)*localhost(:\d+)?$/i.test(origin) || /^https?:\/\/127\.0\.0\.1(:\d+)?$/.test(origin) || origin === 'https://panel-pro.ro' || origin === 'https://bot.panel-pro.ro' ? origin : 'https://bot.panel-pro.ro';
   return { 'Access-Control-Allow-Origin': allowed, 'Access-Control-Allow-Headers': 'authorization,apikey,content-type,x-panel-session', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Max-Age': '86400', Vary: 'Origin', 'Content-Type': 'application/json' };
 };
 const reply = (request: Request, data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: headersFor(request) });
 const id = (value: unknown) => /^\d{15,22}$/.test(String(value || '').trim());
 const clean = (value: unknown, max = 200) => String(value ?? '').trim().slice(0, max);
+const customModuleKey = (value: unknown) => { const key = clean(value, 40).toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, ''); return /^custom_[a-z0-9_]{2,36}$/.test(key) ? key : `custom_${key || 'modul'}`.slice(0, 40); };
+const sanitizeCustomModules = (input: any) => {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Modulele personalizate sunt invalide.');
+  const result: Record<string, any> = {};
+  for (const [rawKey, raw] of Object.entries(input)) {
+    if (!raw || typeof raw !== 'object') continue;
+    const key = customModuleKey(rawKey); const value: any = raw;
+    const label = clean(value.label || value.title, 80); const title = clean(value.title || label, 256); const description = clean(value.description, 4096);
+    if (!label || !title) throw new Error(`Modulul ${key} trebuie să aibă titlu și nume.`);
+    const buttons = Array.isArray(value.buttons) ? value.buttons.slice(0, 5).map((button: any, index: number) => ({ id: `panel:custom:${key}:${index}`, label: clean(button?.label || `Acțiunea ${index + 1}`, 80), style: [1, 2, 3, 4].includes(Number(button?.style)) ? Number(button.style) : 1 })).filter((button: any) => button.label) : [];
+    result[key] = { key, label, title, description, color: Number.isInteger(Number(value.color)) ? Math.max(0, Math.min(0xffffff, Number(value.color))) : 0x5865f2, handler: clean(value.handler || 'none', 60), log_key: `log_${key}`, buttons };
+  }
+  return result;
+};
 const botHeaders = (token: string) => ({ Authorization: `Bot ${token}`, 'User-Agent': 'Panel Pro Discord Bot (+https://panel-pro.ro)' });
 
 async function discordUser(token: string) {
@@ -208,6 +222,7 @@ Deno.serve(async (request) => {
     }
     const applicationId = id(body.application_id) ? String(body.application_id) : '1531023771211792384';
     const action = clean(body.action, 30) || 'bootstrap';
+    const personalView = clean(body.view_scope, 30) === 'personal';
     const diagnostics: Record<string, any> = {};
     if (action === 'bootstrap') {
       const discoveryBotToken = await getPlatformSecret(db, 'discord_bot_token');
@@ -222,9 +237,21 @@ Deno.serve(async (request) => {
     // Reconcilierea verifică fiecare instalare Discord și poate dura mult.
     // Este necesară doar în consola administratorului global; utilizatorii
     // obișnuiți trebuie să primească imediat serverele eligibile.
-    const reconciliation = action === 'bootstrap' && platformAdmin ? await reconcileInstallations(db) : null;
-    const guilds = await ownedGuilds(db, { ...discord, access_token: accessToken }, applicationId, platformAdmin, diagnostics);
+    const reconciliation = action === 'bootstrap' && platformAdmin && !personalView ? await reconcileInstallations(db) : null;
+    const guilds = await ownedGuilds(db, { ...discord, access_token: accessToken }, applicationId, personalView ? false : platformAdmin, diagnostics);
     if (action === 'bootstrap') return reply(request, { ok: true, user: { id: String(discord.id), username: clean(discord.global_name || discord.username, 120), platform_admin: platformAdmin }, platform_admin: platformAdmin, guilds, diagnostics, reconciliation, modules: Object.fromEntries(Object.entries(MODULES).map(([key, value]) => [key, { label: value.label, premium: value.premium, log_key: LOG_ROUTES[key] || '', log_label: LOG_LABELS[LOG_ROUTES[key] || ''] || '' }])) });
+    if (action === 'custom_modules' || action === 'save_custom_modules') {
+      if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate administra modulele personalizate.' }, 403);
+      const { data: setting, error: settingError } = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
+      if (settingError) throw settingError;
+      if (action === 'save_custom_modules') {
+        const customModules = sanitizeCustomModules(body.custom_modules || {});
+        const { error } = await db.from('discovery_bot_global_settings').upsert({ id: 'global', custom_modules: customModules, updated_by_discord_id: String(discord.id), updated_at: new Date().toISOString() }, { onConflict: 'id' });
+        if (error) throw error;
+        return reply(request, { ok: true, custom_modules: customModules });
+      }
+      return reply(request, { ok: true, custom_modules: setting?.custom_modules && typeof setting.custom_modules === 'object' ? setting.custom_modules : {} });
+    }
     if (action === 'global_config' || action === 'save_global_config') {
       if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate modifica setările globale ale botului.' }, 403);
       const current = await readGlobalModules(db);
@@ -286,6 +313,28 @@ Deno.serve(async (request) => {
     }
     const { data: settings, error: settingsError } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', selectedGuild.organization_id).maybeSingle();
     if (settingsError) throw settingsError;
+    if (action === 'publish_custom_module') {
+      if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate publica module personalizate.' }, 403);
+      const { data: moduleSetting, error: moduleError } = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
+      if (moduleError) throw moduleError;
+      const customModules = sanitizeCustomModules(moduleSetting?.custom_modules || {});
+      const moduleKey = customModuleKey(body.module_key); const definition = customModules[moduleKey];
+      if (!definition) return reply(request, { error: 'Modulul personalizat nu există.' }, 404);
+      const availableChannels = await channels(db, guildId); const availableIds = new Set(availableChannels.map((channel: any) => channel.id));
+      const embedChannel = clean(body.embed_channel_id, 30); const logChannel = clean(body.log_channel_id, 30);
+      if (!validDiscordChannelId(embedChannel) || !availableIds.has(embedChannel)) return reply(request, { error: 'Canalul pentru embed este invalid.' }, 400);
+      if (logChannel && (!validDiscordChannelId(logChannel) || !availableIds.has(logChannel))) return reply(request, { error: 'Canalul de log este invalid.' }, 400);
+      const nextRoutes = { ...(settings?.discord_channel_routes || {}), [moduleKey]: { primary: { channel_id: embedChannel, guild_id: guildId, enabled: true, ...(settings?.discord_channel_routes?.[moduleKey]?.primary?.message_id ? { message_id: settings.discord_channel_routes[moduleKey].primary.message_id } : {}) } } } as any;
+      if (logChannel) nextRoutes[definition.log_key] = { primary: { channel_id: logChannel, guild_id: guildId, enabled: true } };
+      else delete nextRoutes[definition.log_key];
+      const customDefinitions = { [moduleKey]: { ...definition, buttons: definition.buttons.map((button: any) => ({ ...button, id: button.id })) } };
+      const delivery = await deliverDiscordRoute(db, { ...settings, discord_channel_routes: nextRoutes }, moduleKey, JSON.stringify(payload(moduleKey, false, customDefinitions)), { postOnly: false });
+      const result = delivery.results?.[0];
+      if (result?.id) nextRoutes[moduleKey].primary.message_id = String(result.id);
+      const { error: saveError } = await db.from('discovery_settings').update({ discord_channel_routes: nextRoutes, updated_at: new Date().toISOString(), updated_by_discord_id: String(discord.id) }).eq('organization_id', selectedGuild.organization_id);
+      if (saveError) throw saveError;
+      return reply(request, { ok: true, result, routes: nextRoutes, failures: delivery.failures || [] });
+    }
     if (action === 'channels') return reply(request, { ok: true, channels: await channels(db, guildId), routes: settings?.discord_channel_routes || {} });
     if (action === 'admin_roles') {
       if (!selectedGuild.can_manage_access) return reply(request, { error: 'Doar ownerul serverului poate modifica rolurile care au acces la configurarea botului.' }, 403);
