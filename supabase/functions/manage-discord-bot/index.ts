@@ -384,14 +384,16 @@ Deno.serve(async (request) => {
       let permissionValue = 0n; try { permissionValue = BigInt(String(botMember.permissions || '0')); } catch (_) {}
       const requiredPermissions = [{ key: 'view_channel', label: 'View Channel', bit: 1024n }, { key: 'send_messages', label: 'Send Messages', bit: 2048n }, { key: 'embed_links', label: 'Embed Links', bit: 16384n }];
       const missingPermissions = requiredPermissions.filter((item) => (permissionValue & item.bit) !== item.bit).map((item) => item.label);
-      const channelList = await channels(db, guildId);
+      let channelList: any[] = [];
+      let channelError = '';
+      try { channelList = await channels(db, guildId); } catch (error) { channelError = error instanceof Error ? error.message : 'Canalele Discord nu au putut fi verificate.'; }
       const availableChannels = new Set(channelList.map((channel: any) => String(channel.id)));
       const modules = Object.entries(definitions).map(([key, definition]: [string, any]) => ({ key, label: definition.label, premium: definition.premium === true, active: definition.active !== false, enabled: routes[key]?.primary?.enabled !== false, embed_configured: Boolean(routes[key]?.primary?.channel_id && availableChannels.has(String(routes[key].primary.channel_id))), log_configured: Boolean(definition.log_key && routes[definition.log_key]?.primary?.channel_id && availableChannels.has(String(routes[definition.log_key].primary.channel_id))) }));
       const [activityResult, auditResult] = await Promise.all([
         db.from('discovery_custom_module_submissions').select('id,module_key,subject,status,created_at,updated_at').eq('organization_id', selectedGuild.organization_id).eq('guild_id', guildId).order('created_at', { ascending: false }).limit(12),
         db.from('discovery_audit_log').select('id,action,target_type,target_id,created_at,details').eq('organization_id', selectedGuild.organization_id).order('created_at', { ascending: false }).limit(12),
       ]);
-      if (activityResult.error && action === 'dashboard_overview') throw activityResult.error;
+      // Activitatea este suplimentară; un tabel de istoric indisponibil nu trebuie să blocheze dashboardul.
       if (action === 'repair_guild') {
         for (const item of modules.filter((module) => module.active && module.embed_configured)) {
           const route = routes[item.key]?.primary || {};
@@ -403,7 +405,7 @@ Deno.serve(async (request) => {
         if (repairError) throw repairError;
       }
       const activity = [...(activityResult.data || []), ...(auditResult.data || []).map((item: any) => ({ id: item.id, module_key: item.target_id || '', subject: item.action || item.target_type || 'Activitate', status: 'system', created_at: item.created_at, updated_at: item.created_at }))].sort((a: any, b: any) => Date.parse(String(b.created_at)) - Date.parse(String(a.created_at))).slice(0, 15);
-      return reply(request, { ok: true, repaired: action === 'repair_guild', bot: { online: botOnline, missing_permissions: missingPermissions, permission_status: botMemberResponse ? (missingPermissions.length ? 'missing' : 'ok') : 'unknown' }, channels: { total: channelList.length }, modules, subscription: { plan: selectedGuild.plan, trial_ends_at: selectedGuild.trial_ends_at || null, premium_ends_at: selectedGuild.premium_ends_at || null, includes: selectedGuild.plan === 'free' ? ['Pontaj', 'Învoiri angajați'] : ['Toate modulele Panel Pro'] }, activity, routes });
+      return reply(request, { ok: true, repaired: action === 'repair_guild', bot: { online: botOnline, missing_permissions: missingPermissions, permission_status: botMemberResponse ? (missingPermissions.length ? 'missing' : 'ok') : 'unknown' }, channels: { total: channelList.length, error: channelError || null }, modules, subscription: { plan: selectedGuild.plan, trial_ends_at: selectedGuild.trial_ends_at || null, premium_ends_at: selectedGuild.premium_ends_at || null, includes: selectedGuild.plan === 'free' ? ['Pontaj', 'Învoiri angajați'] : ['Toate modulele Panel Pro'] }, activity, routes });
     }
     if (action === 'publish_custom_module') {
       if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate publica module personalizate.' }, 403);
