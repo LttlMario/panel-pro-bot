@@ -2,7 +2,7 @@
 // Consola rămâne disponibilă pentru diagnosticarea erorilor de autentificare.
 // Nu logăm tokenuri sau date private în acest fișier.
 
-const panelRemoteSupabaseUrl = 'https://zrjxlbkctlapgupktxw.supabase.co';
+const panelRemoteSupabaseUrl = 'https://zrjxlbkbctlapgupktxw.supabase.co';
 const panelIsLocalDevelopment = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname || '');
 window.PANEL_SUPABASE_CONFIG = Object.freeze({
     url: panelIsLocalDevelopment ? 'http://127.0.0.1:8787' : panelRemoteSupabaseUrl,
