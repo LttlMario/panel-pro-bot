@@ -3,8 +3,8 @@ import { requirePanelSession } from '../_shared/panel-session.ts';
 import { getPlatformSecret } from '../_shared/platform-secrets.ts';
 import { isPlatformAdminAccount } from '../_shared/platform-admin.ts';
 
-const headers = { 'Access-Control-Allow-Origin': 'https://panel-pro.ro', 'Access-Control-Allow-Headers': 'authorization,apikey,content-type,x-panel-session', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Content-Type': 'application/json' };
-const reply = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers });
+const headersFor = (request: Request) => { const origin = String(request.headers.get('origin') || ''); const allowed = /^https?:\/\/(?:[a-z0-9-]+\.)*localhost(:\d+)?$/i.test(origin) || /^https?:\/\/127\.0\.0\.1(:\d+)?$/.test(origin) || origin === 'https://panel-pro.ro' || origin === 'https://bot.panel-pro.ro' ? origin : 'https://bot.panel-pro.ro'; return { 'Access-Control-Allow-Origin': allowed, 'Access-Control-Allow-Headers': 'authorization,apikey,content-type,x-panel-session', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Content-Type': 'application/json', Vary: 'Origin' }; };
+const reply = (request: Request, data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: headersFor(request) });
 const routeChoices = [
   ['Anunțuri organizație', 'organization'], ['Anunțuri angajați', 'departments'], ['Pontaj', 'pontaj'], ['Log pontaj', 'log_pontaj'],
   ['Învoiri organizație', 'requests_organization'], ['Învoiri angajați', 'requests_departments'], ['Log învoiri organizație', 'log_requests_organization'], ['Log învoiri angajați', 'log_requests_departments'],
@@ -20,16 +20,19 @@ const commands = [{
 }];
 
 Deno.serve(async (request) => {
-  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
-  if (request.method !== 'POST') return reply({ error: 'Metodă invalidă.' }, 405);
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: headersFor(request) });
+  if (request.method !== 'POST') return reply(request, { error: 'Metodă invalidă.' }, 405);
   try {
     const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') || '{}').default;
     if (!key) throw new Error('Cheia secretă Supabase lipsește.');
     const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
-    const session = await requirePanelSession(db, request, 0, true);
-    if (!(await isPlatformAdminAccount(db, session.discord_id))) return reply({ error: 'Acces permis doar administratorului platformei.' }, 403);
+    const body = await request.json().catch(() => ({}));
+    let session: any = null;
+    try { session = await requirePanelSession(db, request, 0, true); } catch (_) {}
+    if (!session && body.access_token) { const response = await fetch('https://discord.com/api/v10/users/@me', { headers: { Authorization: `Bearer ${String(body.access_token).slice(0, 500)}` } }); const user = response.ok ? await response.json().catch(() => ({})) : null; if (user?.id) session = { discord_id: String(user.id), organization_id: null }; }
+    if (!session || !(await isPlatformAdminAccount(db, session.discord_id))) return reply(request, { error: 'Acces permis doar administratorului platformei.' }, 403);
     const botToken = await getPlatformSecret(db, 'discord_bot_token');
-    if (!botToken) return reply({ error: 'Tokenul botului Discord nu este configurat.' }, 409);
+    if (!botToken) return reply(request, { error: 'Tokenul botului Discord nu este configurat.' }, 409);
     // Discovery are Application ID separat de botul Panel Pro. Nu alegem
     // primul client_id din organizații, deoarece poate aparține celuilalt bot.
     let applicationId = String(Deno.env.get('DISCORD_DISCOVERY_APPLICATION_ID') || Deno.env.get('DISCORD_APPLICATION_ID') || '1531023771211792384').trim();
@@ -38,10 +41,17 @@ Deno.serve(async (request) => {
       if (error) throw error;
       applicationId = String(setting?.discord_client_id || '').trim();
     }
-    if (!/^\d{15,22}$/.test(applicationId)) return reply({ error: 'Discord Application ID nu este configurat.' }, 409);
-    const requestInit = { method: 'PUT', headers: { Authorization: `Bot ${botToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(commands) };
+    if (!/^\d{15,22}$/.test(applicationId)) return reply(request, { error: 'Discord Application ID nu este configurat.' }, 409);
+    const { data: globalSettings, error: globalSettingsError } = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
+    if (globalSettingsError) throw globalSettingsError;
+    const customCommands = Object.values(globalSettings?.custom_modules && typeof globalSettings.custom_modules === 'object' ? globalSettings.custom_modules : {})
+      .filter((module: any) => module?.active !== false && /^[a-z0-9_-]{1,32}$/.test(String(module?.command_name || '').trim().toLowerCase()))
+      .slice(0, 10)
+      .map((module: any) => ({ type: 1, name: String(module.command_name).trim().toLowerCase(), description: String(module.label || 'Modul Panel Pro').trim().slice(0, 100) }));
+    const syncedCommands = [{ ...commands[0], options: [...commands[0].options, ...customCommands] }];
+    const requestInit = { method: 'PUT', headers: { Authorization: `Bot ${botToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(syncedCommands) };
     const globalResponse = await fetch(`https://discord.com/api/v10/applications/${applicationId}/commands`, requestInit);
-    if (!globalResponse.ok) return reply({ error: `Discord a respins comenzile globale (HTTP ${globalResponse.status}).`, details: await globalResponse.text() }, 400);
+    if (!globalResponse.ok) return reply(request, { error: `Discord a respins comenzile globale (HTTP ${globalResponse.status}).`, details: await globalResponse.text() }, 400);
     const { data: guilds, error: guildsError } = await db.from('discovery_guilds').select('guild_id').eq('enabled', true);
     if (guildsError) throw guildsError;
     const guildResults = [];
@@ -67,8 +77,8 @@ Deno.serve(async (request) => {
         syncedGuildIds.add(guildId);
       }
     }
-    await db.from('discovery_audit_log').insert({ organization_id: session.organization_id, actor_discord_id: session.discord_id, action: 'discord_commands_synced', target_type: 'discord_application', target_id: applicationId, details: { command_count: commands.length, scope: 'global_and_configured_guilds', guild_count: guildResults.length } });
+    if (session.organization_id) await db.from('discovery_audit_log').insert({ organization_id: session.organization_id, actor_discord_id: session.discord_id, action: 'discord_commands_synced', target_type: 'discord_application', target_id: applicationId, details: { command_count: syncedCommands.length, custom_command_count: customCommands.length, scope: 'global_and_configured_guilds', guild_count: guildResults.length } });
     const failedGuilds = guildResults.filter((item) => !item.ok).length;
-    return reply({ ok: true, application_id: applicationId, command_count: commands.length, guild_count: guildResults.length, failed_guilds: failedGuilds, scope: 'global_and_configured_guilds', message: `Comenzile botului Discovery (${applicationId}) au fost sincronizate global și pe ${guildResults.length} server${guildResults.length === 1 ? '' : 'e'} configurat${guildResults.length === 1 ? '' : 'e'}. Pe serverele configurate ar trebui să apară imediat.` });
-  } catch (error) { return reply({ error: error instanceof Error ? error.message : 'Eroare internă.' }, 400); }
+    return reply(request, { ok: true, application_id: applicationId, command_count: syncedCommands.length, custom_command_count: customCommands.length, guild_count: guildResults.length, failed_guilds: failedGuilds, scope: 'global_and_configured_guilds', message: `Comenzile botului Discovery (${applicationId}) au fost sincronizate global și pe ${guildResults.length} server${guildResults.length === 1 ? '' : 'e'} configurat${guildResults.length === 1 ? '' : 'e'}. Pe serverele configurate ar trebui să apară imediat.` });
+  } catch (error) { return reply(request, { error: error instanceof Error ? error.message : 'Eroare internă.' }, 400); }
 });

@@ -50,8 +50,15 @@ const sanitizeCustomModules = (input: any) => {
     const key = customModuleKey(rawKey); const value: any = raw;
     const label = clean(value.label || value.title, 80); const title = clean(value.title || label, 256); const description = clean(value.description, 4096);
     if (!label || !title) throw new Error(`Modulul ${key} trebuie să aibă titlu și nume.`);
-    const buttons = Array.isArray(value.buttons) ? value.buttons.slice(0, 5).map((button: any, index: number) => ({ id: `panel:custom:${key}:${index}`, label: clean(button?.label || `Acțiunea ${index + 1}`, 80), style: [1, 2, 3, 4].includes(Number(button?.style)) ? Number(button.style) : 1 })).filter((button: any) => button.label) : [];
-    result[key] = { key, label, title, description, color: Number.isInteger(Number(value.color)) ? Math.max(0, Math.min(0xffffff, Number(value.color))) : 0x5865f2, handler: clean(value.handler || 'none', 60), log_key: `log_${key}`, buttons };
+    const handler = ['none', 'announcement', 'request', 'approval', 'report'].includes(String(value.handler || '').trim().toLowerCase()) ? String(value.handler || '').trim().toLowerCase() : 'none';
+    const form_schema = Array.isArray(value.form_schema) ? value.form_schema.slice(0, 5).map((field: any, index: number) => ({ id: clean(field?.id || `field_${index + 1}`, 40).toLowerCase().replace(/[^a-z0-9_]/g, '_'), label: clean(field?.label || `Câmp ${index + 1}`, 80), type: ['short_text', 'long_text', 'number', 'date', 'url', 'select'].includes(String(field?.type || 'short_text')) ? String(field.type) : 'short_text', required: field?.required !== false, placeholder: clean(field?.placeholder, 120), validation: field?.validation && typeof field.validation === 'object' ? { pattern: clean(field.validation.pattern, 120), min: Number.isFinite(Number(field.validation.min)) ? Number(field.validation.min) : null, max: Number.isFinite(Number(field.validation.max)) ? Number(field.validation.max) : null } : { pattern: '', min: null, max: null }, options: Array.isArray(field?.options) ? field.options.slice(0, 25).map((option: any) => clean(option, 80)).filter(Boolean) : [] })).filter((field: any) => field.label) : [];
+    const workflow = value.workflow && typeof value.workflow === 'object' ? { announcement_mode: ['public', 'private'].includes(value.workflow.announcement_mode) ? value.workflow.announcement_mode : 'public', approval_role: clean(value.workflow.approval_role, 80), report_limit: Math.min(100, Math.max(1, Number(value.workflow.report_limit) || 20)), notify_submitter: value.workflow.notify_submitter !== false, actions: Array.isArray(value.workflow.actions) ? value.workflow.actions.filter((item: any) => ['save_submission', 'send_log', 'notify_submitter', 'update_message', 'review_buttons', 'run_report'].includes(String(item))).slice(0, 10) : [] } : { announcement_mode: 'public', approval_role: '', report_limit: 20, notify_submitter: true, actions: [] };
+    const embed = value.embed && typeof value.embed === 'object' ? { author_name: clean(value.embed.author_name, 256), author_icon: clean(value.embed.author_icon, 500), thumbnail: clean(value.embed.thumbnail, 500), image: clean(value.embed.image, 500), footer_text: clean(value.embed.footer_text, 2048), footer_icon: clean(value.embed.footer_icon, 500), timestamp: value.embed.timestamp === true, fields: Array.isArray(value.embed.fields) ? value.embed.fields.slice(0, 25).map((field: any) => ({ name: clean(field?.name, 256), value: clean(field?.value, 1024), inline: field?.inline === true })).filter((field: any) => field.name && field.value) : [] } : { author_name: '', author_icon: '', thumbnail: '', image: '', footer_text: '', footer_icon: '', timestamp: false, fields: [] };
+    const buttons = Array.isArray(value.buttons) ? value.buttons.slice(0, 5).map((button: any, index: number) => ({ id: `panel:custom:${key}:${index}`, label: clean(button?.label || `Acțiunea ${index + 1}`, 80), type: ['button', 'link', 'select', 'modal'].includes(String(button?.type || '').toLowerCase()) ? String(button.type).toLowerCase() : 'button', style: [1, 2, 3, 4, 5].includes(Number(button?.style)) ? Number(button.style) : 1, url: clean(button?.url, 500), action: ['open_form', 'save_submission', 'send_log', 'notify_submitter', 'update_message', 'approve', 'reject', 'report', 'none'].includes(String(button?.action || '').toLowerCase()) ? String(button.action).toLowerCase() : 'open_form', action_config: button?.action_config && typeof button.action_config === 'object' ? { message: clean(button.action_config.message, 2000), status: ['pending', 'approved', 'rejected', 'published', 'closed'].includes(String(button.action_config.status)) ? String(button.action_config.status) : '', module_key: customModuleKey(button.action_config.module_key || key) } : { message: '', status: '', module_key: key }, options: Array.isArray(button?.options) ? button.options.slice(0, 25).map((option: any) => ({ label: clean(option?.label, 80), value: clean(option?.value || option?.label, 100), description: clean(option?.description, 100) })).filter((option: any) => option.label && option.value) : [] })).filter((button: any) => button.label) : [];
+    const responses = value.responses && typeof value.responses === 'object' ? { success: clean(value.responses.success, 2000), error: clean(value.responses.error, 2000), confirmation: clean(value.responses.confirmation, 2000), visibility: value.responses.visibility === 'public' ? 'public' : 'private' } : { success: '', error: '', confirmation: '', visibility: 'private' };
+    const limits = value.limits && typeof value.limits === 'object' ? { cooldown_seconds: Math.min(86400, Math.max(0, Number(value.limits.cooldown_seconds) || 0)), max_pending: Math.min(1000, Math.max(0, Number(value.limits.max_pending) || 0)), max_per_user: Math.min(1000, Math.max(0, Number(value.limits.max_per_user) || 0)), allow_attachments: value.limits.allow_attachments === true, max_text_length: Math.min(4000, Math.max(100, Number(value.limits.max_text_length) || 1800)) } : { cooldown_seconds: 0, max_pending: 0, max_per_user: 0, allow_attachments: false, max_text_length: 1800 };
+    const permissions = value.permissions && typeof value.permissions === 'object' ? { mode: ['everyone', 'mapped_role', 'manager', 'owner'].includes(String(value.permissions.mode)) ? String(value.permissions.mode) : 'everyone', role_ids: Array.isArray(value.permissions.role_ids) ? value.permissions.role_ids.slice(0, 25).map(String).filter((roleId: string) => /^\d{15,22}$/.test(roleId)) : [] } : { mode: 'everyone', role_ids: [] };
+    result[key] = { key, label, title, description, color: Number.isInteger(Number(value.color)) ? Math.max(0, Math.min(0xffffff, Number(value.color))) : 0x5865f2, embed, handler, active: value.active !== false, command_name: clean(value.command_name, 32).toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32), form_schema, workflow, responses, limits, permissions, log_key: `log_${key}`, buttons };
   }
   return result;
 };
@@ -107,10 +114,32 @@ async function ensureDiscordOrganization(db: any, user: any, guild: any, applica
 
 async function ownedGuilds(db: any, user: any, applicationId: string, platformAdmin = false, diagnostics: Record<string, any> = {}) {
   const token = String(user.access_token);
-  const response = await fetch(`${DISCORD_API}/users/@me/guilds`, { headers: { Authorization: `Bearer ${token}` } });
-  if (!response.ok) throw new Error('Serverele Discord nu pot fi încărcate. Verifică scope-ul guilds în OAuth.');
-  const guilds = await response.json();
-  diagnostics.oauth_guild_count = Array.isArray(guilds) ? guilds.length : 0;
+  let guilds: any[] = [];
+  if (platformAdmin) {
+    const { data: registered, error: registeredError } = await db.from('discovery_guilds').select('guild_id,guild_name').eq('enabled', true).order('guild_name');
+    if (registeredError) throw registeredError;
+    const botToken = await getPlatformSecret(db, 'discord_bot_token');
+    for (const registeredGuild of registered || []) {
+      const guildId = String(registeredGuild.guild_id || '').trim();
+      if (!id(guildId) || !botToken) continue;
+      const response = await fetch(`${DISCORD_API}/guilds/${guildId}`, { headers: botHeaders(botToken) });
+      if (response.ok) {
+        const guild = await response.json().catch(() => ({}));
+        guilds.push({ ...guild, id: guildId, name: guild.name || registeredGuild.guild_name || guildId, owner: false });
+      }
+    }
+    diagnostics.oauth_guild_count = guilds.length;
+    diagnostics.oauth_scope_required = false;
+  } else {
+    const response = await fetch(`${DISCORD_API}/users/@me/guilds`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!response.ok) {
+      if (response.status === 401) throw new Error('Sesiunea Discord a expirat sau tokenul nu mai este valid. Reconectează-te prin Discord.');
+      if (response.status === 403) throw new Error('Discord a refuzat lista serverelor. Reautorizează aplicația cu scope-ul OAuth guilds.');
+      throw new Error(`Serverele Discord nu pot fi încărcate momentan (Discord HTTP ${response.status}).`);
+    }
+    guilds = await response.json();
+    diagnostics.oauth_guild_count = Array.isArray(guilds) ? guilds.length : 0;
+  }
   diagnostics.owner_guild_count = 0;
   diagnostics.bot_check_count = 0;
   diagnostics.bot_check_failures = [];
@@ -195,9 +224,14 @@ async function memberRoleIds(db: any, guildId: string, discordId: string) {
 function payload(moduleKey: string, donation: boolean, definitions = MODULES) {
   const definition = definitions[moduleKey];
   const rows: any[] = [];
-  for (let index = 0; index < definition.buttons.length; index += 5) rows.push({ type: 1, components: definition.buttons.slice(index, index + 5).map((button: any) => ({ type: 2, style: button.style, label: button.label, custom_id: button.id })) });
+  for (let index = 0; index < definition.buttons.length; index += 5) rows.push({ type: 1, components: definition.buttons.slice(index, index + 5).map((button: any) => {
+    if (button.type === 'link' && /^https?:\/\//i.test(button.url || '')) return { type: 2, style: 5, label: button.label, url: button.url };
+    if (button.type === 'select') return { type: 3, custom_id: button.id, placeholder: button.label, min_values: 1, max_values: 1, options: (button.options || []).slice(0, 25).map((option: any) => ({ label: option.label, value: option.value, ...(option.description ? { description: option.description } : {}) })) };
+    return { type: 2, style: button.style === 5 ? 1 : button.style, label: button.label, custom_id: button.id };
+  }) });
   if (donation) rows.push({ type: 1, components: [{ type: 2, style: 5, label: 'Donează pentru dezvoltare', url: 'https://revolut.me/mariomihail' }] });
-  return { username: 'Panel Pro', allowed_mentions: { parse: [] }, embeds: [{ title: definition.title, description: definition.description, color: definition.color, footer: { text: 'Panel Pro · configurat din pagina botului' } }], components: rows };
+  const embed = definition.embed && typeof definition.embed === 'object' ? { ...(definition.embed.author_name ? { author: { name: definition.embed.author_name, ...(definition.embed.author_icon ? { icon_url: definition.embed.author_icon } : {}) } } : {}), title: definition.title, description: definition.description, color: definition.color, ...(definition.embed.thumbnail ? { thumbnail: { url: definition.embed.thumbnail } } : {}), ...(definition.embed.image ? { image: { url: definition.embed.image } } : {}), ...(definition.embed.fields?.length ? { fields: definition.embed.fields } : {}), ...(definition.embed.footer_text ? { footer: { text: definition.embed.footer_text, ...(definition.embed.footer_icon ? { icon_url: definition.embed.footer_icon } : {}) } } : { footer: { text: 'Panel Pro · configurat din pagina botului' } }), ...(definition.embed.timestamp ? { timestamp: new Date().toISOString() } : {}) } : { title: definition.title, description: definition.description, color: definition.color, footer: { text: 'Panel Pro · configurat din pagina botului' } };
+  return { username: 'Panel Pro', allowed_mentions: { parse: [] }, embeds: [embed], components: rows };
 }
 
 Deno.serve(async (request) => {
@@ -238,8 +272,21 @@ Deno.serve(async (request) => {
     // Este necesară doar în consola administratorului global; utilizatorii
     // obișnuiți trebuie să primească imediat serverele eligibile.
     const reconciliation = action === 'bootstrap' && platformAdmin && !personalView ? await reconcileInstallations(db) : null;
-    const guilds = await ownedGuilds(db, { ...discord, access_token: accessToken }, applicationId, personalView ? false : platformAdmin, diagnostics);
-    if (action === 'bootstrap') return reply(request, { ok: true, user: { id: String(discord.id), username: clean(discord.global_name || discord.username, 120), platform_admin: platformAdmin }, platform_admin: platformAdmin, guilds, diagnostics, reconciliation, modules: Object.fromEntries(Object.entries(MODULES).map(([key, value]) => [key, { label: value.label, premium: value.premium, log_key: LOG_ROUTES[key] || '', log_label: LOG_LABELS[LOG_ROUTES[key] || ''] || '' }])) });
+    // Operațiunile globale nu trebuie să depindă de scope-ul OAuth `guilds`.
+    // Administratorul global poate deschide constructorul chiar dacă tokenul
+    // Discord existent a fost emis înainte de adăugarea scope-ului.
+    const globalOnlyAction = ['custom_modules', 'save_custom_modules', 'global_config', 'save_global_config'].includes(action);
+    const guilds = globalOnlyAction
+      ? []
+      : await ownedGuilds(db, { ...discord, access_token: accessToken }, applicationId, personalView ? false : platformAdmin, diagnostics);
+    if (action === 'bootstrap') {
+      const { data: customSetting, error: customSettingError } = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
+      if (customSettingError) throw customSettingError;
+      const customModules = sanitizeCustomModules(customSetting?.custom_modules || {});
+      const modules = Object.fromEntries(Object.entries(MODULES).map(([key, value]) => [key, { label: value.label, title: value.title, description: value.description, color: value.color, buttons: value.buttons, premium: value.premium, log_key: LOG_ROUTES[key] || '', log_label: LOG_LABELS[LOG_ROUTES[key] || ''] || '' }]));
+      for (const [key, value] of Object.entries(customModules)) modules[key] = { label: value.label, title: value.title, description: value.description, color: value.color, buttons: value.buttons, premium: false, active: value.active !== false, log_key: value.log_key, log_label: `Log ${value.label}` };
+      return reply(request, { ok: true, user: { id: String(discord.id), username: clean(discord.global_name || discord.username, 120), platform_admin: platformAdmin }, platform_admin: platformAdmin, guilds, diagnostics, reconciliation, modules });
+    }
     if (action === 'custom_modules' || action === 'save_custom_modules') {
       if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate administra modulele personalizate.' }, 403);
       const { data: setting, error: settingError } = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
@@ -250,7 +297,7 @@ Deno.serve(async (request) => {
         if (error) throw error;
         return reply(request, { ok: true, custom_modules: customModules });
       }
-      return reply(request, { ok: true, custom_modules: setting?.custom_modules && typeof setting.custom_modules === 'object' ? setting.custom_modules : {} });
+      return reply(request, { ok: true, platform_admin: platformAdmin, custom_modules: setting?.custom_modules && typeof setting.custom_modules === 'object' ? setting.custom_modules : {} });
     }
     if (action === 'global_config' || action === 'save_global_config') {
       if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate modifica setările globale ale botului.' }, 403);
@@ -320,6 +367,7 @@ Deno.serve(async (request) => {
       const customModules = sanitizeCustomModules(moduleSetting?.custom_modules || {});
       const moduleKey = customModuleKey(body.module_key); const definition = customModules[moduleKey];
       if (!definition) return reply(request, { error: 'Modulul personalizat nu există.' }, 404);
+      if (definition.active === false) return reply(request, { error: 'Modulul este dezactivat. Activează-l înainte de publicare.' }, 409);
       const availableChannels = await channels(db, guildId); const availableIds = new Set(availableChannels.map((channel: any) => channel.id));
       const embedChannel = clean(body.embed_channel_id, 30); const logChannel = clean(body.log_channel_id, 30);
       if (!validDiscordChannelId(embedChannel) || !availableIds.has(embedChannel)) return reply(request, { error: 'Canalul pentru embed este invalid.' }, 400);
@@ -378,20 +426,25 @@ Deno.serve(async (request) => {
     if (action === 'save') {
       const requested = body.routes && typeof body.routes === 'object' ? body.routes : {};
       const available = new Set((await channels(db, guildId)).map((channel: any) => channel.id));
-      const routeKeys = Object.keys(MODULES);
+      const { data: customSetting, error: customSettingError } = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
+      if (customSettingError) throw customSettingError;
+      const customModules = sanitizeCustomModules(customSetting?.custom_modules || {});
+      const moduleDefinitions = { ...MODULES, ...customModules };
+      const routeKeys = Object.keys(moduleDefinitions);
       const nextRoutes: Record<string, any> = { ...(settings?.discord_channel_routes || {}) };
       for (const routeKey of routeKeys) {
-        if (MODULES[routeKey].premium && !allowedPremium && requested[routeKey]) continue;
+        if (moduleDefinitions[routeKey].premium && !allowedPremium && requested[routeKey]) continue;
         const selected = requested[routeKey] && typeof requested[routeKey] === 'object' ? requested[routeKey] : { embed: requested[routeKey] };
         const channelId = clean(selected.embed, 30);
         const logChannelId = clean(selected.log, 30);
-        if (!channelId) { delete nextRoutes[routeKey]; if (LOG_ROUTES[routeKey]) delete nextRoutes[LOG_ROUTES[routeKey]]; continue; }
-        if (!validDiscordChannelId(channelId) || !available.has(channelId)) return reply(request, { error: `Canal invalid pentru modulul ${MODULES[routeKey].label}.` }, 400);
+        if (!channelId) { delete nextRoutes[routeKey]; if (moduleDefinitions[routeKey].log_key || LOG_ROUTES[routeKey]) delete nextRoutes[moduleDefinitions[routeKey].log_key || LOG_ROUTES[routeKey]]; continue; }
+        if (!validDiscordChannelId(channelId) || !available.has(channelId)) return reply(request, { error: `Canal invalid pentru modulul ${moduleDefinitions[routeKey].label}.` }, 400);
         nextRoutes[routeKey] = { ...(nextRoutes[routeKey] || {}), primary: { ...(nextRoutes[routeKey]?.primary || {}), channel_id: channelId, guild_id: guildId, enabled: true } };
-        if (LOG_ROUTES[routeKey]) {
-          if (logChannelId && (!validDiscordChannelId(logChannelId) || !available.has(logChannelId))) return reply(request, { error: `Canal de log invalid pentru modulul ${MODULES[routeKey].label}.` }, 400);
-          if (logChannelId) nextRoutes[LOG_ROUTES[routeKey]] = { ...(nextRoutes[LOG_ROUTES[routeKey]] || {}), primary: { ...(nextRoutes[LOG_ROUTES[routeKey]]?.primary || {}), channel_id: logChannelId, guild_id: guildId, enabled: true } };
-          else delete nextRoutes[LOG_ROUTES[routeKey]];
+        const moduleLogKey = moduleDefinitions[routeKey].log_key || LOG_ROUTES[routeKey];
+        if (moduleLogKey) {
+          if (logChannelId && (!validDiscordChannelId(logChannelId) || !available.has(logChannelId))) return reply(request, { error: `Canal de log invalid pentru modulul ${moduleDefinitions[routeKey].label}.` }, 400);
+          if (logChannelId) nextRoutes[moduleLogKey] = { ...(nextRoutes[moduleLogKey] || {}), primary: { ...(nextRoutes[moduleLogKey]?.primary || {}), channel_id: logChannelId, guild_id: guildId, enabled: true } };
+          else delete nextRoutes[moduleLogKey];
         }
       }
       const { error } = await db.from('discovery_settings').update({ discord_channel_routes: nextRoutes, updated_at: new Date().toISOString(), updated_by_discord_id: String(discord.id) }).eq('organization_id', selectedGuild.organization_id);
@@ -400,7 +453,9 @@ Deno.serve(async (request) => {
     }
     if (action === 'publish') {
       const moduleKey = clean(body.module, 50);
-      const definition = mergeModuleDefinitions(MODULES, await readGlobalModules(db))[moduleKey];
+      const { data: customSetting, error: customSettingError } = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
+      if (customSettingError) throw customSettingError;
+      const definition = { ...mergeModuleDefinitions(MODULES, await readGlobalModules(db)), ...sanitizeCustomModules(customSetting?.custom_modules || {}) }[moduleKey];
       if (!definition) return reply(request, { error: 'Modul invalid.' }, 400);
       if (definition.premium && !allowedPremium) return reply(request, { error: 'Acest modul este disponibil după activarea Premium sau pe durata trialului.' }, 403);
       const configured = settings?.discord_channel_routes?.[moduleKey]?.primary;

@@ -1913,6 +1913,11 @@ async function readCustomModule(db: any, moduleKey: string) {
   const buttons = Array.isArray(raw.buttons) ? raw.buttons.slice(0, 5).map((button: any, index: number) => ({
     label: String(button?.label || `Acțiunea ${index + 1}`).trim().slice(0, 80),
     style: [1, 2, 3, 4].includes(Number(button?.style)) ? Number(button.style) : 1,
+    type: ['button', 'link', 'select', 'modal'].includes(String(button?.type || '').toLowerCase()) ? String(button.type).toLowerCase() : 'button',
+    url: String(button?.url || '').trim().slice(0, 500),
+    action: ['open_form', 'save_submission', 'send_log', 'notify_submitter', 'update_message', 'approve', 'reject', 'report', 'none'].includes(String(button?.action || '').toLowerCase()) ? String(button.action).toLowerCase() : 'open_form',
+    action_config: button?.action_config && typeof button.action_config === 'object' ? button.action_config : {},
+    options: Array.isArray(button?.options) ? button.options.slice(0, 25) : [],
   })).filter((button: any) => button.label) : [];
   return {
     key: moduleKey,
@@ -1920,18 +1925,58 @@ async function readCustomModule(db: any, moduleKey: string) {
     title: String(raw.title || raw.label || moduleKey).trim().slice(0, 256),
     description: String(raw.description || '').trim().slice(0, 4000),
     handler: String(raw.handler || 'none').trim().toLowerCase(),
+    active: raw.active !== false,
+    form_schema: Array.isArray(raw.form_schema) ? raw.form_schema.slice(0, 5) : [],
+    workflow: raw.workflow && typeof raw.workflow === 'object' ? raw.workflow : {},
+    responses: raw.responses && typeof raw.responses === 'object' ? raw.responses : {},
+    limits: raw.limits && typeof raw.limits === 'object' ? raw.limits : {},
+    permissions: raw.permissions && typeof raw.permissions === 'object' ? raw.permissions : {},
     log_key: `log_${moduleKey}`,
     buttons,
   };
 }
 
-function customModuleModal(module: any) {
+function customModulePanelPayload(module: any) {
+  const embed = {
+    ...(module.embed?.author_name ? { author: { name: module.embed.author_name, ...(module.embed.author_icon ? { icon_url: module.embed.author_icon } : {}) } } : {}),
+    title: module.title,
+    description: module.description,
+    color: Number(module.color || 0x5865f2),
+    ...(module.embed?.thumbnail ? { thumbnail: { url: module.embed.thumbnail } } : {}),
+    ...(module.embed?.image ? { image: { url: module.embed.image } } : {}),
+    ...(module.embed?.fields?.length ? { fields: module.embed.fields } : {}),
+    ...(module.embed?.footer_text ? { footer: { text: module.embed.footer_text, ...(module.embed.footer_icon ? { icon_url: module.embed.footer_icon } : {}) } } : {}),
+    ...(module.embed?.timestamp ? { timestamp: new Date().toISOString() } : {}),
+  };
+  const components: any[] = [];
+  for (let index = 0; index < module.buttons.length; index += 5) {
+    components.push({ type: 1, components: module.buttons.slice(index, index + 5).map((button: any, offset: number) => {
+      const buttonIndex = index + offset;
+      if (button.type === 'link' && /^https?:\/\//i.test(button.url || '')) return { type: 2, style: 5, label: button.label, url: button.url };
+      if (button.type === 'select') return { type: 3, custom_id: `panel:custom:${module.key}:${buttonIndex}`, placeholder: button.label, min_values: 1, max_values: 1, options: (button.options || []).slice(0, 25) };
+      return { type: 2, style: [1, 2, 3, 4].includes(Number(button.style)) ? Number(button.style) : 1, label: button.label, custom_id: `panel:custom:${module.key}:${buttonIndex}` };
+    }) });
+  }
+  return { allowed_mentions: { parse: [] }, embeds: [embed], components };
+}
+
+async function notifyCustomModuleSubmitter(db: any, discordId: string, content: string) {
+  const botToken = await getPlatformSecret(db, 'discord_bot_token');
+  if (!botToken) throw new Error('DISCORD_BOT_TOKEN lipsește din configurația Supabase.');
+  const headers = { Authorization: `Bot ${botToken}`, 'Content-Type': 'application/json', 'User-Agent': 'Panel Pro Discord Bot (+https://panel-pro.ro)' };
+  const channelResponse = await fetch(`${DISCORD_API}/users/@me/channels`, { method: 'POST', headers, body: JSON.stringify({ recipient_id: discordId }) });
+  if (!channelResponse.ok) throw new Error(`Discord nu a permis deschiderea mesajului privat (HTTP ${channelResponse.status}).`);
+  const channel = await channelResponse.json().catch(() => ({}));
+  if (!/^\d{15,22}$/.test(String(channel.id || ''))) throw new Error('Discord nu a returnat un canal privat valid.');
+  const messageResponse = await fetch(`${DISCORD_API}/channels/${encodeURIComponent(String(channel.id || ''))}/messages`, { method: 'POST', headers, body: JSON.stringify({ allowed_mentions: { parse: [] }, content: content.slice(0, 2000) }) });
+  if (!messageResponse.ok) throw new Error(`Discord nu a permis trimiterea notificării private (HTTP ${messageResponse.status}).`);
+}
+
+function customModuleModal(module: any, actionKey = 'open_form') {
   const handler = module.handler === 'request' ? 'cerere' : module.handler === 'approval' ? 'solicitare pentru aprobare' : module.handler === 'report' ? 'raport' : 'mesaj';
   const input = (custom_id: string, label: string, style: number, required: boolean, placeholder: string, max_length: number) => ({ type: 4, custom_id, label, style, required, placeholder, max_length });
-  return { type: 9, data: { custom_id: `panel:custom_submit:${module.key}`, title: `${module.label} · ${handler}`.slice(0, 45), components: [
-    { type: 1, components: [input('subject', 'Titlu', 1, true, 'Scrie un titlu', 160)] },
-    { type: 1, components: [input('details', 'Detalii', 2, true, 'Descrie solicitarea sau informația', 1800)] },
-  ] } };
+  const fields = Array.isArray(module.form_schema) && module.form_schema.length ? module.form_schema : [{ id: 'subject', label: 'Titlu', type: 'short_text', required: true, placeholder: 'Scrie un titlu' }, { id: 'details', label: 'Detalii', type: 'long_text', required: true, placeholder: 'Descrie solicitarea sau informația' }];
+  return { type: 9, data: { custom_id: `panel:custom_submit:${module.key}:${actionKey}`, title: `${module.label} · ${handler}`.slice(0, 45), components: fields.slice(0, 5).map((field: any) => ({ type: 1, components: [input(String(field.id || 'field').slice(0, 40), String(field.label || 'Câmp').slice(0, 45), field.type === 'long_text' ? 2 : 1, field.required !== false, field.type === 'select' && Array.isArray(field.options) && field.options.length ? `Opțiuni: ${field.options.slice(0, 8).join(', ')}`.slice(0, 100) : String(field.placeholder || '').slice(0, 100), field.type === 'long_text' ? 1800 : 160)] })) } };
 }
 
 async function resolveCustomModuleContext(db: any, interaction: any, module: any) {
@@ -1952,6 +1997,20 @@ async function resolveCustomModuleContext(db: any, interaction: any, module: any
   const target = String(guild.kind || '') === 'secondary' ? 'secondary' : 'primary';
   const route = settings?.discord_channel_routes?.[module.key]?.[target];
   if (!route?.channel_id) throw new Error('Modulul nu are încă un canal embed configurat.');
+  const memberRoles = new Set((interaction.member?.roles || []).map((role: unknown) => String(role)));
+  const permissionMode = String(module.permissions?.mode || 'everyone');
+  if (permissionMode === 'manager' && !isDiscordManager(interaction)) throw new Error('Nu ai permisiunea necesară pentru acest modul.');
+  if (permissionMode === 'owner' && !(await isGuildOwner(db, guildId, discordId))) throw new Error('Doar ownerul serverului poate folosi acest modul.');
+  if (permissionMode === 'mapped_role' && !(module.permissions?.role_ids || []).some((roleId: string) => memberRoles.has(String(roleId)))) throw new Error('Nu ai rolul necesar pentru acest modul.');
+  const limits = module.limits || {};
+  if (Number(limits.cooldown_seconds) > 0 || Number(limits.max_per_user) > 0 || Number(limits.max_pending) > 0) {
+    const { data: recent, error: recentError } = await db.from('discovery_custom_module_submissions').select('id,status,created_at').eq('organization_id', guild.organization_id).eq('guild_id', guildId).eq('module_key', module.key).order('created_at', { ascending: false }).limit(Math.max(100, Number(limits.max_per_user) || 1));
+    if (recentError) throw recentError;
+    const rows = recent || [];
+    if (Number(limits.cooldown_seconds) > 0 && rows.some((row: any) => String(row.submitted_by_discord_id || '') === discordId && Date.now() - Date.parse(String(row.created_at)) < Number(limits.cooldown_seconds) * 1000)) throw new Error(`Așteaptă ${Number(limits.cooldown_seconds)} secunde înainte de o nouă trimitere.`);
+    if (Number(limits.max_per_user) > 0 && rows.filter((row: any) => String(row.submitted_by_discord_id || '') === discordId).length >= Number(limits.max_per_user)) throw new Error('Ai atins limita de trimiteri pentru acest modul.');
+    if (Number(limits.max_pending) > 0 && rows.filter((row: any) => row.status === 'pending').length >= Number(limits.max_pending)) throw new Error('Modulul a atins limita de solicitări în așteptare.');
+  }
   const displayName = String(interaction.member?.nick || user.global_name || user.username || discordId).trim().slice(0, 120) || discordId;
   return { guildId, discordId, displayName, organization, settings, target, route };
 }
@@ -1959,17 +2018,37 @@ async function resolveCustomModuleContext(db: any, interaction: any, module: any
 async function handleCustomModuleSubmit(db: any, interaction: any, module: any) {
   const context = await resolveCustomModuleContext(db, interaction, module);
   const values = modalValues(interaction);
-  const subject = String(values.subject || '').trim().slice(0, 160);
-  const details = String(values.details || '').trim().slice(0, 1800);
+  const fields = Array.isArray(module.form_schema) && module.form_schema.length ? module.form_schema : [{ id: 'subject', label: 'Titlu' }, { id: 'details', label: 'Detalii' }];
+  const subject = String(values.subject || values[fields[0]?.id] || module.label).trim().slice(0, 160);
+  const details = String(values.details || fields.map((field: any) => `${field.label}: ${values[field.id] || '—'}`).join('\n')).trim().slice(0, Math.min(4000, Math.max(100, Number(module.limits?.max_text_length) || 1800)));
   if (!subject || !details) throw new Error('Completează titlul și detaliile.');
+  for (const field of fields) { const value = String(values[field.id] || '').trim(); if (field.required !== false && !value) throw new Error(`Completează câmpul „${field.label}”.`); if (field.type === 'url' && value && !/^https?:\/\//i.test(value)) throw new Error(`Câmpul „${field.label}” trebuie să fie un URL valid.`); if (field.type === 'number' && value && !/^[-+]?\d+(?:[.,]\d+)?$/.test(value)) throw new Error(`Câmpul „${field.label}” trebuie să fie numeric.`); if (field.type === 'date' && value && Number.isNaN(Date.parse(value))) throw new Error(`Câmpul „${field.label}” trebuie să fie o dată validă.`); if (field.type === 'select' && value && Array.isArray(field.options) && field.options.length && !field.options.map((option: any) => String(option).toLowerCase()).includes(value.toLowerCase())) throw new Error(`Alege una dintre opțiunile disponibile pentru „${field.label}”.`); }
+  const actionKey = String(interaction.data?.custom_id || '').split(':')[3] || 'open_form';
+  const { data: submission, error: submissionError } = await db.from('discovery_custom_module_submissions').insert({ organization_id: context.organization.id, guild_id: context.guildId, module_key: module.key, submitted_by_discord_id: context.discordId, submitted_by_name: context.displayName, handler: module.handler, action_key: actionKey, values_json: values, source_message_id: String(interaction.message?.id || ''), source_channel_id: context.channelId, subject, details, status: module.handler === 'announcement' ? 'published' : 'pending' }).select('id').single();
+  if (submissionError) throw submissionError;
+  const configuredActions = Array.isArray(module.workflow?.actions) ? module.workflow.actions : [];
+  const actions = new Set(configuredActions.length ? configuredActions : ['save_submission', 'send_log']);
+  if (['save_submission', 'send_log', 'notify_submitter', 'update_message'].includes(actionKey)) actions.add(actionKey);
   const logRoute = context.settings?.discord_channel_routes?.[module.log_key]?.[context.target];
   let logWarning = '';
-  if (logRoute?.channel_id) {
-    const logPayload = { allowed_mentions: { parse: [] }, embeds: [{ title: `🧩 ${module.label}`, description: `**${subject}**\n${details}`, color: 0x5865f2, fields: [{ name: 'Trimis de', value: `<@${context.discordId}>`, inline: true }, { name: 'Server', value: context.organization.name, inline: true }], footer: { text: `Handler: ${module.handler}` }, timestamp: new Date().toISOString() }] };
+  if (actions.has('send_log') && logRoute?.channel_id) {
+    const logPayload = { allowed_mentions: { parse: [] }, embeds: [{ title: `🧩 ${module.label}`, description: `**${subject}**\n${details}`, color: module.handler === 'approval' ? 0xf59e0b : 0x5865f2, fields: [{ name: 'Trimis de', value: `<@${context.discordId}>`, inline: true }, { name: 'Server', value: context.organization.name, inline: true }, { name: 'ID solicitare', value: String(submission?.id || '—'), inline: true }], footer: { text: `Handler: ${module.handler}` }, timestamp: new Date().toISOString() }], components: (module.handler === 'approval' || actions.has('review_buttons')) && submission?.id ? [{ type: 1, components: [{ type: 2, style: 3, label: 'Aprobă', custom_id: `panel:custom_review:${module.key}:${submission.id}:approved` }, { type: 2, style: 4, label: 'Respinge', custom_id: `panel:custom_review:${module.key}:${submission.id}:rejected` }] }] : [] };
     const delivery = await deliverDiscordRoute(db, context.settings, module.log_key, JSON.stringify(logPayload), { postOnly: true });
     if (delivery.failures?.length) logWarning = '\n⚠️ Logul nu a putut fi trimis în canalul configurat.';
   }
-  return interactionMessage(`Am înregistrat ${module.handler === 'approval' ? 'solicitarea pentru aprobare' : 'formularul'} pentru **${module.label}**.${logWarning}`);
+  if (actions.has('update_message') && context.route?.message_id) {
+    const update = await deliverDiscordRoute(db, context.settings, module.key, JSON.stringify(customModulePanelPayload(module)), { messageIds: { [context.target]: String(context.route.message_id) }, postOnly: false });
+    if (update.failures?.length) logWarning += '\n⚠️ Embedul inițial nu a putut fi actualizat.';
+  }
+  if (actions.has('notify_submitter')) {
+    try {
+      await notifyCustomModuleSubmitter(db, context.discordId, module.responses?.success || `Solicitarea ta pentru „${module.label}” a fost înregistrată.`);
+    } catch (_) {
+      logWarning += '\n⚠️ Notificarea privată nu a putut fi trimisă.';
+    }
+  }
+  const responseText = module.responses?.success || `Am înregistrat ${module.handler === 'approval' ? 'solicitarea pentru aprobare' : 'formularul'} pentru **${module.label}**.`;
+  return interactionMessage(`${responseText}${logWarning}`, { flags: module.responses?.visibility === 'public' ? 0 : 64 });
 }
 
 Deno.serve(async (request) => {
@@ -1985,6 +2064,21 @@ Deno.serve(async (request) => {
     if (commandName === 'panel') {
       const subcommand = String(commandSubcommand(interaction)?.name || '').trim().toLowerCase();
       const guildId = String(interaction?.guild_id || '').trim();
+      if (subcommand && !['status', 'publica', 'config'].includes(subcommand)) {
+        const key = serviceKey();
+        if (!key) return reply(interactionMessage('Cheia secretă Supabase lipsește.'));
+        const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
+        await ensureDiscordOnlyOrganization(db, interaction);
+        const { data: setting, error: settingError } = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
+        if (settingError) throw settingError;
+        const moduleEntry = Object.entries(setting?.custom_modules && typeof setting.custom_modules === 'object' ? setting.custom_modules : {}).find(([, value]: any) => String(value?.command_name || '').trim().toLowerCase() === subcommand) as [string, any] | undefined;
+        if (moduleEntry) {
+          const module = await readCustomModule(db, customModuleKey(moduleEntry[0]));
+          if (!module.active) return reply(interactionMessage('Acest modul este dezactivat momentan.'));
+          if (module.handler === 'none') return reply(interactionMessage(`Modulul **${module.label}** este informativ și nu are un formular activ.`));
+          return reply(customModuleModal(module));
+        }
+      }
       if (subcommand === 'publica') {
         const routeKey = String(commandOption(interaction, 'modul') || '').trim();
         if (!isDiscordManager(interaction)) return reply(interactionMessage('Doar ownerul serverului sau un administrator cu permisiunea Manage Server poate publica embeduri.'));
@@ -2105,7 +2199,7 @@ Deno.serve(async (request) => {
   const isMarketplace = customId.startsWith('panel:marketplace:');
   const isBotAccess = customId.startsWith('panel:bot_access:');
   const isDiscovery = customId.startsWith('panel:discovery:');
-  const isCustom = customId.startsWith('panel:custom:') || customId.startsWith('panel:custom_submit:');
+  const isCustom = customId.startsWith('panel:custom:') || customId.startsWith('panel:custom_submit:') || customId.startsWith('panel:custom_review:');
   if (!isComponent && !isModalSubmit) return reply(interactionMessage('Acest tip de interacțiune nu este disponibil.'));
   if (!isPontaj && !isRequests && !isContracts && !isAnnouncements && !isDiscipline && !isActions && !isStash && !isMarketplace && !isBotAccess && !isDiscovery && !isCustom) return reply(interactionMessage('Acest buton nu aparține unui modul Panel Pro.'));
   try {
@@ -2114,16 +2208,54 @@ Deno.serve(async (request) => {
     const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
     await ensureDiscordOnlyOrganization(db, interaction);
     if (isCustom) {
+      if (customId.startsWith('panel:custom_review:')) {
+        const reviewParts = customId.slice('panel:custom_review:'.length).split(':');
+        const moduleKey = customModuleKey(reviewParts[0]);
+        const submissionId = String(reviewParts[1] || '').trim();
+        const nextStatus = ['approved', 'rejected'].includes(reviewParts[2]) ? reviewParts[2] : '';
+        if (!moduleKey || !submissionId || !nextStatus || !isDiscordManager(interaction)) return reply(interactionMessage('Doar un administrator al serverului poate procesa această aprobare.'));
+        const { data: updated, error } = await db.from('discovery_custom_module_submissions').update({ status: nextStatus, reviewed_by_discord_id: String(interaction.member?.user?.id || interaction.user?.id || ''), updated_at: new Date().toISOString() }).eq('id', submissionId).eq('module_key', moduleKey).eq('status', 'pending').select('subject').maybeSingle();
+        if (error) throw error;
+        return reply(interactionMessage(updated ? `Solicitarea **${updated.subject}** a fost ${nextStatus === 'approved' ? 'aprobată' : 'respinsă'}.` : 'Solicitarea a fost deja procesată sau nu mai există.'));
+      }
       const prefix = customId.startsWith('panel:custom_submit:') ? 'panel:custom_submit:' : 'panel:custom:';
       const moduleKey = customModuleKey(customId.slice(prefix.length).split(':')[0]);
       if (!moduleKey) return reply(interactionMessage('Modulul personalizat nu este valid.'));
       const module = await readCustomModule(db, moduleKey);
+      if (!module.active) return reply(interactionMessage('Acest modul este dezactivat momentan.'));
       if (isModalSubmit && customId.startsWith('panel:custom_submit:')) {
-        return runDeferredCommand(interaction, () => handleCustomModuleSubmit(db, interaction, module), 'Formularul modulului nu a putut fi înregistrat.');
+        return runDeferredCommand(interaction, () => handleCustomModuleSubmit(db, interaction, module), module.responses?.error || 'Formularul modulului nu a putut fi înregistrat.');
       }
-      if (!isButton) return reply(interactionMessage('Acțiunea modulului nu este disponibilă.'));
+      if (!isButton && !isSelect) return reply(interactionMessage('Acțiunea modulului nu este disponibilă.'));
+      const buttonIndex = Number(customId.split(':').pop());
+      const button = Number.isInteger(buttonIndex) && buttonIndex >= 0 ? module.buttons?.[buttonIndex] : null;
+      const buttonAction = String(button?.action || 'open_form');
+      if (buttonAction === 'none') return reply(interactionMessage(button?.action_config?.message || module.responses?.confirmation || `Ai apăsat „${button?.label || module.label}”.`));
+      if (buttonAction === 'report') {
+        const context = await resolveCustomModuleContext(db, interaction, module);
+        const { count, error } = await db.from('discovery_custom_module_submissions').select('id', { count: 'exact', head: true }).eq('organization_id', context.organization.id).eq('guild_id', context.guildId).eq('module_key', module.key);
+        if (error) throw error;
+        return reply(interactionMessage(button?.action_config?.message || `📊 **${module.label}**\nÎnregistrări totale: **${Number(count || 0)}**.`));
+      }
+      if (buttonAction === 'approve' || buttonAction === 'reject') {
+        if (!isDiscordManager(interaction)) return reply(interactionMessage('Doar un administrator al serverului poate procesa această acțiune.'));
+        const context = await resolveCustomModuleContext(db, interaction, module);
+        const nextStatus = buttonAction === 'approve' ? 'approved' : 'rejected';
+        const { data: pending, error: pendingError } = await db.from('discovery_custom_module_submissions').select('id,subject').eq('organization_id', context.organization.id).eq('guild_id', context.guildId).eq('module_key', module.key).eq('status', 'pending').order('created_at', { ascending: true }).limit(1).maybeSingle();
+        if (pendingError) throw pendingError;
+        if (!pending) return reply(interactionMessage('Nu există solicitări în așteptare.'));
+        const { data: updated, error } = await db.from('discovery_custom_module_submissions').update({ status: nextStatus, reviewed_by_discord_id: context.discordId, updated_at: new Date().toISOString() }).eq('id', pending.id).eq('status', 'pending').select('subject').maybeSingle();
+        if (error) throw error;
+        return reply(interactionMessage(updated ? `${button?.action_config?.message || `Solicitarea „${updated.subject}” a fost ${nextStatus === 'approved' ? 'aprobată' : 'respinsă'}.`}` : 'Solicitarea a fost deja procesată.'));
+      }
+      if (module.handler === 'report') {
+        const context = await resolveCustomModuleContext(db, interaction, module);
+        const { count, error } = await db.from('discovery_custom_module_submissions').select('id', { count: 'exact', head: true }).eq('organization_id', context.organization.id).eq('guild_id', context.guildId).eq('module_key', module.key);
+        if (error) throw error;
+        return reply(interactionMessage(`📊 **${module.label}**\nÎnregistrări totale: **${Number(count || 0)}**.`));
+      }
       if (module.handler === 'none') return reply(interactionMessage(`Modulul **${module.label}** este informativ și nu are încă un handler activ.`));
-      return reply(customModuleModal(module));
+      return reply(customModuleModal(module, buttonAction));
     }
     if (discordPremiumConfigured()) {
       const guildId = String(interaction.guild_id || '').trim();
