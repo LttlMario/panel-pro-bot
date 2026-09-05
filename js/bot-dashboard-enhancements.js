@@ -59,8 +59,13 @@
         const data = await call({ action: 'admin_roles', guild_id: card.dataset.guildId });
         const selected = new Set((data.role_ids || []).map(String));
         const panel = document.createElement('div'); panel.className = 'server-access-panel';
-        panel.innerHTML = `<strong>Acces dashboard prin roluri Discord</strong><p class="meta">Selectează rolurile ai căror membri pot configura botul pe acest server.</p><div class="server-access-roles">${(data.roles || []).map((role) => `<label><input type="checkbox" value="${esc(role.id)}" ${selected.has(String(role.id)) ? 'checked' : ''}> ${esc(role.name)}</label>`).join('') || '<span class="meta">Nu există roluri disponibile.</span>'}</div><div class="server-overview-actions"><button type="button" class="button cyan" data-save-access>💾 Salvează accesul</button><button type="button" class="button" data-close-access>Închide</button><span class="meta" data-access-status></span></div>`;
+        panel.innerHTML = `<strong>Acces dashboard prin roluri Discord</strong><p class="meta">Selectează rolurile ai căror membri pot configura botul pe acest server.</p><div class="server-access-roles">${(data.roles || []).map((role) => `<label><input type="checkbox" value="${esc(role.id)}" ${selected.has(String(role.id)) ? 'checked' : ''}> ${esc(role.name)}</label>`).join('') || '<span class="meta">Nu există roluri disponibile.</span>'}</div><hr><strong>Acces individual, fără rol</strong><p class="meta">Introdu Discord User ID-ul persoanei. Persoana trebuie să fie membră pe server.</p><div class="server-access-member-add"><input data-member-input placeholder="Discord User ID" inputmode="numeric"><button type="button" class="button" data-add-member>＋ Adaugă</button></div><div data-member-list class="server-access-members"></div><div class="server-overview-actions"><button type="button" class="button cyan" data-save-access>💾 Salvează rolurile</button><button type="button" class="button cyan" data-save-members>💾 Salvează persoanele</button><button type="button" class="button" data-close-access>Închide</button><span class="meta" data-access-status></span></div>`;
         overview.appendChild(panel);
+        const memberIds = new Set((data.member_ids || []).map(String));
+        const memberList = panel.querySelector('[data-member-list]');
+        const renderMembers = () => { memberList.innerHTML = [...memberIds].map((memberId) => `<span class="server-access-member">${esc(memberId)} <button type="button" data-remove-member="${esc(memberId)}">×</button></span>`).join('') || '<span class="meta">Nu există acces individual acordat.</span>'; memberList.querySelectorAll('[data-remove-member]').forEach((remove) => { remove.onclick = () => { memberIds.delete(remove.dataset.removeMember); renderMembers(); }; }); };
+        renderMembers();
+        panel.querySelector('[data-add-member]').onclick = () => { const input = panel.querySelector('[data-member-input]'); const value = String(input.value || '').trim(); if (!/^\d{15,22}$/.test(value)) { panel.querySelector('[data-access-status]').textContent = 'Introdu un Discord User ID valid.'; return; } memberIds.add(value); input.value = ''; renderMembers(); };
         panel.querySelector('[data-close-access]').onclick = () => panel.remove();
         panel.querySelector('[data-save-access]').onclick = async (event) => {
           const save = event.currentTarget; save.disabled = true;
@@ -71,6 +76,7 @@
             if (status) status.textContent = 'Accesul a fost salvat.';
           } catch (error) { if (status) status.textContent = error.message; save.disabled = false; }
         };
+        panel.querySelector('[data-save-members]').onclick = async (event) => { const save = event.currentTarget; save.disabled = true; const status = panel.querySelector('[data-access-status]'); try { await call({ action: 'save_admin_members', guild_id: card.dataset.guildId, member_ids: [...memberIds] }); if (status) status.textContent = 'Accesul individual a fost salvat.'; } catch (error) { if (status) status.textContent = error.message; save.disabled = false; } };
         button.textContent = '👥 Gestionează accesul';
       } catch (error) { button.textContent = error.message; }
       button.disabled = false;
@@ -79,7 +85,7 @@
   };
   const scan = () => document.querySelectorAll('#list .bot-card').forEach(addAccess);
   const style = document.createElement('style');
-  style.textContent = '.server-access-panel{margin-top:10px;padding:11px;border:1px solid #263b58;border-radius:10px;background:#0b1729;font-size:11px}.server-access-panel p{margin:5px 0}.server-access-roles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:8px}.server-access-roles label{padding:6px;border:1px solid #263b58;border-radius:7px;color:#cbd5e1}.server-access-roles input{accent-color:#22d3ee}@media(max-width:700px){.server-access-roles{grid-template-columns:1fr}}';
+  style.textContent = '.server-access-panel{margin-top:10px;padding:11px;border:1px solid #263b58;border-radius:10px;background:#0b1729;font-size:11px}.server-access-panel p{margin:5px 0}.server-access-panel hr{border:0;border-top:1px solid #263b58;margin:12px 0}.server-access-roles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:8px}.server-access-roles label{padding:6px;border:1px solid #263b58;border-radius:7px;color:#cbd5e1}.server-access-roles input{accent-color:#22d3ee}.server-access-member-add{display:flex;gap:7px;margin-top:8px}.server-access-member-add input{min-width:0;flex:1;border:1px solid #334155;border-radius:8px;background:#07101f;color:#e2e8f0;padding:7px}.server-access-members{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.server-access-member{padding:5px 7px;border:1px solid #36516f;border-radius:7px;color:#cbd5e1}.server-access-member button{border:0;background:transparent;color:#fda4af;cursor:pointer}@media(max-width:700px){.server-access-roles{grid-template-columns:1fr}.server-access-member-add{flex-direction:column}}';
   document.head.appendChild(style);
   new MutationObserver(scan).observe(document.getElementById('list') || document.body, { childList: true, subtree: true });
   setInterval(scan, 1500);

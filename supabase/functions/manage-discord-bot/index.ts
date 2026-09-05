@@ -156,14 +156,17 @@ async function ownedGuilds(db: any, user: any, applicationId: string, platformAd
     const { data: organization, error } = await db.from('discovery_organizations').select('id,name,access_mode,active').eq('id', linked.organization_id).maybeSingle();
     if (error) throw error;
     if (organization?.access_mode !== 'discord_only' && !platformAdmin) continue;
-    const { data: packageSetting } = await db.from('discovery_app_settings').select('key,value').eq('organization_id', linked.organization_id).in('key', ['organization_package', 'discord_trial', 'discord_bot_admin_roles']);
+    const { data: packageSetting } = await db.from('discovery_app_settings').select('key,value').eq('organization_id', linked.organization_id).in('key', ['organization_package', 'discord_trial', 'discord_bot_admin_roles', 'discord_bot_admin_users']);
     const packageValue = (packageSetting || []).find((item: any) => item.key === 'organization_package')?.value || {};
     const trialValue = (packageSetting || []).find((item: any) => item.key === 'discord_trial')?.value || {};
     const adminRolesValue = (packageSetting || []).find((item: any) => item.key === 'discord_bot_admin_roles')?.value || {};
     const adminRoleIds = Array.isArray(adminRolesValue?.role_ids) ? adminRolesValue.role_ids.map(String) : [];
+    const adminUsersValue = (packageSetting || []).find((item: any) => item.key === 'discord_bot_admin_users')?.value || {};
+    const adminUserIds = Array.isArray(adminUsersValue?.discord_ids) ? adminUsersValue.discord_ids.map(String) : [];
     const isOwner = Boolean(guild.owner);
     const isRoleAdmin = !isOwner && adminRoleIds.length ? (await memberRoleIds(db, String(guild.id), String(user.id))).some((roleId: string) => adminRoleIds.includes(roleId)) : false;
-    if (!platformAdmin && !isOwner && !isRoleAdmin) continue;
+    const isUserAdmin = !isOwner && adminUserIds.includes(String(user.id));
+    if (!platformAdmin && !isOwner && !isRoleAdmin && !isUserAdmin) continue;
     const { data: entitlement } = await db.from('discovery_guild_entitlements').select('sku_id,ends_at,active').eq('guild_id', String(guild.id)).eq('active', true).order('updated_at', { ascending: false }).limit(1).maybeSingle();
     const premium = Boolean(entitlement && (!entitlement.ends_at || Date.parse(String(entitlement.ends_at)) > Date.now()));
     const trial = !premium && Date.parse(String(trialValue.ends_at || '')) > Date.now();
@@ -450,7 +453,8 @@ Deno.serve(async (request) => {
         guildRoles(db, guildId),
         db.from('discovery_app_settings').select('value').eq('organization_id', selectedGuild.organization_id).eq('key', 'discord_bot_admin_roles').maybeSingle(),
       ]);
-      return reply(request, { ok: true, roles: roles || [], role_ids: Array.isArray(setting?.value?.role_ids) ? setting.value.role_ids.map(String) : [] });
+      const { data: memberSetting } = await db.from('discovery_app_settings').select('value').eq('organization_id', selectedGuild.organization_id).eq('key', 'discord_bot_admin_users').maybeSingle();
+      return reply(request, { ok: true, roles: roles || [], role_ids: Array.isArray(setting?.value?.role_ids) ? setting.value.role_ids.map(String) : [], member_ids: Array.isArray(memberSetting?.value?.discord_ids) ? memberSetting.value.discord_ids.map(String) : [] });
     }
     if (action === 'save_admin_roles') {
       if (!selectedGuild.can_manage_access) return reply(request, { error: 'Doar ownerul serverului poate modifica rolurile care au acces la configurarea botului.' }, 403);
@@ -461,6 +465,19 @@ Deno.serve(async (request) => {
       const { error } = await db.from('discovery_app_settings').upsert({ organization_id: selectedGuild.organization_id, key: 'discord_bot_admin_roles', value: { role_ids: requestedRoleIds }, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,key' });
       if (error) throw error;
       return reply(request, { ok: true, role_ids: requestedRoleIds });
+    }
+    if (action === 'save_admin_members') {
+      if (!selectedGuild.can_manage_access) return reply(request, { error: 'Doar ownerul serverului poate modifica accesul individual.' }, 403);
+      const requestedMemberIds = Array.isArray(body.member_ids) ? [...new Set(body.member_ids.map((value: any) => String(value).trim()).filter((value: string) => id(value)))] : [];
+      if (requestedMemberIds.length > 50) return reply(request, { error: 'Poți acorda acces individual pentru maximum 50 de persoane.' }, 400);
+      const botToken = await getPlatformSecret(db, 'discord_bot_token');
+      for (const memberId of requestedMemberIds) {
+        const memberResponse = await fetch(`${DISCORD_API}/guilds/${guildId}/members/${memberId}`, { headers: botHeaders(botToken) });
+        if (!memberResponse.ok) return reply(request, { error: `Utilizatorul ${memberId} nu este membru pe acest server sau nu poate fi verificat.` }, 400);
+      }
+      const { error } = await db.from('discovery_app_settings').upsert({ organization_id: selectedGuild.organization_id, key: 'discord_bot_admin_users', value: { discord_ids: requestedMemberIds }, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,key' });
+      if (error) throw error;
+      return reply(request, { ok: true, member_ids: requestedMemberIds });
     }
     const allowedPremium = selectedGuild.plan !== 'free';
     if (action === 'contract_template' || action === 'save_contract_template') {
