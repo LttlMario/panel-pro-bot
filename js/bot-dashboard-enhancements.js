@@ -32,6 +32,59 @@
   scan(); setInterval(scan, 1200);
 })();
 
+// Ownerul poate acorda acces la dashboard prin roluri Discord de pe server.
+(() => {
+  const API = 'https://zrjxlbkbctlapgupktxw.supabase.co/functions/v1/manage-discord-bot';
+  const KEY = 'sb_publishable_LfngX7pwFruPw35_ZUdO4Q_MGAHoeW0';
+  const APP = '1531023771211792384';
+  const token = () => sessionStorage.getItem('discovery_access_token') || sessionStorage.getItem('discord_bot_admin_token') || '';
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+  async function call(body) {
+    const response = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY, Authorization: `Bearer ${KEY}` }, body: JSON.stringify({ ...body, view_scope: 'personal', access_token: token(), application_id: APP }) });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'Accesul nu a putut fi încărcat.');
+    return data;
+  }
+  const addAccess = async (card) => {
+    const overview = card.querySelector('.server-overview');
+    const actions = overview?.querySelector('.server-overview-actions');
+    if (!overview || !actions || actions.dataset.accessReady) return;
+    actions.dataset.accessReady = 'loading';
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'button'; button.textContent = '👥 Gestionează accesul';
+    actions.appendChild(button);
+    button.addEventListener('click', async () => {
+      button.disabled = true; button.textContent = 'Se încarcă rolurile…';
+      try {
+        const data = await call({ action: 'admin_roles', guild_id: card.dataset.guildId });
+        const selected = new Set((data.role_ids || []).map(String));
+        const panel = document.createElement('div'); panel.className = 'server-access-panel';
+        panel.innerHTML = `<strong>Acces dashboard prin roluri Discord</strong><p class="meta">Selectează rolurile ai căror membri pot configura botul pe acest server.</p><div class="server-access-roles">${(data.roles || []).map((role) => `<label><input type="checkbox" value="${esc(role.id)}" ${selected.has(String(role.id)) ? 'checked' : ''}> ${esc(role.name)}</label>`).join('') || '<span class="meta">Nu există roluri disponibile.</span>'}</div><div class="server-overview-actions"><button type="button" class="button cyan" data-save-access>💾 Salvează accesul</button><button type="button" class="button" data-close-access>Închide</button><span class="meta" data-access-status></span></div>`;
+        overview.appendChild(panel);
+        panel.querySelector('[data-close-access]').onclick = () => panel.remove();
+        panel.querySelector('[data-save-access]').onclick = async (event) => {
+          const save = event.currentTarget; save.disabled = true;
+          const status = panel.querySelector('[data-access-status]');
+          try {
+            const role_ids = [...panel.querySelectorAll('input[type="checkbox"]:checked')].map((input) => input.value);
+            await call({ action: 'save_admin_roles', guild_id: card.dataset.guildId, role_ids });
+            if (status) status.textContent = 'Accesul a fost salvat.';
+          } catch (error) { if (status) status.textContent = error.message; save.disabled = false; }
+        };
+        button.textContent = '👥 Gestionează accesul';
+      } catch (error) { button.textContent = error.message; }
+      button.disabled = false;
+    });
+    actions.dataset.accessReady = 'ready';
+  };
+  const scan = () => document.querySelectorAll('#list .bot-card').forEach(addAccess);
+  const style = document.createElement('style');
+  style.textContent = '.server-access-panel{margin-top:10px;padding:11px;border:1px solid #263b58;border-radius:10px;background:#0b1729;font-size:11px}.server-access-panel p{margin:5px 0}.server-access-roles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:8px}.server-access-roles label{padding:6px;border:1px solid #263b58;border-radius:7px;color:#cbd5e1}.server-access-roles input{accent-color:#22d3ee}@media(max-width:700px){.server-access-roles{grid-template-columns:1fr}}';
+  document.head.appendChild(style);
+  new MutationObserver(scan).observe(document.getElementById('list') || document.body, { childList: true, subtree: true });
+  setInterval(scan, 1500);
+})();
+
 // Modulele pot fi activate/dezactivate direct din dashboardul serverului.
 (() => {
   const API = 'https://zrjxlbkbctlapgupktxw.supabase.co/functions/v1/manage-discord-bot';
