@@ -381,7 +381,20 @@ Deno.serve(async (request) => {
       const botIdentity = botIdentityResponse.ok ? await botIdentityResponse.json().catch(() => ({})) : {};
       const botMemberResponse = botIdentity.id ? await fetch(`${DISCORD_API}/guilds/${guildId}/members/${botIdentity.id}`, { headers: botHeaders(botToken) }) : null;
       const botMember = botMemberResponse?.ok ? await botMemberResponse.json().catch(() => ({})) : {};
-      let permissionValue = 0n; try { permissionValue = BigInt(String(botMember.permissions || '0')); } catch (_) {}
+      // Discord's guild-member endpoint does not include an aggregated permissions field.
+      // Calculate the bot's base guild permissions from @everyone plus its assigned roles.
+      let permissionValue = 0n;
+      if (botMemberResponse?.ok) {
+        const rolesResponse = await fetch(`${DISCORD_API}/guilds/${guildId}/roles`, { headers: botHeaders(botToken) });
+        const roles = rolesResponse.ok ? await rolesResponse.json().catch(() => []) : [];
+        const botRoleIds = new Set((Array.isArray(botMember.roles) ? botMember.roles : []).map((roleId: any) => String(roleId)));
+        for (const role of Array.isArray(roles) ? roles : []) {
+          if (String(role.id) === guildId || botRoleIds.has(String(role.id))) {
+            try { permissionValue |= BigInt(String(role.permissions || '0')); } catch (_) {}
+          }
+        }
+      }
+      if ((permissionValue & 8n) === 8n) permissionValue = (1n << 53n) - 1n;
       const requiredPermissions = [{ key: 'view_channel', label: 'View Channel', bit: 1024n }, { key: 'send_messages', label: 'Send Messages', bit: 2048n }, { key: 'embed_links', label: 'Embed Links', bit: 16384n }];
       const missingPermissions = requiredPermissions.filter((item) => (permissionValue & item.bit) !== item.bit).map((item) => item.label);
       let channelList: any[] = [];
