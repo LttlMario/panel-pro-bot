@@ -4,6 +4,7 @@ import { isPlatformAdminAccount } from '../_shared/platform-admin.ts';
 import { requirePanelSession } from '../_shared/panel-session.ts';
 import { deliverDiscordRoute, routeCandidates, validDiscordChannelId } from '../_shared/discord-delivery.ts';
 import { mergeModuleDefinitions, readGlobalModules, sanitizeModuleOverrides } from '../_shared/global-bot-settings.ts';
+import { discordPremiumButton } from '../_shared/discord-premium.ts';
 
 const DISCORD_API = 'https://discord.com/api/v10';
 const MODULES: Record<string, { label: string; premium: boolean; title: string; description: string; color: number; buttons: any[] }> = {
@@ -361,6 +362,24 @@ Deno.serve(async (request) => {
       if (error) throw error;
       return reply(request, { ok: true, entitlement });
     }
+    if (action === 'send_premium_purchase') {
+      const skuId = String(Deno.env.get('DISCORD_PREMIUM_GUILD_SKU_IDS') || Deno.env.get('DISCORD_PREMIUM_GUILD_SKU_ID') || '').split(',').map((value) => value.trim()).find((value) => id(value)) || '';
+      if (!skuId) return reply(request, { error: 'SKU-ul Premium Discord nu este configurat.' }, 503);
+      const botToken = await getPlatformSecret(db, 'discord_bot_token');
+      const dmResponse = await fetch(`${DISCORD_API}/users/@me/channels`, { method: 'POST', headers: { ...botHeaders(botToken), 'Content-Type': 'application/json' }, body: JSON.stringify({ recipient_id: String(discord.id) }) });
+      if (!dmResponse.ok) return reply(request, { error: 'Nu am putut deschide conversația privată pe Discord.' }, 502);
+      const dm = await dmResponse.json().catch(() => ({}));
+      if (!dm?.id) return reply(request, { error: 'Discord nu a returnat un canal privat valid.' }, 502);
+      const renewal = body.renewal === true;
+      const messageResponse = await fetch(`${DISCORD_API}/channels/${dm.id}/messages`, { method: 'POST', headers: { ...botHeaders(botToken), 'Content-Type': 'application/json' }, body: JSON.stringify({ content: `💎 Premium Panel Pro pentru serverul **${selectedGuild.name}**\n${renewal ? 'Apasă butonul de mai jos pentru a prelungi Premium direct prin Discord.' : 'Apasă butonul de mai jos pentru a cumpăra Premium direct prin Discord.'}`, components: discordPremiumButton(skuId) }) });
+      if (!messageResponse.ok) {
+        const discordError = await messageResponse.json().catch(() => ({}));
+        const validation = discordError?.errors ? clean(JSON.stringify(discordError.errors), 500) : '';
+        const detail = clean([discordError?.message, discordError?.code, validation].filter(Boolean).join(' · '), 700);
+        return reply(request, { error: `Mesajul Premium nu a putut fi trimis pe Discord${detail ? `: ${detail}` : '.'}`, discord_status: messageResponse.status, discord_error: discordError?.errors || null }, 502);
+      }
+      return reply(request, { ok: true, sent_to_discord: true });
+    }
     const { data: settings, error: settingsError } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', selectedGuild.organization_id).maybeSingle();
     if (settingsError) throw settingsError;
     if (action === 'dashboard_overview' || action === 'repair_guild' || action === 'set_module_enabled') {
@@ -478,6 +497,27 @@ Deno.serve(async (request) => {
       const { error } = await db.from('discovery_app_settings').upsert({ organization_id: selectedGuild.organization_id, key: 'discord_bot_admin_users', value: { discord_ids: requestedMemberIds }, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,key' });
       if (error) throw error;
       return reply(request, { ok: true, member_ids: requestedMemberIds });
+    }
+    if (action === 'search_guild_members') {
+      if (!selectedGuild.can_manage_access) return reply(request, { error: 'Doar ownerul serverului poate căuta membri pentru acordarea accesului.' }, 403);
+      const query = clean(body.query, 80);
+      const botToken = await getPlatformSecret(db, 'discord_bot_token');
+      const members: any[] = [];
+      let after = '';
+      for (let page = 0; page < 20; page += 1) {
+        const params = new URLSearchParams({ limit: '1000' });
+        if (query.length >= 2) params.set('query', query);
+        if (after) params.set('after', after);
+        const membersResponse = await fetch(`${DISCORD_API}/guilds/${guildId}/members?${params.toString()}`, { headers: botHeaders(botToken) });
+        if (!membersResponse.ok) return reply(request, { error: `Membrii Discord nu pot fi încărcați (HTTP ${membersResponse.status}). Activează Server Members Intent pentru bot.` }, 400);
+        const pageMembers = await membersResponse.json().catch(() => []);
+        if (!Array.isArray(pageMembers) || !pageMembers.length) break;
+        members.push(...pageMembers);
+        if (query.length >= 2 || pageMembers.length < 1000) break;
+        after = String(pageMembers[pageMembers.length - 1]?.user?.id || '');
+        if (!id(after)) break;
+      }
+      return reply(request, { ok: true, members: (Array.isArray(members) ? members : []).map((member: any) => ({ id: String(member.user?.id || ''), username: clean(member.user?.username || '', 80), global_name: clean(member.user?.global_name || '', 80), display_name: clean(member.nick || member.user?.global_name || member.user?.username || member.user?.id || '', 80), avatar: member.user?.avatar || null })).filter((member: any) => id(member.id)) });
     }
     const allowedPremium = selectedGuild.plan !== 'free';
     if (action === 'contract_template' || action === 'save_contract_template') {
