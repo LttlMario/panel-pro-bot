@@ -9,6 +9,9 @@ create table if not exists public.discovery_stash_locations (
   name text not null, description text not null default '', active boolean not null default true, created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
   unique (organization_id, name)
 );
+alter table public.discovery_stash_locations enable row level security;
+revoke all on table public.discovery_stash_locations from anon, authenticated;
+grant all on table public.discovery_stash_locations to service_role;
 
 create table if not exists public.discovery_scheduled_report_runs (
   id uuid primary key default gen_random_uuid(),
