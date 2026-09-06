@@ -532,11 +532,12 @@ Deno.serve(async (request) => {
       const position = clean(body.position, 120);
       const salary = clean(body.salary, 120);
       const schedule = clean(body.schedule, 120);
+      const address = clean(body.address, 240);
       if (template.length < 20) return reply(request, { error: 'Șablonul contractului este prea scurt.' }, 400);
       const allowedVariables = new Set(['COMPANY','ADDRESS','MANAGER','EMPLOYEE_NAME','CNP','PHONE','POSITION','START_DATE','PROGRAM','SALARY']);
       const unknownVariables = [...template.matchAll(/{{([A-Z0-9_]+)}}/g)].map((match) => match[1]).filter((value, index, values) => !allowedVariables.has(value) && values.indexOf(value) === index);
       if (unknownVariables.length) return reply(request, { error: `Variabile necunoscute: ${unknownVariables.map((value) => `{{${value}}}`).join(', ')}.` }, 400);
-      const { data: saved, error } = await db.from('discovery_app_settings').upsert({ organization_id: selectedGuild.organization_id, key: 'contract_template', value: { title: title || 'Contract de muncă', template, defaults: { position, salary, schedule } }, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,key' }).select('value').single();
+      const { data: saved, error } = await db.from('discovery_app_settings').upsert({ organization_id: selectedGuild.organization_id, key: 'contract_template', value: { title: title || 'Contract de muncă', template, defaults: { position, salary, schedule, address } }, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,key' }).select('value').single();
       if (error) throw error;
       return reply(request, { ok: true, contract_template: saved?.value || null });
     }

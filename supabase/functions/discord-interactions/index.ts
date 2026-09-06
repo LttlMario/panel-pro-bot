@@ -1009,7 +1009,7 @@ async function handleContractSubmit(db: any, context: any, values: Record<string
   const template = String(custom.template || contractTemplateFallback()).trim().slice(0, 50000);
   const contractText = replaceContractPlaceholders(template, {
     COMPANY: contractValue(context.organization.name, 'Organizație'),
-    ADDRESS: contractValue(context.organization.address, '—'),
+    ADDRESS: contractValue(defaults.address || context.organization.address, '—'),
     MANAGER: contract.manager,
     EMPLOYEE_NAME: contract.employee_name,
     CNP: contract.cnp,
