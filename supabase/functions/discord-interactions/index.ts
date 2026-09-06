@@ -1142,7 +1142,6 @@ async function createActionDraft(db: any, context: any, values: Record<string, s
     if (fallback.error) throw fallback.error;
     return interactionMessage(`Acțiunea „${label}” a fost salvată.`);
   }
-  if (error) throw error;
   return actionParticipantPicker(String(draft.id));
 }
 
@@ -1154,7 +1153,12 @@ async function finalizeActionDraft(db: any, context: any, draftId: string, parti
   const participants = [];
   for (const id of ids) participants.push(await loadDiscordMember(id, context.guildId, db));
   const now = new Date().toISOString();
-  const { data: record, error } = await db.from('discovery_actions').insert({ organization_id: context.organization.id, action_type: draft.action_type, action_label: draft.action_label, description: draft.description || '', notes: draft.notes || '', guild_id: context.guildId, guild_name: '', participants, created_by_discord_id: context.discordId, created_by_name: context.displayName, created_at: now, updated_at: now }).select('*').single();
+  let { data: record, error } = await db.from('discovery_actions').insert({ organization_id: context.organization.id, action_type: draft.action_type, action_label: draft.action_label, description: draft.description || '', notes: draft.notes || '', guild_id: context.guildId, guild_name: '', participants, created_by_discord_id: context.discordId, created_by_name: context.displayName, created_at: now, updated_at: now }).select('*').single();
+  if (error) {
+    const fallback = await db.from('discovery_actions').insert({ organization_id: context.organization.id, title: draft.action_label || draft.action_type, action_type: draft.action_type, description: draft.description || '', created_by_discord_id: context.discordId, created_by_name: context.displayName, created_at: now, updated_at: now }).select('*').single();
+    record = fallback.data;
+    error = fallback.error;
+  }
   await db.from('discovery_action_drafts').delete().eq('id', draft.id);
   if (error) throw error;
   return publishActionRecord(db, context, record);
@@ -2659,7 +2663,7 @@ Deno.serve(async (request) => {
         const context = await resolveManagementContext(db, interaction, 'organization', 'write', 'organization', 'actions_organization', 'action_permissions', 'actions.organization.write');
         const deferred = await deferInteraction(interaction, false);
         let result;
-        try { result = await finalizeActionDraft(db, context, draftId, []); } catch (error) { console.error('[discord-interactions]', error); result = interactionMessage(error instanceof Error ? error.message : 'Acțiunea nu a putut fi salvată.'); }
+        try { result = await finalizeActionDraft(db, context, draftId, []); } catch (error) { console.error('[discord-interactions]', error); result = interactionMessage(readableError(error, 'Acțiunea nu a putut fi salvată.')); }
         const followupId = await sendFollowup(deferred.applicationId, deferred.interactionToken, result);
         if (followupId) { await new Promise((resolve) => setTimeout(resolve, 5000)); await deleteFollowup(deferred.applicationId, deferred.interactionToken, followupId); }
         return new Response(null, { status: 204 });
@@ -2679,7 +2683,7 @@ Deno.serve(async (request) => {
       const context = await resolveManagementContext(db, interaction, 'organization', 'write', 'organization', 'actions_organization', 'action_permissions', 'actions.organization.write');
       const deferred = await deferInteraction(interaction, false);
       let result;
-      try { result = await finalizeActionDraft(db, context, draftId, Array.isArray(interaction.data?.values) ? interaction.data.values : []); } catch (error) { console.error('[discord-interactions]', error); result = interactionMessage(error instanceof Error ? error.message : 'Acțiunea nu a putut fi salvată.'); }
+      try { result = await finalizeActionDraft(db, context, draftId, Array.isArray(interaction.data?.values) ? interaction.data.values : []); } catch (error) { console.error('[discord-interactions]', error); result = interactionMessage(readableError(error, 'Acțiunea nu a putut fi salvată.')); }
       const followupId = await sendFollowup(deferred.applicationId, deferred.interactionToken, result);
       if (followupId) { await new Promise((resolve) => setTimeout(resolve, 5000)); await deleteFollowup(deferred.applicationId, deferred.interactionToken, followupId); }
       return new Response(null, { status: 204 });
@@ -2691,7 +2695,7 @@ Deno.serve(async (request) => {
       try {
         const context = await resolveManagementContext(db, interaction, 'organization', 'write', 'organization', 'actions_organization', 'action_permissions', 'actions.organization.write');
         result = await createActionDraft(db, context, modalValues(interaction));
-      } catch (error) { console.error('[discord-interactions]', error); result = interactionMessage(error instanceof Error ? error.message : 'Acțiunea nu a putut fi salvată.'); }
+      } catch (error) { console.error('[discord-interactions]', error); result = interactionMessage(readableError(error, 'Acțiunea nu a putut fi salvată.')); }
       const followupId = await sendFollowup(deferred.applicationId, deferred.interactionToken, result);
       if (followupId && !result?.data?.components?.length) { await new Promise((resolve) => setTimeout(resolve, 5000)); await deleteFollowup(deferred.applicationId, deferred.interactionToken, followupId); }
       return new Response(null, { status: 204 });
