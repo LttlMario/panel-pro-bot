@@ -1029,9 +1029,9 @@ async function handleContractSubmit(db: any, context: any, values: Record<string
     if (updateEmployeeError) throw updateEmployeeError;
     employee = updatedEmployee;
   } else {
-    const { data: upsertedEmployee, error: employeeError } = await db.from('discovery_employees').upsert({ organization_id: context.organization.id, full_name: contract.employee_name, cnp: contract.cnp, active: true, updated_at: now }, { onConflict: 'organization_id,cnp' }).select('id').single();
+    const { data: insertedEmployee, error: employeeError } = await db.from('discovery_employees').insert({ organization_id: context.organization.id, full_name: contract.employee_name, cnp: contract.cnp, active: true, updated_at: now }).select('id').single();
     if (employeeError) throw employeeError;
-    employee = upsertedEmployee;
+    employee = insertedEmployee;
   }
   const { data: saved, error: contractError } = await db.from('discovery_contracts').insert({ organization_id: context.organization.id, employee_id: employee.id, contract_number: contract.contract_number, contract_text: contractText, phone: contract.phone, position: contract.position, salary: contract.salary, schedule: contract.schedule, start_date: contract.start_date, created_by_discord_id: context.discordId }).select('id').single();
   if (contractError) {
