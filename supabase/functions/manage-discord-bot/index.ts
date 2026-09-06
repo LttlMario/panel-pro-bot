@@ -307,11 +307,19 @@ Deno.serve(async (request) => {
       const guildsForSelector = (registeredGuilds || []).filter((item: any) => id(item.guild_id)).map((item: any) => ({ id: String(item.guild_id), name: clean(item.guild_name || item.guild_id, 120), organization_id: String(item.organization_id || ''), bot_installed: true, is_owner: false, can_manage_access: true }));
       return reply(request, { ok: true, platform_admin: platformAdmin, guilds: guildsForSelector, custom_modules: setting?.custom_modules && typeof setting.custom_modules === 'object' ? setting.custom_modules : {} });
     }
-    if (action === 'assistant_catalog', 'assistant_schema_check') {
+    if (action === 'assistant_catalog' || action === 'assistant_schema_check') {
       if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate consulta catalogul asistentului.' }, 403);
       const { data: customSetting, error: catalogError } = await db.from('discovery_bot_global_settings').select('custom_modules,updated_at').eq('id', 'global').maybeSingle();
       if (catalogError) throw catalogError;
       const customModules = sanitizeCustomModules(customSetting?.custom_modules || {});
+      if (action === 'assistant_schema_check') {
+        const checks = [];
+        for (const table of ['discovery_bot_global_settings', 'discovery_custom_module_submissions', 'discovery_guilds']) {
+          const { error } = await db.from(table).select('*', { head: true, count: 'exact' }).limit(1);
+          checks.push({ table, ok: !error, error: error ? String(error.message || error) : null });
+        }
+        return reply(request, { ok: true, checks, isolation: { organization_scoped: true, guild_scoped: true } });
+      }
       const handlers = Object.fromEntries(Object.entries(MODULES).map(([key, value]) => [key, { label: value.label, buttons: value.buttons.map((button: any) => ({ label: button.label, id: button.id })), source: 'core' }]));
       for (const [key, value] of Object.entries(customModules)) handlers[key] = { label: value.label, buttons: value.buttons.map((button: any) => ({ label: button.label, id: button.id || '', action: button.action || 'open_form' })), source: 'custom' };
       return reply(request, { ok: true, catalog_version: customSetting?.updated_at || null, handlers, actions: ['open_form', 'save_submission', 'send_log', 'notify_submitter', 'update_message', 'approve', 'reject', 'report'], tables: ['discovery_bot_global_settings', 'discovery_custom_module_submissions', 'discovery_guilds'], schema_checks: ['module definition', 'submission storage', 'guild isolation'] });
