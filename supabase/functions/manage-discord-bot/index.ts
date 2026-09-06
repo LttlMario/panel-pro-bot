@@ -630,7 +630,7 @@ Deno.serve(async (request) => {
         const selected = requested[routeKey] && typeof requested[routeKey] === 'object' ? requested[routeKey] : { embed: requested[routeKey] };
         const channelId = clean(selected.embed, 30);
         const logChannelId = clean(selected.log, 30);
-        if (!channelId) { delete nextRoutes[routeKey]; if (moduleDefinitions[routeKey].log_key || LOG_ROUTES[routeKey]) delete nextRoutes[moduleDefinitions[routeKey].log_key || LOG_ROUTES[routeKey]]; continue; }
+        if (!channelId) { delete nextRoutes[routeKey]; const staleLogKey = moduleDefinitions[routeKey].log_key || LOG_ROUTES[routeKey]; if (staleLogKey) { delete nextRoutes[staleLogKey]; for (const event of ['submission','approval','rejection','error']) delete nextRoutes[`${staleLogKey}_${event}`]; } continue; }
         if (!validDiscordChannelId(channelId) || !available.has(channelId)) return reply(request, { error: `Canal invalid pentru modulul ${moduleDefinitions[routeKey].label}.` }, 400);
         nextRoutes[routeKey] = { ...(nextRoutes[routeKey] || {}), primary: { ...(nextRoutes[routeKey]?.primary || {}), channel_id: channelId, guild_id: guildId, enabled: true } };
         const moduleLogKey = moduleDefinitions[routeKey].log_key || LOG_ROUTES[routeKey];
