@@ -279,7 +279,7 @@ Deno.serve(async (request) => {
     // Operațiunile globale nu trebuie să depindă de scope-ul OAuth `guilds`.
     // Administratorul global poate deschide constructorul chiar dacă tokenul
     // Discord existent a fost emis înainte de adăugarea scope-ului.
-    const globalOnlyAction = ['custom_modules', 'save_custom_modules', 'global_config', 'save_global_config'].includes(action);
+    const globalOnlyAction = ['custom_modules', 'save_custom_modules', 'global_config', 'save_global_config', 'assistant_catalog'].includes(action);
     const guilds = globalOnlyAction
       ? []
       : await ownedGuilds(db, { ...discord, access_token: accessToken }, applicationId, platformAdmin || !personalView, diagnostics);
@@ -306,7 +306,15 @@ Deno.serve(async (request) => {
       const guildsForSelector = (registeredGuilds || []).filter((item: any) => id(item.guild_id)).map((item: any) => ({ id: String(item.guild_id), name: clean(item.guild_name || item.guild_id, 120), organization_id: String(item.organization_id || ''), bot_installed: true, is_owner: false, can_manage_access: true }));
       return reply(request, { ok: true, platform_admin: platformAdmin, guilds: guildsForSelector, custom_modules: setting?.custom_modules && typeof setting.custom_modules === 'object' ? setting.custom_modules : {} });
     }
-    if (action === 'global_config' || action === 'save_global_config') {
+    if (action === 'assistant_catalog') {
+      if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate consulta catalogul asistentului.' }, 403);
+      const { data: customSetting, error: catalogError } = await db.from('discovery_bot_global_settings').select('custom_modules,updated_at').eq('id', 'global').maybeSingle();
+      if (catalogError) throw catalogError;
+      const customModules = sanitizeCustomModules(customSetting?.custom_modules || {});
+      const handlers = Object.fromEntries(Object.entries(MODULES).map(([key, value]) => [key, { label: value.label, buttons: value.buttons.map((button: any) => ({ label: button.label, id: button.id })), source: 'core' }]));
+      for (const [key, value] of Object.entries(customModules)) handlers[key] = { label: value.label, buttons: value.buttons.map((button: any) => ({ label: button.label, id: button.id || '', action: button.action || 'open_form' })), source: 'custom' };
+      return reply(request, { ok: true, catalog_version: customSetting?.updated_at || null, handlers, actions: ['open_form', 'save_submission', 'send_log', 'notify_submitter', 'update_message', 'approve', 'reject', 'report'], tables: ['discovery_bot_global_settings', 'discovery_custom_module_submissions', 'discovery_guilds'], schema_checks: ['module definition', 'submission storage', 'guild isolation'] });
+    }    if (action === 'global_config' || action === 'save_global_config') {
       if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate modifica setările globale ale botului.' }, 403);
       const current = await readGlobalModules(db);
       if (action === 'save_global_config') {
@@ -649,3 +657,4 @@ Deno.serve(async (request) => {
     return reply(request, { error: detail || 'Eroare internă.' }, 400);
   }
 });
+
