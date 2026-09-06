@@ -10,3 +10,4 @@
   if(stage==='confirm'){say('Asistent','Apasă „Creează draftul complet” pentru aplicare sau spune ce vrei să schimb.');return} say('Asistent','Spune ce dorești să modific la draftul creat.');};
  const capture=e=>{if(e.type==='click'){const raw=input.value.trim();if(!raw)return;e.preventDefault();e.stopImmediatePropagation();input.value='';handle(raw)}else if(e.type==='keydown'&&e.key==='Enter'&&!e.shiftKey){const raw=input.value.trim();if(!raw)return;e.preventDefault();e.stopImmediatePropagation();input.value='';handle(raw)}};send.addEventListener('click',capture,true);input.addEventListener('keydown',capture,true);log.innerHTML='';say('Asistent','Spune-mi ce vrei să facă modulul. Îți voi pune întrebările necesare și îl voi construi complet pentru tine.');
 })();
+
