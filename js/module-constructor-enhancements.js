@@ -23,11 +23,17 @@
   const keyInput = document.getElementById('key');
   const handler = document.getElementById('handler');
   const handlerField = handler?.closest('.field');
-  const templateField = document.createElement('label');
-  templateField.className = 'field';
-  templateField.innerHTML = '<span>🧭 Asistent wizard · alege tipul modulului</span><select id="module-template"><option value="none">Modul simplu (doar embed)</option><optgroup label="Comunicare"><option value="announcement">Anunț</option><option value="poll">Sondaj</option><option value="event">Eveniment / reminder</option></optgroup><optgroup label="Formulare"><option value="request">Cerere / formular</option><option value="approval">Cerere cu aprobare</option><option value="recruitment">Recrutare / aplicație</option><option value="feedback">Feedback</option><option value="suggestion">Sugestie</option><option value="complaint">Reclamație / incident</option><option value="ticket">Ticket / solicitare suport</option></optgroup><optgroup label="Administrare"><option value="report">Raport</option><option value="inventory">Inventar / evidență</option><option value="survey">Chestionar</option></optgroup></select><small class="muted">Alege un șablon și vom pregăti automat câmpurile și acțiunile potrivite.</small>';
-  templateField.after(smartTools);
-  handlerField?.before(templateField);
+  const staticWizard = document.getElementById('module-wizard-static');
+  let templateField = null;
+  let templateSelect = document.getElementById('module-template-static');
+  if (!templateSelect) {
+    templateField = document.createElement('label');
+    templateField.className = 'field';
+    templateField.innerHTML = '<span>🧭 Asistent wizard · alege tipul modulului</span><select id="module-template"><option value="none">Modul simplu (doar embed)</option><optgroup label="Comunicare"><option value="announcement">Anunț</option><option value="poll">Sondaj</option><option value="event">Eveniment / reminder</option></optgroup><optgroup label="Formulare"><option value="request">Cerere / formular</option><option value="approval">Cerere cu aprobare</option><option value="recruitment">Recrutare / aplicație</option><option value="feedback">Feedback</option><option value="suggestion">Sugestie</option><option value="complaint">Reclamație / incident</option><option value="ticket">Ticket / solicitare suport</option></optgroup><optgroup label="Administrare"><option value="report">Raport</option><option value="inventory">Inventar / evidență</option><option value="survey">Chestionar</option></optgroup></select><small class="muted">Alege un șablon și vom pregăti automat câmpurile și acțiunile potrivite.</small>';
+    templateField.after(smartTools);
+    handlerField?.before(templateField);
+    templateSelect = templateField.querySelector('#module-template');
+  }
   if (handlerField) handlerField.hidden = true;
   ['guild', 'embed-channel', 'log-channel'].forEach(id => document.getElementById(id)?.closest('.field')?.setAttribute('hidden', 'hidden'));
   const publishButton = document.getElementById('publish');
@@ -132,7 +138,7 @@
     renderWorkflow();
     applyProgressiveStage();
   });
-  document.getElementById('module-template')?.addEventListener('change', event => {
+  if (!staticWizard) templateSelect?.addEventListener('change', event => {
     const selected = event.target.value;
     handler.value = selected;
     const presets = {
@@ -196,7 +202,7 @@
   const readSmartConfig = () => ({ key: keyInput?.value?.trim() || 'custom_modul', label: document.getElementById('label')?.value?.trim() || '', title: document.getElementById('title')?.value?.trim() || '', description: document.getElementById('description')?.value?.trim() || '', color: document.getElementById('color')?.value || '#5865f2', handler: handler?.value || 'none', buttons: [...document.querySelectorAll('#button-list .button-row')].map(row => ({ label: row.querySelector('input')?.value?.trim() || '', style: Number(row.querySelector('select')?.value || 1), type: row.querySelector('[data-module-type]')?.value || 'button', action: row.querySelector('[data-module-action]')?.value || 'open_form', url: row.querySelector('[data-module-url]')?.value || '', options: (row.querySelector('[data-module-options]')?.value || '').split(',').map(item => item.trim()).filter(Boolean) })).filter(button => button.label), form_schema: [...document.querySelectorAll('.form-builder-row')].map((row, index) => ({ id: `field_${index + 1}`, label: row.querySelector('[data-form-label]')?.value?.trim() || '', type: row.querySelector('[data-form-type]')?.value || 'short_text', placeholder: row.querySelector('[data-form-placeholder]')?.value?.trim() || '', options: (row.querySelector('[data-form-options]')?.value || '').split(',').map(item => item.trim()).filter(Boolean), required: row.querySelector('[data-form-required]')?.checked !== false })).filter(field => field.label) });
   const draftKey = () => `panel-pro-module-draft:${keyInput?.value?.trim() || 'custom_modul'}`;
   const saveSmartDraft = () => { const config = readSmartConfig(); localStorage.setItem(draftKey(), JSON.stringify(config)); showStatus('Draftul modulului a fost salvat local în acest browser.', 'ok'); };
-  const loadSmartDraft = () => { try { const config = JSON.parse(localStorage.getItem(draftKey()) || 'null'); if (!config) return showStatus('Nu există niciun draft pentru acest modul.', 'error'); document.getElementById('label').value = config.label || ''; document.getElementById('title').value = config.title || ''; document.getElementById('description').value = config.description || ''; document.getElementById('color').value = config.color || '#5865f2'; handler.value = config.handler || 'none'; document.getElementById('module-template').value = config.handler || 'none'; renderButtons(config.buttons || []); fillAdvanced(config); renderWorkflow(); advancedOpen = false; moduleStage = 0; applyProgressiveStage(); showStatus('Draftul a fost încărcat. Verifică-l înainte de salvare.', 'ok'); } catch (_) { showStatus('Draftul local este invalid.', 'error'); } };
+  const loadSmartDraft = () => { try { const config = JSON.parse(localStorage.getItem(draftKey()) || 'null'); if (!config) return showStatus('Nu există niciun draft pentru acest modul.', 'error'); document.getElementById('label').value = config.label || ''; document.getElementById('title').value = config.title || ''; document.getElementById('description').value = config.description || ''; document.getElementById('color').value = config.color || '#5865f2'; handler.value = config.handler || 'none'; templateSelect.value = config.handler || 'none'; renderButtons(config.buttons || []); fillAdvanced(config); renderWorkflow(); advancedOpen = false; moduleStage = 0; applyProgressiveStage(); showStatus('Draftul a fost încărcat. Verifică-l înainte de salvare.', 'ok'); } catch (_) { showStatus('Draftul local este invalid.', 'error'); } };
   document.getElementById('save-draft-module')?.addEventListener('click', saveSmartDraft);
   let autosaveTimer;
   root.addEventListener('input', () => { window.clearTimeout(autosaveTimer); autosaveTimer = window.setTimeout(() => { try { localStorage.setItem(draftKey(), JSON.stringify(readSmartConfig())); } catch (_) {} }, 500); });
@@ -306,3 +312,4 @@
     return constructorFetch(input, init);
   };
 })();
+
