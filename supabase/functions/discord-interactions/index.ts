@@ -1025,11 +1025,11 @@ async function handleContractSubmit(db: any, context: any, values: Record<string
   if (existingEmployeeError) throw existingEmployeeError;
   let employee: any;
   if (existingEmployee?.id) {
-    const { data: updatedEmployee, error: updateEmployeeError } = await db.from('discovery_employees').update({ full_name: contract.employee_name, status: 'active', left_at: null, archived_at: null, updated_at: now }).eq('organization_id', context.organization.id).eq('id', existingEmployee.id).select('id').single();
+    const { data: updatedEmployee, error: updateEmployeeError } = await db.from('discovery_employees').update({ full_name: contract.employee_name, active: true, updated_at: now }).eq('organization_id', context.organization.id).eq('id', existingEmployee.id).select('id').single();
     if (updateEmployeeError) throw updateEmployeeError;
     employee = updatedEmployee;
   } else {
-    const { data: upsertedEmployee, error: employeeError } = await db.from('discovery_employees').upsert({ organization_id: context.organization.id, full_name: contract.employee_name, cnp: contract.cnp, status: 'active', left_at: null, archived_at: null, updated_at: now }, { onConflict: 'organization_id,cnp' }).select('id').single();
+    const { data: upsertedEmployee, error: employeeError } = await db.from('discovery_employees').upsert({ organization_id: context.organization.id, full_name: contract.employee_name, cnp: contract.cnp, active: true, updated_at: now }, { onConflict: 'organization_id,cnp' }).select('id').single();
     if (employeeError) throw employeeError;
     employee = upsertedEmployee;
   }
