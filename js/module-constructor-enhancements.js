@@ -317,4 +317,30 @@
 
 (() => {const root=document.getElementById('editor');if(!root||document.getElementById('response-flow-config'))return;const s=document.createElement('section');s.id='response-flow-config';s.style.cssText='margin-top:16px;padding:14px;border:1px solid #f59e0b;border-radius:12px;background:#241a08';s.innerHTML='<h3 style="margin:0 0 8px;font-size:13px;color:#fde68a">🔁 Răspuns separat (opțional)</h3><label class="field"><span><input id="response-flow-enabled" type="checkbox"> Activează fluxul secundar pentru acest modul</span></label><label class="field"><span>Titlu embed răspuns</span><input id="response-flow-title" placeholder="Modul · Răspuns conducere"></label><label class="field"><span><input id="response-flow-reason" type="checkbox"> Cere motiv la respingere</span></label><label class="field"><span><input id="response-flow-notify" type="checkbox" checked> Notifică solicitantul</span></label><small class="muted">Când este activ, modulul poate avea aprobare/respingere, embed rezultat și log separat configurat ulterior pe server.</small>';const target=root.querySelector('.buttons');(target||root).before(s);const handler=document.getElementById('handler');const enabled=document.getElementById('response-flow-enabled');handler?.addEventListener('change',()=>{if(handler.value==='approval')enabled.checked=true;});const old=window.fetch;window.fetch=async(input,init)=>{if(init?.body&&typeof init.body==='string'&&String(input).includes('manage-discord-bot')){try{const b=JSON.parse(init.body);if(b.action==='save_custom_modules'&&b.custom_modules){const k=document.getElementById('key')?.value.trim();if(k&&b.custom_modules[k])b.custom_modules[k].response_flow={enabled:enabled.checked,title:document.getElementById('response-flow-title').value.trim(),reason_required:document.getElementById('response-flow-reason').checked,notify_submitter:document.getElementById('response-flow-notify').checked};init={...init,body:JSON.stringify(b)}}}catch{}}return old(input,init)};})();
 
-(() => { const root=document.getElementById('editor'); if(!root||document.getElementById('module-log-events')) return; const sec=document.createElement('section'); sec.id='module-log-events'; sec.style.cssText='margin-top:14px;padding:12px;border:1px solid #38bdf8;border-radius:10px;background:#071b2a'; sec.innerHTML='<h3 style="margin:0 0 8px;font-size:13px;color:#7dd3fc">📜 Evenimente pentru log</h3><p class="muted" style="font-size:11px;margin:0 0 8px">Alege ce rezultate trebuie înregistrate separat în logul modulului.</p><div style="display:flex;gap:12px;flex-wrap:wrap"><label><input type="checkbox" data-log-event="submission" checked> Trimitere</label><label><input type="checkbox" data-log-event="approval" checked> Aprobare</label><label><input type="checkbox" data-log-event="rejection" checked> Respingere</label><label><input type="checkbox" data-log-event="error" checked> Eroare</label></div>'; const target=document.getElementById('response-flow-config'); (target||root).before(sec); const old=window.fetch; window.fetch=async(input,init)=>{ if(init?.body&&typeof init.body==='string'&&String(input).includes('manage-discord-bot')){ try{const b=JSON.parse(init.body); if(b.action==='save_custom_modules'&&b.custom_modules){const k=document.getElementById('key')?.value.trim(); if(k&&b.custom_modules[k]){const ev=[...sec.querySelectorAll('[data-log-event]:checked')].map(x=>x.dataset.logEvent); b.custom_modules[k].workflow={...(b.custom_modules[k].workflow||{}),logging_enabled:true,log_events:ev}; init={...init,body:JSON.stringify(b)}}}catch{}} return old(input,init); }; })();
+(() => {
+  const root = document.getElementById('editor');
+  if (!root || document.getElementById('module-log-events')) return;
+  const sec = document.createElement('section');
+  sec.id = 'module-log-events';
+  sec.style.cssText = 'margin-top:14px;padding:12px;border:1px solid #38bdf8;border-radius:10px;background:#071b2a';
+  sec.innerHTML = '<h3 style="margin:0 0 8px;font-size:13px;color:#7dd3fc">📜 Evenimente pentru log</h3><p class="muted" style="font-size:11px;margin:0 0 8px">Alege ce rezultate trebuie înregistrate separat în logul modulului.</p><div style="display:flex;gap:12px;flex-wrap:wrap"><label><input type="checkbox" data-log-event="submission" checked> Trimitere</label><label><input type="checkbox" data-log-event="approval" checked> Aprobare</label><label><input type="checkbox" data-log-event="rejection" checked> Respingere</label><label><input type="checkbox" data-log-event="error" checked> Eroare</label></div>';
+  const target = document.getElementById('response-flow-config');
+  (target || root).before(sec);
+  const previousFetch = window.fetch;
+  window.fetch = async function(input, init) {
+    if (init && typeof init.body === 'string' && String(input).includes('manage-discord-bot')) {
+      try {
+        const payload = JSON.parse(init.body);
+        if (payload.action === 'save_custom_modules' && payload.custom_modules) {
+          const key = document.getElementById('key')?.value.trim();
+          if (key && payload.custom_modules[key]) {
+            const events = Array.from(sec.querySelectorAll('[data-log-event]:checked')).map((el) => el.dataset.logEvent);
+            payload.custom_modules[key].workflow = { ...(payload.custom_modules[key].workflow || {}), logging_enabled: true, log_events: events };
+            init = { ...init, body: JSON.stringify(payload) };
+          }
+        }
+      } catch (_) {}
+    }
+    return previousFetch(input, init);
+  };
+})();
