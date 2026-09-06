@@ -935,7 +935,7 @@ async function nextContractNumber(db: any, organizationId: string, dateText: str
   return `${prefix}${String(highest + 1).padStart(5, '0')}`;
 }
 
-function contractEmbed(contract: any, organization: any, title: string, instructionText = '') {
+function contractEmbed(contract: any, organization: any, title: string, instructionText = '', includeText = false) {
   const fields = [
     { name: '👤 Angajat', value: contract.employee_name, inline: true },
     { name: '🪪 CNP', value: contract.cnp, inline: true },
@@ -950,7 +950,7 @@ function contractEmbed(contract: any, organization: any, title: string, instruct
   if (instructionText) fields.push({ name: '📎 Imagini necesare', value: instructionText, inline: false });
   return {
     title: `📄 ${title} · ${organization.name}`.slice(0, 256),
-    description: 'Contractul a fost generat din șablonul configurat în Panel Pro și salvat în istoricul organizației.',
+    description: includeText ? String(contract.contract_text || '').slice(0, 4096) : 'Contractul a fost generat din șablonul configurat în Panel Pro și salvat în istoricul organizației.',
     color: 0x14b8a6,
     fields,
     footer: { text: 'Panel Pro · Log contracte · datele sunt salvate în Supabase' },
@@ -1039,7 +1039,7 @@ async function handleContractSubmit(db: any, context: any, values: Record<string
     if (contractError.code === '23505') return interactionMessage('Numărul contractului există deja. Încearcă din nou.');
     throw contractError;
   }
-  return interactionMessage(`Contractul **${contract.contract_number}** a fost generat și salvat. Copiază-l, apoi apasă **Trimite contractul**. Contractul va fi publicat în canalul ales pentru Log contracte, iar imaginile le poți lipi manual sub mesaj.`, { embeds: [contractEmbed(contract, context.organization, 'Contract generat')], components: contractComponents(String(saved.id)) });
+  return interactionMessage(`Contractul **${contract.contract_number}** a fost generat și salvat. Copiază-l, apoi apasă **Trimite contractul**. Contractul va fi publicat în canalul ales pentru Log contracte, iar imaginile le poți lipi manual sub mesaj.`, { embeds: [contractEmbed(contract, context.organization, 'Contract generat', '', true)], components: contractComponents(String(saved.id)) });
 }
 
 async function handleContractPublish(db: any, context: any, contractId: string) {
@@ -1050,7 +1050,7 @@ async function handleContractPublish(db: any, context: any, contractId: string) 
   if (!destinations.some((item: any) => item.candidates.length)) return interactionMessage(`Contractul **${contract.contract_number}** este generat, dar canalul „Log contracte” nu este configurat.`);
   const payload = JSON.stringify({
     allowed_mentions: { parse: [] },
-    embeds: [contractEmbed(contract, context.organization, 'Contract nou', 'Atașează imaginile cu buletinul și contractul sub acest mesaj.')]
+    embeds: [contractEmbed(contract, context.organization, 'Contract nou', 'Atașează imaginile cu buletinul și contractul sub acest mesaj.', false)]
   });
   const delivery = await deliverDiscordRoute(db, context.settings, context.logRouteKey, payload, { postOnly: true });
   const messageIds = Object.fromEntries((delivery.results || []).filter((item: any) => item.id).map((item: any) => [String(item.target), String(item.id)]));
@@ -2501,24 +2501,10 @@ Deno.serve(async (request) => {
       if (parts[2] === 'copy') {
         const contractId = String(parts[3] || '').trim();
         if (!/^[0-9a-f-]{36}$/i.test(contractId)) return reply(interactionMessage('Contractul selectat nu este valid.'));
-        const deferred = await deferInteraction(interaction, false);
-        try {
-          const context = await resolveContractActionContext(db, interaction);
-          const { data: contract, error } = await db.from('discovery_contracts').select('id,contract_number,contract_text').eq('organization_id', context.organization.id).eq('id', contractId).maybeSingle();
-          if (error) throw error;
-          if (!contract) { await sendFollowup(deferred.applicationId, deferred.interactionToken, interactionMessage('Contractul nu mai există în istoricul organizației.')); return new Response(null, { status: 204 }); }
-          const text = String(contract.contract_text || '').trim();
-          const chunks = text.match(/[\s\S]{1,1800}/g) || [''];
-          for (let index = 0; index < chunks.length; index += 1) {
-            const prefix = index === 0 ? `**${String(contract.contract_number || 'Contract')} · copiere**\n\n` : `**Continuare ${index + 1}/${chunks.length}**\n\n`;
-            await sendFollowup(deferred.applicationId, deferred.interactionToken, interactionMessage(`${prefix}\`\`\`text\n${chunks[index]}\n\`\`\``));
-          }
-          return new Response(null, { status: 204 });
-        } catch (error) {
-          console.error('[discord-interactions]', error);
-          await sendFollowup(deferred.applicationId, deferred.interactionToken, interactionMessage(readableError(error, 'Contractul nu a putut fi încărcat pentru copiere.')));
-          return new Response(null, { status: 204 });
-        }
+        const embed = interaction.message?.embeds?.[0] || {};
+        const text = String(embed.description || '').trim();
+        if (text && !text.startsWith('Contractul a fost generat din șablonul')) return reply(contractCopyModal({ id: contractId, contract_number: embed.title?.replace(/^📄\s*/, '') || 'Contract', contract_text: text }));
+        return reply(interactionMessage('Textul contractului nu este disponibil. Generează din nou contractul și încearcă iar.'));
       }
       if (parts[2] === 'publish') {
         const contractId = String(parts[3] || '').trim();
