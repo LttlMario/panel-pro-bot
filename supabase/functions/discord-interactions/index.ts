@@ -2047,6 +2047,8 @@ async function handleCustomModuleSubmit(db: any, interaction: any, module: any) 
   if (submissionError) throw submissionError;
   const configuredActions = Array.isArray(module.workflow?.actions) ? module.workflow.actions : [];
   const actions = new Set(configuredActions.length ? configuredActions : ['save_submission', 'send_log']);
+  if (module.workflow?.logging_enabled === false) actions.delete('send_log');
+  if (module.workflow?.logging_enabled === true && configuredActions.length === 0) actions.add('send_log');
   if (['save_submission', 'send_log', 'notify_submitter', 'update_message'].includes(actionKey)) actions.add(actionKey);
   const logRoute = context.settings?.discord_channel_routes?.[module.log_key]?.[context.target];
   let logWarning = '';
