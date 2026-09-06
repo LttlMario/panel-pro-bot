@@ -58,6 +58,7 @@
       document.getElementById('save-all')?.click();
     }, true);
   }
+  const premium = document.createElement('label'); premium.className = 'field'; premium.innerHTML = '<span>Acces modul</span><span><input id="module-premium" type="checkbox"> Modul Premium (necesită acces Premium)</span>'; handler?.parentElement?.after(premium);
   const active = document.createElement('label');
   active.className = 'field';
   active.innerHTML = '<span>Modul activ</span><input id="module-active" type="checkbox" checked>';
@@ -276,7 +277,7 @@
           const moduleKey = keyInput.value.trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_');
           const module = body.custom_modules[moduleKey];
           if (module) {
-            module.active = document.getElementById('module-active')?.checked !== false;
+            module.active = document.getElementById('module-active')?.checked !== false; module.premium = document.getElementById('module-premium')?.checked === true;
             module.command_name = (document.getElementById('module-command')?.value || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32);
             module.form_schema = [...document.querySelectorAll('.form-builder-row')].map((row, index) => ({ id: `field_${index + 1}`, label: row.querySelector('[data-form-label]')?.value?.trim() || `Câmp ${index + 1}`, type: row.querySelector('[data-form-type]')?.value || 'short_text', required: row.querySelector('[data-form-required]')?.checked !== false, placeholder: row.querySelector('[data-form-placeholder]')?.value?.trim() || '', options: (row.querySelector('[data-form-options]')?.value || '').split(',').map(value => value.trim()).filter(Boolean) })).filter(field => field.label);
             module.workflow = { announcement_mode: document.getElementById('announcement-mode')?.value || 'public', approval_role: document.getElementById('approval-role')?.value?.trim() || '', report_limit: Number(document.getElementById('report-limit')?.value || 20), notify_submitter: document.getElementById('notify-submit')?.checked !== false };
