@@ -950,7 +950,7 @@ function contractEmbed(contract: any, organization: any, title: string, instruct
   if (instructionText) fields.push({ name: '📎 Imagini necesare', value: instructionText, inline: false });
   return {
     title: `📄 ${title} · ${organization.name}`.slice(0, 256),
-    description: 'Contractul a fost generat din șablonul configurat în Panel Pro și salvat în istoricul organizației.',
+    description: String(contract.contract_text || 'Contractul a fost generat din șablonul configurat în Panel Pro și salvat în istoricul organizației.').slice(0, 4096),
     color: 0x14b8a6,
     fields,
     footer: { text: 'Panel Pro · Log contracte · datele sunt salvate în Supabase' },
@@ -2500,18 +2500,10 @@ Deno.serve(async (request) => {
       if (parts[2] === 'copy') {
         const contractId = String(parts[3] || '').trim();
         if (!/^[0-9a-f-]{36}$/i.test(contractId)) return reply(interactionMessage('Contractul selectat nu este valid.'));
-        const deferred = await deferInteraction(interaction, false);
-        let result;
-        try {
-          const context = await resolveContractActionContext(db, interaction);
-          const { data: contract, error } = await db.from('discovery_contracts').select('id,contract_number,contract_text').eq('organization_id', context.organization.id).eq('id', contractId).maybeSingle();
-          if (error) throw error;
-          result = contract
-            ? interactionMessage(`**${String(contract.contract_number || 'Contract')}**\n\n\`\`\`text\n${String(contract.contract_text || '').slice(0, 1750)}\n\`\`\`\nSelectează textul cu Ctrl+A și copiază-l cu Ctrl+C.`)
-            : interactionMessage('Contractul nu mai există în istoricul organizației.');
-        } catch (error) { console.error('[discord-interactions]', error); result = interactionMessage(readableError(error, 'Contractul nu a putut fi încărcat pentru copiere.')); }
-        await sendFollowup(deferred.applicationId, deferred.interactionToken, result);
-        return new Response(null, { status: 204 });
+        const embed = interaction.message?.embeds?.[0] || {};
+        const text = String(embed.description || '').trim();
+        if (text) return reply(contractCopyModal({ id: contractId, contract_number: embed.title?.replace(/^📄\s*/, '') || 'Contract', contract_text: text }));
+        return reply(interactionMessage('Textul contractului nu este disponibil în mesajul original. Generează din nou contractul și încearcă iar.'));
       }
       if (parts[2] === 'publish') {
         const contractId = String(parts[3] || '').trim();
