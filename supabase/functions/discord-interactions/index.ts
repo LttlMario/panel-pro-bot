@@ -2507,7 +2507,7 @@ Deno.serve(async (request) => {
           const { data: contract, error } = await db.from('discovery_contracts').select('id,contract_number,contract_text').eq('organization_id', context.organization.id).eq('id', contractId).maybeSingle();
           if (error) throw error;
           result = contract
-            ? interactionMessage(`**${String(contract.contract_number || 'Contract')}**\n\n\`\`\`text\n${String(contract.contract_text || '').slice(0, 3800)}\n\`\`\`\nSelectează textul cu Ctrl+A și copiază-l cu Ctrl+C.`)
+            ? interactionMessage(`**${String(contract.contract_number || 'Contract')}**\n\n\`\`\`text\n${String(contract.contract_text || '').slice(0, 1750)}\n\`\`\`\nSelectează textul cu Ctrl+A și copiază-l cu Ctrl+C.`)
             : interactionMessage('Contractul nu mai există în istoricul organizației.');
         } catch (error) { console.error('[discord-interactions]', error); result = interactionMessage(readableError(error, 'Contractul nu a putut fi încărcat pentru copiere.')); }
         await sendFollowup(deferred.applicationId, deferred.interactionToken, result);
