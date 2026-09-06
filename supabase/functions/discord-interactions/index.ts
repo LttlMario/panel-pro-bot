@@ -1307,6 +1307,10 @@ function stashRejectionModal(id: string, sourceMessageId = '') {
   };
 }
 
+function customRejectionModal(moduleKey: string, submissionId: string) {
+  return { type: 9, data: { custom_id: `panel:custom_reason:${moduleKey}:${submissionId}`, title: 'Motiv respingere', components: [{ type: 1, components: [{ type: 4, custom_id: 'rejection_reason', label: 'Motivul respingerii', style: 2, required: true, placeholder: 'Explică de ce este respinsă solicitarea.', max_length: 1000 }] }] } };
+}
+
 function stashPendingView(kind: 'request' | 'donation', rows: any[]) {
   const label = kind === 'request' ? 'cererile' : 'donațiile';
   if (!rows.length) return interactionMessage(`Nu există ${label} în așteptare.`);
@@ -2220,7 +2224,7 @@ Deno.serve(async (request) => {
   const isMarketplace = customId.startsWith('panel:marketplace:');
   const isBotAccess = customId.startsWith('panel:bot_access:');
   const isDiscovery = customId.startsWith('panel:discovery:');
-  const isCustom = customId.startsWith('panel:custom:') || customId.startsWith('panel:custom_submit:') || customId.startsWith('panel:custom_review:');
+  const isCustom = customId.startsWith('panel:custom:') || customId.startsWith('panel:custom_submit:') || customId.startsWith('panel:custom_review:') || customId.startsWith('panel:custom_reason:');
   if (!isComponent && !isModalSubmit) return reply(interactionMessage('Acest tip de interacțiune nu este disponibil.'));
   if (!isPontaj && !isRequests && !isContracts && !isAnnouncements && !isDiscipline && !isActions && !isStash && !isMarketplace && !isBotAccess && !isDiscovery && !isCustom) return reply(interactionMessage('Acest buton nu aparține unui modul Panel Pro.'));
   try {
@@ -2229,11 +2233,22 @@ Deno.serve(async (request) => {
     const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
     await ensureDiscordOnlyOrganization(db, interaction);
     if (isCustom) {
+      if (customId.startsWith('panel:custom_reason:') && isModalSubmit) {
+        const reasonParts = customId.slice('panel:custom_reason:'.length).split(':');
+        const moduleKey = customModuleKey(reasonParts[0]);
+        const submissionId = String(reasonParts[1] || '').trim();
+        const reason = String(modalValues(interaction).rejection_reason || '').trim();
+        if (!moduleKey || !submissionId || reason.length < 2 || !isDiscordManager(interaction)) return reply(interactionMessage('Motivul respingerii este obligatoriu și poate fi trimis doar de un administrator.'));
+        const { data: updated, error } = await db.from('discovery_custom_module_submissions').update({ status: 'rejected', review_note: reason, reviewed_by_discord_id: String(interaction.member?.user?.id || interaction.user?.id || ''), updated_at: new Date().toISOString() }).eq('id', submissionId).eq('module_key', moduleKey).eq('status', 'pending').select('subject').maybeSingle();
+        if (error) throw error;
+        return reply(interactionMessage(updated ? `Solicitarea **${updated.subject}** a fost respinsă. Motiv: ${reason}` : 'Solicitarea a fost deja procesată sau nu mai există.'));
+      }
       if (customId.startsWith('panel:custom_review:')) {
         const reviewParts = customId.slice('panel:custom_review:'.length).split(':');
         const moduleKey = customModuleKey(reviewParts[0]);
         const submissionId = String(reviewParts[1] || '').trim();
         const nextStatus = ['approved', 'rejected'].includes(reviewParts[2]) ? reviewParts[2] : '';
+        if (nextStatus === 'rejected') { const pendingModule = await readCustomModule(db, moduleKey); if (pendingModule.response_flow?.reason_required === true) return reply(customRejectionModal(moduleKey, submissionId)); }
         if (!moduleKey || !submissionId || !nextStatus || !isDiscordManager(interaction)) return reply(interactionMessage('Doar un administrator al serverului poate procesa această aprobare.'));
         const { data: updated, error } = await db.from('discovery_custom_module_submissions').update({ status: nextStatus, reviewed_by_discord_id: String(interaction.member?.user?.id || interaction.user?.id || ''), updated_at: new Date().toISOString() }).eq('id', submissionId).eq('module_key', moduleKey).eq('status', 'pending').select('subject').maybeSingle();
         if (error) throw error;
