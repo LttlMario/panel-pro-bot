@@ -1,0 +1,1 @@
+const fs=require('fs'); const s=fs.readFileSync('supabase/functions/discord-interactions/index.ts','utf8'); for(const x of ['submissionLogKey','eventLogKey','_submission','_approval','_rejection']) if(!s.includes(x)) throw new Error('Dedicated log routing missing: '+x); console.log('Dedicated module log routing checks: OK');
