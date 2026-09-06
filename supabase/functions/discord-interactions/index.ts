@@ -1039,7 +1039,7 @@ async function handleContractSubmit(db: any, context: any, values: Record<string
     if (contractError.code === '23505') return interactionMessage('Numărul contractului există deja. Încearcă din nou.');
     throw contractError;
   }
-  return interactionMessage(`Contractul **${contract.contract_number}** a fost generat și salvat. Copiază-l, apoi apasă **Trimite contractul**. Contractul va fi publicat în canalul ales pentru Log contracte, iar imaginile le poți lipi manual sub mesaj.`, { embeds: [contractEmbed(contract, context.organization, 'Contract generat', '', true)], components: contractComponents(String(saved.id)) });
+  return interactionMessage(`Contractul **${contract.contract_number}** a fost generat și salvat. Apasă **Copiază contractul** pentru a vedea și copia textul complet, apoi apasă **Trimite contractul**.`, { embeds: [contractEmbed(contract, context.organization, 'Contract generat', '', false)], components: contractComponents(String(saved.id)) });
 }
 
 async function handleContractPublish(db: any, context: any, contractId: string) {
@@ -2501,10 +2501,11 @@ Deno.serve(async (request) => {
       if (parts[2] === 'copy') {
         const contractId = String(parts[3] || '').trim();
         if (!/^[0-9a-f-]{36}$/i.test(contractId)) return reply(interactionMessage('Contractul selectat nu este valid.'));
-        const embed = interaction.message?.embeds?.[0] || {};
-        const text = String(embed.description || '').trim();
-        if (text && !text.startsWith('Contractul a fost generat din șablonul')) return reply(contractCopyModal({ id: contractId, contract_number: embed.title?.replace(/^📄\s*/, '') || 'Contract', contract_text: text }));
-        return reply(interactionMessage('Textul contractului nu este disponibil. Generează din nou contractul și încearcă iar.'));
+        const context = await resolveContractActionContext(db, interaction);
+        const { data: contract, error } = await db.from('discovery_contracts').select('id,contract_number,contract_text').eq('organization_id', context.organization.id).eq('id', contractId).maybeSingle();
+        if (error) throw error;
+        if (!contract) return reply(interactionMessage('Contractul nu mai există în istoricul organizației.'));
+        return reply(contractCopyModal(contract));
       }
       if (parts[2] === 'publish') {
         const contractId = String(parts[3] || '').trim();
