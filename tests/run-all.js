@@ -1,0 +1,1 @@
+const fs=require('fs'); const cp=require('child_process'); const files=fs.readdirSync(__dirname).filter(f=>f.endsWith('.js')&&f!=='run-all.js').sort(); for(const f of files){console.log('▶ '+f); cp.execFileSync(process.execPath,[require('path').join(__dirname,f)],{stdio:'inherit'});} console.log('All assistant tests: OK');
