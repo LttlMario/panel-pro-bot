@@ -546,11 +546,21 @@ Deno.serve(async (request) => {
       const organizationId = selectedGuild.organization_id;
       if (action === 'stash_locations') {
         const { data, error } = await db.from('discovery_stash_locations').select('id,name,description,active').eq('organization_id', organizationId).order('name');
+        if (error && String(error.code || '') === '42P01') {
+          const { data: setting } = await db.from('discovery_app_settings').select('value').eq('organization_id', organizationId).eq('key', 'stash_locations').maybeSingle();
+          return reply(request, { ok: true, locations: Array.isArray(setting?.value?.locations) ? setting.value.locations : [] });
+        }
         if (error) throw error;
         return reply(request, { ok: true, locations: data || [] });
       }
       if (action === 'delete_stash_location') {
         const { error } = await db.from('discovery_stash_locations').update({ active: false, updated_at: new Date().toISOString() }).eq('organization_id', organizationId).eq('id', String(body.id || ''));
+        if (error && String(error.code || '') === '42P01') {
+          const { data: setting } = await db.from('discovery_app_settings').select('value').eq('organization_id', organizationId).eq('key', 'stash_locations').maybeSingle();
+          const locations = (Array.isArray(setting?.value?.locations) ? setting.value.locations : []).map((item: any) => item.id === String(body.id || '') ? { ...item, active: false } : item);
+          await db.from('discovery_app_settings').upsert({ organization_id: organizationId, key: 'stash_locations', value: { locations }, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,key' });
+          return reply(request, { ok: true });
+        }
         if (error) throw error;
         return reply(request, { ok: true });
       }
@@ -558,6 +568,15 @@ Deno.serve(async (request) => {
       const description = clean(body.description, 300);
       if (name.length < 2) return reply(request, { error: 'Numele locației este obligatoriu.' }, 400);
       const { data, error } = await db.from('discovery_stash_locations').upsert({ organization_id: organizationId, name, description, active: true, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,name' }).select('id,name,description,active').single();
+      if (error && String(error.code || '') === '42P01') {
+        const { data: setting } = await db.from('discovery_app_settings').select('value').eq('organization_id', organizationId).eq('key', 'stash_locations').maybeSingle();
+        const locations = Array.isArray(setting?.value?.locations) ? setting.value.locations : [];
+        const existing = locations.find((item: any) => String(item.name || '').trim().toLowerCase() === name.toLowerCase());
+        const location = existing ? { ...existing, description, active: true } : { id: crypto.randomUUID(), name, description, active: true };
+        const next = existing ? locations.map((item: any) => item.id === existing.id ? location : item) : [...locations, location];
+        await db.from('discovery_app_settings').upsert({ organization_id: organizationId, key: 'stash_locations', value: { locations: next }, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,key' });
+        return reply(request, { ok: true, location });
+      }
       if (error) throw error;
       return reply(request, { ok: true, location: data });
     }
