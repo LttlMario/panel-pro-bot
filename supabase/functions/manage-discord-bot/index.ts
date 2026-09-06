@@ -638,6 +638,12 @@ Deno.serve(async (request) => {
           if (logChannelId && (!validDiscordChannelId(logChannelId) || !available.has(logChannelId))) return reply(request, { error: `Canal de log invalid pentru modulul ${moduleDefinitions[routeKey].label}.` }, 400);
           if (logChannelId) nextRoutes[moduleLogKey] = { ...(nextRoutes[moduleLogKey] || {}), primary: { ...(nextRoutes[moduleLogKey]?.primary || {}), channel_id: logChannelId, guild_id: guildId, enabled: true } };
           else delete nextRoutes[moduleLogKey];
+          const eventLogs = selected.event_logs && typeof selected.event_logs === 'object' ? selected.event_logs : {};
+          for (const event of ['submission','approval','rejection','error']) {
+            const eventKey = `${moduleLogKey}_${event}`; const eventChannel = clean(eventLogs[event], 30);
+            if (eventChannel && (!validDiscordChannelId(eventChannel) || !available.has(eventChannel))) return reply(request, { error: `Canal de log invalid pentru evenimentul ${event} al modulului ${moduleDefinitions[routeKey].label} .` }, 400);
+            if (eventChannel) nextRoutes[eventKey] = { ...(nextRoutes[eventKey] || {}), primary: { ...(nextRoutes[eventKey]?.primary || {}), channel_id: eventChannel, guild_id: guildId, enabled: true } }; else delete nextRoutes[eventKey];
+          }
         }
       }
       const { error } = await db.from('discovery_settings').update({ discord_channel_routes: nextRoutes, updated_at: new Date().toISOString(), updated_by_discord_id: String(discord.id) }).eq('organization_id', selectedGuild.organization_id);
