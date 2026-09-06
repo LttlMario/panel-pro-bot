@@ -1,0 +1,1 @@
+const fs=require('fs'); const s=fs.readFileSync('js/assistant-intelligence.js','utf8'); if(!s.includes('const prev=h[1]')) throw new Error('Rollback order regression'); console.log('Rollback history checks: OK');
