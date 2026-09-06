@@ -442,7 +442,20 @@ Deno.serve(async (request) => {
       const activity = [...(activityResult.data || []), ...(auditResult.data || []).map((item: any) => ({ id: item.id, module_key: item.target_id || '', subject: item.action || item.target_type || 'Activitate', status: 'system', created_at: item.created_at, updated_at: item.created_at }))].sort((a: any, b: any) => Date.parse(String(b.created_at)) - Date.parse(String(a.created_at))).slice(0, 15);
       return reply(request, { ok: true, repaired: action === 'repair_guild', bot: { online: botOnline, missing_permissions: missingPermissions, permission_status: botMemberResponse ? (missingPermissions.length ? 'missing' : 'ok') : 'unknown' }, channels: { total: channelList.length, error: channelError || null }, modules, subscription: { plan: selectedGuild.plan, trial_ends_at: selectedGuild.trial_ends_at || null, premium_ends_at: selectedGuild.premium_ends_at || null, includes: selectedGuild.plan === 'free' ? ['Pontaj', 'Învoiri angajați'] : ['Toate modulele Panel Pro'] }, activity, routes });
     }
-    if (action === 'publish_custom_module') {
+    if (action === 'test_custom_module') {
+      if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate testa module personalizate.' }, 403);
+      const { data: moduleSetting, error: moduleError } = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
+      if (moduleError) throw moduleError;
+      const customModules = sanitizeCustomModules(moduleSetting?.custom_modules || {});
+      const moduleKey = customModuleKey(body.module_key); const definition = customModules[moduleKey];
+      if (!definition) return reply(request, { error: 'Modulul personalizat nu există.' }, 404);
+      const channelId = clean(body.channel_id || body.embed_channel_id, 30);
+      const availableIds = new Set((await channels(db, guildId)).map((channel: any) => channel.id));
+      if (!validDiscordChannelId(channelId) || !availableIds.has(channelId)) return reply(request, { error: 'Canalul de test este invalid.' }, 400);
+      const testDefinition = { [moduleKey]: definition };
+      const delivery = await deliverDiscordRoute(db, { discord_channel_routes: { [moduleKey]: { primary: { channel_id: channelId, enabled: true } } } }, moduleKey, JSON.stringify(payload(moduleKey, false, testDefinition)), { postOnly: true });
+      return reply(request, { ok: true, test: true, result: delivery.results?.[0] || null, failures: delivery.failures || [] });
+    }    if (action === 'publish_custom_module') {
       if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate publica module personalizate.' }, 403);
       const { data: moduleSetting, error: moduleError } = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
       if (moduleError) throw moduleError;
