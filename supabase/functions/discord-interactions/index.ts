@@ -2758,3 +2758,4 @@ Deno.serve(async (request) => {
     return reply(interactionMessage(readableError(error, 'Acțiunea Pontaj nu a putut fi executată.')));
   }
 });
+
