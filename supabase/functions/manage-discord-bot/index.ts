@@ -542,7 +542,7 @@ Deno.serve(async (request) => {
       return reply(request, { ok: true, contract_template: saved?.value || null });
     }
     if (action === 'stash_locations' || action === 'save_stash_location' || action === 'delete_stash_location') {
-      const missingLocationsTable = (error: any) => ['42P01', 'PGRST205', 'PGRST204'].includes(String(error?.code || '')) || /discovery_stash_locations.*(not found|does not exist)/i.test(String(error?.message || ''));
+      const missingLocationsTable = (error: any) => ['42P01', 'PGRST205', 'PGRST204', '42P10'].includes(String(error?.code || '')) || /discovery_stash_locations.*(not found|does not exist)/i.test(String(error?.message || ''));
       if (selectedGuild.plan === 'free') return reply(request, { error: 'Locațiile Stash sunt disponibile în Trial sau Premium.' }, 403);
       const organizationId = selectedGuild.organization_id;
       if (action === 'stash_locations') {
