@@ -2281,6 +2281,7 @@ Deno.serve(async (request) => {
         const { data: pending, error: pendingError } = await db.from('discovery_custom_module_submissions').select('id,subject').eq('organization_id', context.organization.id).eq('guild_id', context.guildId).eq('module_key', module.key).eq('status', 'pending').order('created_at', { ascending: true }).limit(1).maybeSingle();
         if (pendingError) throw pendingError;
         if (!pending) return reply(interactionMessage('Nu există solicitări în așteptare.'));
+        if (nextStatus === 'rejected' && module.response_flow?.reason_required === true) return reply(customRejectionModal(module.key, String(pending.id)));
         const { data: updated, error } = await db.from('discovery_custom_module_submissions').update({ status: nextStatus, reviewed_by_discord_id: context.discordId, updated_at: new Date().toISOString() }).eq('id', pending.id).eq('status', 'pending').select('subject').maybeSingle();
         if (error) throw error;
         return reply(interactionMessage(updated ? `${button?.action_config?.message || `Solicitarea „${updated.subject}” a fost ${nextStatus === 'approved' ? 'aprobată' : 'respinsă'}.`}` : 'Solicitarea a fost deja procesată.'));
