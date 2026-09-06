@@ -136,7 +136,7 @@ async function ensureDiscordOnlyOrganization(db: any, interaction: any) {
   const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
   const { data: organization, error: organizationError } = await db.from('discovery_organizations').insert({
     slug, name: guildName, access_mode: 'discord_only', lifecycle_status: 'active', active: true, updated_at: now,
-  }).select('id,name,address,active').single();
+  }).select('id,name,active').single();
   if (organizationError) {
     if (organizationError.code === '23505') {
       const { data: retry, error: retryError } = await db.from('discovery_guilds').select('organization_id,kind').eq('guild_id', guildId).eq('enabled', true).maybeSingle();
@@ -542,7 +542,7 @@ async function resolveContractContext(db: any, interaction: any, routeKey = 'con
   if (guildError) throw guildError;
   if (!guild) throw new Error('Serverul Discord nu este asociat unei organizații Panel Pro.');
   const [{ data: resolvedOrganization, error: resolvedOrganizationError }, { data: resolvedSettings, error: resolvedSettingsError }] = await Promise.all([
-    db.from('discovery_organizations').select('id,name,address,active').eq('id', guild.organization_id).maybeSingle(),
+    db.from('discovery_organizations').select('id,name,active').eq('id', guild.organization_id).maybeSingle(),
     db.from('discovery_settings').select('discord_channel_routes,panel_public_url').eq('organization_id', guild.organization_id).maybeSingle(),
   ]);
   if (resolvedOrganizationError) throw resolvedOrganizationError;

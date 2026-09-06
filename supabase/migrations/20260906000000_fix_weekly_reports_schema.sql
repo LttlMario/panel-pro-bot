@@ -1,4 +1,7 @@
 -- Complete the persistence schema used by the weekly Discord reports.
+alter table public.discovery_organizations
+  add column if not exists address text not null default '';
+
 create table if not exists public.discovery_scheduled_report_runs (
   id uuid primary key default gen_random_uuid(),
   report_key text not null,
