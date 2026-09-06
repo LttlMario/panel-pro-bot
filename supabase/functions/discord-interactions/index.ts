@@ -1289,10 +1289,10 @@ async function resolveStashContext(db: any, interaction: any, routeKey: 'stash' 
 function stashModal(kind: 'item' | 'request' | 'donation') {
   const input = (custom_id: string, label: string, style: number, required: boolean, placeholder: string, max_length: number) => ({ type: 4, custom_id, label, style, required, placeholder, max_length });
   const rows = kind === 'item'
-    ? [input('title', 'Articol', 1, true, 'Numele articolului', 140), input('category', 'Categorie', 1, true, 'Categoria', 60), input('quantity', 'Număr iteme', 1, true, '0', 20), input('description', 'Detalii', 2, false, 'Detalii despre articol', 1000)]
+    ? [input('title', 'Articol', 1, true, 'Numele articolului', 140), input('category', 'Categorie', 1, true, 'Categoria', 60), input('location', 'Locație Stash', 1, true, 'Ex: Depozit central', 100), input('quantity', 'Număr iteme', 1, true, '0', 20), input('description', 'Detalii', 2, false, 'Detalii despre articol', 1000)]
     : kind === 'request'
-      ? [input('item_title', 'Articol solicitat', 1, true, 'Numele articolului', 140), input('quantity', 'Cantitate', 1, true, '0', 20), input('note', 'Motivul cererii', 2, true, 'De ce este necesar articolul?', 1000)]
-      : [input('title', 'Articol donat', 1, true, 'Numele articolului', 140), input('category', 'Categorie', 1, true, 'Categoria', 60), input('quantity', 'Număr iteme', 1, true, '0', 20), input('note', 'Notă', 2, false, 'Detalii donație', 1000)];
+      ? [input('item_title', 'Articol solicitat', 1, true, 'Numele articolului', 140), input('location', 'Locație Stash', 1, true, 'Ex: Depozit central', 100), input('quantity', 'Cantitate', 1, true, '0', 20), input('note', 'Motivul cererii', 2, true, 'De ce este necesar articolul?', 1000)]
+      : [input('title', 'Articol donat', 1, true, 'Articol donat', 140), input('category', 'Categorie', 1, true, 'Categoria', 60), input('location', 'Locație Stash', 1, true, 'Ex: Depozit central', 100), input('quantity', 'Număr iteme', 1, true, '0', 20), input('note', 'Notă', 2, false, 'Detalii donație', 1000)];
   return { type: 9, data: { custom_id: `panel:stash:${kind}:submit`, title: kind === 'item' ? 'Adaugă în Stash' : kind === 'request' ? 'Cerere Stash' : 'Donație Stash', components: rows.map((row) => ({ type: 1, components: [row] })) } };
 }
 
@@ -1470,7 +1470,7 @@ async function handleStashDecision(db: any, context: any, kind: 'request' | 'don
     return interactionMessage(`Cererea a fost ${decision === 'approved' ? 'aprobată' : 'respinsă'} și logul a fost actualizat.`);
   }
   if (decision === 'approved') {
-    const { data: item, error: itemError } = await db.from('discovery_stash_items').insert({ organization_id: context.organization.id, title: row.title, category: row.category || 'General', quantity: row.quantity, unit: 'buc.', description: row.note || '', status: 'available', source_type: 'donation', created_by_discord_id: row.donated_by_discord_id, created_by_name: row.donated_by_name, updated_by_discord_id: context.discordId, created_at: now, updated_at: now }).select('*').single();
+    const { data: item, error: itemError } = await db.from('discovery_stash_items').insert({ organization_id: context.organization.id, title: row.title, category: row.category || 'General', location: row.location || 'General', quantity: row.quantity, unit: 'buc.', description: row.note || '', status: 'available', source_type: 'donation', created_by_discord_id: row.donated_by_discord_id, created_by_name: row.donated_by_name, updated_by_discord_id: context.discordId, created_at: now, updated_at: now }).select('*').single();
     if (itemError) throw itemError;
     const { data: donation, error } = await db.from('discovery_stash_donations').update({ status: 'approved', reviewed_by_discord_id: context.discordId, reviewed_by_name: context.displayName, reviewed_at: now, stash_item_id: item.id, updated_at: now }).eq('organization_id', context.organization.id).eq('id', id).eq('status', 'pending').select('*').single();
     if (error) throw error;
@@ -1499,7 +1499,7 @@ async function handleStashSubmit(db: any, context: any, kind: 'item' | 'request'
   if (kind === 'item') {
     const title = String(values.title || '').trim();
     if (title.length < 2) return interactionMessage('Numele articolului este obligatoriu.');
-    const { data, error } = await db.from('discovery_stash_items').insert({ organization_id: context.organization.id, title, category: String(values.category || 'General').trim(), quantity, unit: 'buc.', description: String(values.description || '').trim(), status: 'available', source_type: 'manual', created_by_discord_id: context.discordId, created_by_name: context.displayName, updated_by_discord_id: context.discordId, created_at: now, updated_at: now }).select('*').single();
+    const { data, error } = await db.from('discovery_stash_items').insert({ organization_id: context.organization.id, title, category: String(values.category || 'General').trim(), location: String(values.location || 'General').trim(), quantity, unit: 'buc.', description: String(values.description || '').trim(), status: 'available', source_type: 'manual', created_by_discord_id: context.discordId, created_by_name: context.displayName, updated_by_discord_id: context.discordId, created_at: now, updated_at: now }).select('*').single();
     if (error) throw error;
     const delivery = await deliverDiscordRoute(db, context.settings, 'log_stash', JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [{ title: '📦 Articol nou în Stash', color: 0x22c55e, fields: [{ name: 'Articol', value: title, inline: true }, { name: 'Categorie', value: String(values.category || 'General').trim(), inline: true }, { name: 'Număr iteme', value: String(quantity), inline: true }, { name: 'Status', value: 'Disponibil', inline: true }, { name: 'Detalii', value: String(values.description || '').trim() || 'Fără detalii.', inline: false }, { name: 'Retrageri recente', value: 'Nu au fost înregistrate retrageri.', inline: false }], footer: { text: `Postat de ${context.displayName}` }, timestamp: now }], components: [{ type: 1, components: [{ type: 2, style: 4, label: 'Șterge articolul', custom_id: `panel:stash:delete_item:${data.id}` }] }] }), { postOnly: true });
     const itemMessageIds = Object.fromEntries((delivery.results || []).filter((item: any) => item.id).map((item: any) => [item.target, String(item.id)]));
@@ -1511,7 +1511,7 @@ async function handleStashSubmit(db: any, context: any, kind: 'item' | 'request'
     if (title.length < 2) return interactionMessage('Articolul solicitat este obligatoriu.');
     const reason = String(values.note || '').trim();
     if (reason.length < 2) return interactionMessage('Motivul cererii este obligatoriu.');
-    const { data, error } = await db.from('discovery_stash_requests').insert({ organization_id: context.organization.id, item_title: title, quantity, note: reason, status: 'pending', requested_by_discord_id: context.discordId, requested_by_name: context.displayName, created_at: now, updated_at: now }).select('*').single();
+    const { data, error } = await db.from('discovery_stash_requests').insert({ organization_id: context.organization.id, item_title: title, location: String(values.location || 'General').trim(), quantity, note: reason, status: 'pending', requested_by_discord_id: context.discordId, requested_by_name: context.displayName, created_at: now, updated_at: now }).select('*').single();
     if (error) throw error;
     try {
       await publishStashApproval(db, context, 'request', data);
@@ -1523,7 +1523,7 @@ async function handleStashSubmit(db: any, context: any, kind: 'item' | 'request'
   }
   const title = String(values.title || '').trim();
   if (title.length < 2) return interactionMessage('Numele articolului donat este obligatoriu.');
-  const { data, error } = await db.from('discovery_stash_donations').insert({ organization_id: context.organization.id, title, category: String(values.category || 'General').trim(), quantity, unit: 'buc.', note: String(values.note || '').trim(), status: 'pending', donated_by_discord_id: context.discordId, donated_by_name: context.displayName, created_at: now, updated_at: now }).select('*').single();
+  const { data, error } = await db.from('discovery_stash_donations').insert({ organization_id: context.organization.id, title, category: String(values.category || 'General').trim(), location: String(values.location || 'General').trim(), quantity, unit: 'buc.', note: String(values.note || '').trim(), status: 'pending', donated_by_discord_id: context.discordId, donated_by_name: context.displayName, created_at: now, updated_at: now }).select('*').single();
   if (error) throw error;
   try {
     await publishStashApproval(db, context, 'donation', data);
