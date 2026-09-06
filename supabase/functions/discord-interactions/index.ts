@@ -2723,7 +2723,7 @@ Deno.serve(async (request) => {
       result = await handleButton(db, interaction, context, action);
     } catch (error) {
       console.error('[discord-interactions]', error);
-      result = interactionMessage(error instanceof Error ? error.message : 'Acțiunea Pontaj nu a putut fi executată.');
+      result = interactionMessage(readableError(error, 'Acțiunea Pontaj nu a putut fi executată.'));
     }
     const followupId = await sendFollowup(deferred.applicationId, deferred.interactionToken, result);
     if (followupId) {
@@ -2733,6 +2733,7 @@ Deno.serve(async (request) => {
     return new Response(null, { status: 204 });
   } catch (error) {
     console.error('[discord-interactions]', error);
-    return reply(interactionMessage(error instanceof Error ? error.message : 'Acțiunea Pontaj nu a putut fi executată.'));
+    return reply(interactionMessage(readableError(error, 'Acțiunea Pontaj nu a putut fi executată.')));
   }
 });
+
