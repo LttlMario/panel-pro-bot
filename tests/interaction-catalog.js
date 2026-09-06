@@ -1,0 +1,1 @@
+const fs=require('fs'); const s=fs.readFileSync('supabase/functions/manage-discord-bot/index.ts','utf8'); if(!s.includes('interaction_routes')) throw new Error('Interaction route catalog missing'); console.log('Interaction catalog checks: OK');

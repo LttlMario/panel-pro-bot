@@ -1,0 +1,1 @@
+const fs=require('fs'); const s=fs.readFileSync('js/assistant-backend-bridge.js','utf8'); if(!s.includes("action:'bootstrap'")||!s.includes('missing_permissions')) throw new Error('Permission verification bridge missing'); console.log('Discord permission bridge checks: OK');

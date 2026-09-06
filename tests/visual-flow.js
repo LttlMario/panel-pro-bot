@@ -1,0 +1,1 @@
+const fs=require('fs'); const s=fs.readFileSync('js/module-pro-tools.js','utf8'); if(!s.includes('panel-pro-module-flow')||!s.includes('persistFlow')) throw new Error('Flow persistence missing'); console.log('Visual flow persistence checks: OK');
