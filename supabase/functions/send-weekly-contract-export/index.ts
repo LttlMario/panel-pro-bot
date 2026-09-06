@@ -33,7 +33,13 @@ function displayDate(value: string) {
 async function claimRun(db: any, organizationId: string, period: any, allowRepeat = false) {
   const base = { report_key: 'weekly_contract_identity', organization_id: organizationId, period_start: period.start, period_end: period.end };
   const { data: existing, error: readError } = await db.from('discovery_scheduled_report_runs').select('id,status,updated_at').match(base).maybeSingle();
-  if (readError) throw readError;
+  // Older Discovery databases may not have the idempotency table yet. In that
+  // case the report can still be delivered; persistence is restored by the
+  // accompanying migration when it becomes available.
+  if (readError) {
+    if (isMissingRelation(readError)) return `ephemeral:${organizationId}:${period.start}:${period.end}`;
+    throw readError;
+  }
   if (!existing) {
     const { data: created, error } = await db.from('discovery_scheduled_report_runs').insert({ ...base, status: 'processing', updated_at: new Date().toISOString() }).select('id').maybeSingle();
     if (!error) return created?.id || null;
@@ -54,7 +60,13 @@ async function claimRun(db: any, organizationId: string, period: any, allowRepea
 }
 
 async function finishRun(db: any, id: string, status: string, error: string | null = null) {
-  await db.from('discovery_scheduled_report_runs').update({ status, error: error?.slice(0, 1000) || null, sent_at: status === 'sent' ? new Date().toISOString() : null, updated_at: new Date().toISOString() }).eq('id', id);
+  if (String(id).startsWith('ephemeral:')) return;
+  const { error: updateError } = await db.from('discovery_scheduled_report_runs').update({ status, error: error?.slice(0, 1000) || null, sent_at: status === 'sent' ? new Date().toISOString() : null, updated_at: new Date().toISOString() }).eq('id', id);
+  if (updateError && !isMissingRelation(updateError)) throw updateError;
+}
+
+function isMissingRelation(error: any) {
+  return String(error?.code || '') === '42P01' || /relation .* does not exist/i.test(String(error?.message || ''));
 }
 
 async function discordMemberState(guildId: string, discordId: string, botToken: string) {
@@ -149,7 +161,10 @@ Deno.serve(async (request) => {
         ]);
         if (settingsError) throw settingsError;
         if (contractsError) throw contractsError;
-        if (!routeCandidates(settings, 'log_contract_identity_weekly').some((item) => item.candidates.length)) throw new Error('Canalul de log Discord pentru raportul săptămânal nu este configurat. Folosește /panel config cu canal_log.');
+        const reportRoute = routeCandidates(settings, 'log_contract_identity_weekly').some((item) => item.candidates.length)
+          ? 'log_contract_identity_weekly'
+          : routeCandidates(settings, 'log_contracts').some((item) => item.candidates.length) ? 'log_contracts' : '';
+        if (!reportRoute) throw new Error('Canalul de log Discord pentru raportul săptămânal nu este configurat. Configurează „Log raport săptămânal contracte” sau „Log contracte”.');
         const employeeIds = [...new Set((contracts || []).map((contract: any) => String(contract.employee_id)))];
         const { data: employees, error: employeesError } = employeeIds.length
           ? await db.from('discovery_employees').select('id,full_name,cnp,status').in('id', employeeIds)
@@ -168,23 +183,25 @@ Deno.serve(async (request) => {
           .eq('organization_id', organization.id)
           .eq('status', 'completed')
           .in('export_type', ['manual', 'weekly_discord']);
-        if (previousBatchesResult.error) throw previousBatchesResult.error;
+        if (previousBatchesResult.error && !isMissingRelation(previousBatchesResult.error)) throw previousBatchesResult.error;
         const previousBatchIds = (previousBatchesResult.data || []).map((batch: any) => String(batch.id));
         const previousItemsResult = previousBatchIds.length
           ? await db.from('discovery_contract_export_items').select('employee_id').in('batch_id', previousBatchIds).in('employee_id', [...unique.values()].map((employee: any) => employee.id))
           : { data: [], error: null };
-        if (previousItemsResult.error) throw previousItemsResult.error;
+        if (previousItemsResult.error && !isMissingRelation(previousItemsResult.error)) throw previousItemsResult.error;
         const previouslyReported = new Set((previousItemsResult.data || []).map((item: any) => String(item.employee_id)));
         const uniqueEmployees = [...unique.values()];
         const activeNew = uniqueEmployees.filter((employee: any) => employee.status !== 'inactive' && !previouslyReported.has(String(employee.id)));
         const activePrevious = uniqueEmployees.filter((employee: any) => employee.status !== 'inactive' && previouslyReported.has(String(employee.id)));
         const inactive = uniqueEmployees.filter((employee: any) => employee.status === 'inactive');
 
-        const { data: batch, error: batchError } = await db.from('discovery_contract_export_batches').insert({ organization_id: organization.id, export_type: 'weekly_discord', status: 'processing', period_start: period.start, period_end: period.end }).select('id').single();
-        if (batchError) throw batchError;
-        const exportItems = [...unique.values()].map((employee: any) => ({ batch_id: batch.id, employee_id: employee.id, full_name: employee.full_name, cnp: employee.cnp }));
-        const { error: itemError } = await db.from('discovery_contract_export_items').insert(exportItems);
-        if (itemError) throw itemError;
+        const exportItems = [...unique.values()].map((employee: any) => ({ employee_id: employee.id, full_name: employee.full_name, cnp: employee.cnp }));
+        const { data: batch, error: batchError } = await db.from('discovery_contract_export_batches').insert({ organization_id: organization.id, export_type: 'weekly_discord', status: 'processing', period_start: period.start, period_end: period.end }).select('id').maybeSingle();
+        if (batchError && !isMissingRelation(batchError)) throw batchError;
+        if (batch?.id) {
+          const { error: itemError } = await db.from('discovery_contract_export_items').insert(exportItems.map((item: any) => ({ ...item, batch_id: batch.id })));
+          if (itemError && !isMissingRelation(itemError)) throw itemError;
+        }
         const activeDescription = [
           organization.name ? `Organizație: **${organization.name}**` : '',
           contractEmbedBlock('🆕 Activi · fără raport anterior', activeNew),
@@ -198,10 +215,13 @@ Deno.serve(async (request) => {
           { title: `📋 Export săptămânal · Angajați activi · ${displayDate(period.start)} – ${displayDate(period.end)}`, description: activeDescription, color: 5763719, timestamp: now.toISOString() },
           { title: `📋 Export săptămânal · Plecați / demisionați · ${displayDate(period.start)} – ${displayDate(period.end)}`, description: inactiveDescription, color: 15548997, timestamp: now.toISOString() },
         ];
-        const delivery = await deliverDiscordRoute(db, settings, 'log_contract_identity_weekly', JSON.stringify({ allowed_mentions: { parse: [] }, embeds }));
+        const delivery = await deliverDiscordRoute(db, settings, reportRoute, JSON.stringify({ allowed_mentions: { parse: [] }, embeds }));
         const failures: string[] = delivery.failures || [];
         if (!delivery.results.length) throw new Error(failures.join(' | ') || 'Discord nu a acceptat exportul.');
-        await db.from('discovery_contract_export_batches').update({ status: 'completed', row_count: exportItems.length, completed_at: new Date().toISOString(), error: failures.length ? failures.join(' | ') : null }).eq('id', batch.id);
+        if (batch?.id) {
+          const { error: batchUpdateError } = await db.from('discovery_contract_export_batches').update({ status: 'completed', row_count: exportItems.length, completed_at: new Date().toISOString(), error: failures.length ? failures.join(' | ') : null }).eq('id', batch.id);
+          if (batchUpdateError && !isMissingRelation(batchUpdateError)) throw batchUpdateError;
+        }
         await finishRun(db, runId, 'sent', failures.length ? failures.join(' | ') : null);
         results.push({ organization_id: organization.id, status: failures.length ? 'sent_partial' : 'sent', row_count: exportItems.length });
       } catch (error) {

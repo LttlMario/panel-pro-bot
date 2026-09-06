@@ -26,13 +26,13 @@ const MODULES: Record<string, { label: string; premium: boolean; title: string; 
 };
 const LOG_ROUTES: Record<string, string> = {
   organization: 'log_announcements_organization', departments: 'log_announcements_departments', pontaj: 'log_pontaj',
-  requests_organization: 'log_requests_organization', requests_departments: 'log_requests_departments', contracts: 'log_contracts',
+  requests_organization: 'log_requests_organization', requests_departments: 'log_requests_departments', contracts: 'log_contracts', contract_identity_weekly: 'log_contract_identity_weekly',
   actions_organization: 'log_actions_organization', marketplace: 'log_marketplace', illegal_marketplace: 'log_illegal_marketplace', stash: 'log_stash', stash_requests: 'log_stash_requests', stash_donations: 'log_stash_donations', event_reminders: 'log_event_reminders'
 };
 const LOG_LABELS: Record<string, string> = {
   log_announcements_organization: 'Log anunțuri organizație', log_announcements_departments: 'Log anunțuri angajați', log_pontaj: 'Log pontaj',
   log_requests_organization: 'Log învoiri organizație', log_requests_departments: 'Log învoiri angajați', log_contracts: 'Log contracte',
-  log_actions_organization: 'Log acțiuni organizație', log_marketplace: 'Log Marketplace legal', log_illegal_marketplace: 'Log Marketplace ilegal', log_stash: 'Log Stash', log_stash_requests: 'Log cereri Stash', log_stash_donations: 'Log donații Stash', log_event_reminders: 'Log evenimente și remindere'
+  log_actions_organization: 'Log acțiuni organizație', log_marketplace: 'Log Marketplace legal', log_illegal_marketplace: 'Log Marketplace ilegal', log_contract_identity_weekly: 'Log raport săptămânal contracte', log_stash: 'Log Stash', log_stash_requests: 'Log cereri Stash', log_stash_donations: 'Log donații Stash', log_event_reminders: 'Log evenimente și remindere'
 };
 const headersFor = (request: Request) => {
   const origin = String(request.headers.get('origin') || '');

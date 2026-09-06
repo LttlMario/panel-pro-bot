@@ -23,13 +23,14 @@
   insertSyntheticAfter('organization', 'log_announcements_organization');
   insertSyntheticAfter('departments', 'log_announcements_departments');
   insertSyntheticAfter('contracts', 'log_contracts');
+  insertSyntheticAfter('contracts', 'log_contract_identity_weekly');
   insertSyntheticAfter('marketplace', 'log_marketplace');
   insertSyntheticAfter('illegal_marketplace', 'log_illegal_marketplace');
   insertSyntheticAfter('log_announcements_organization', 'log_actions_organization');
   insertSyntheticAfter('stash', 'log_stash');
   insertSyntheticAfter('stash_requests', 'log_stash_requests');
   insertSyntheticAfter('stash_donations', 'log_stash_donations');
-  const preferredRouteOrder = ['organization', 'log_announcements_organization', 'log_actions_organization', 'departments', 'log_announcements_departments', 'pontaj', 'log_pontaj', 'requests_organization', 'log_requests_organization', 'requests_departments', 'log_requests_departments', 'contracts', 'log_contracts', 'status_live', 'stash', 'log_stash', 'stash_requests', 'log_stash_requests', 'stash_donations', 'log_stash_donations'];
+  const preferredRouteOrder = ['organization', 'log_announcements_organization', 'log_actions_organization', 'departments', 'log_announcements_departments', 'pontaj', 'log_pontaj', 'requests_organization', 'log_requests_organization', 'requests_departments', 'log_requests_departments', 'contracts', 'log_contracts', 'log_contract_identity_weekly', 'status_live', 'stash', 'log_stash', 'stash_requests', 'log_stash_requests', 'stash_donations', 'log_stash_donations'];
   const preferredRoutes = preferredRouteOrder.filter((key) => routeKeys.includes(key));
   const remainingRoutes = routeKeys.filter((key) => !preferredRoutes.includes(key));
   routeKeys.splice(0, routeKeys.length, ...preferredRoutes, ...remainingRoutes);
@@ -42,6 +43,7 @@
       log_announcements_organization: 'Log anunțuri · Organizație',
       log_announcements_departments: 'Log anunțuri · Angajați',
       log_contracts: 'Log contracte',
+      log_contract_identity_weekly: 'Log raport săptămânal contracte',
       log_marketplace: 'Log Marketplace legal',
       log_illegal_marketplace: 'Log Marketplace ilegal',
       actions_organization: 'Acțiuni organizație',
