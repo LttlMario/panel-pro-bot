@@ -1020,6 +1020,7 @@ async function handleContractSubmit(db: any, context: any, values: Record<string
     START_DATE: contract.start_date,
     CONTRACT_NUMBER: contract.contract_number,
   });
+  contract.contract_text = contractText;
   const now = new Date().toISOString();
   const { data: existingEmployee, error: existingEmployeeError } = await db.from('discovery_employees').select('id').eq('organization_id', context.organization.id).eq('cnp', contract.cnp).maybeSingle();
   if (existingEmployeeError) throw existingEmployeeError;
