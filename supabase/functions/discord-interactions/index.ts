@@ -2500,11 +2500,18 @@ Deno.serve(async (request) => {
       if (parts[2] === 'copy') {
         const contractId = String(parts[3] || '').trim();
         if (!/^[0-9a-f-]{36}$/i.test(contractId)) return reply(interactionMessage('Contractul selectat nu este valid.'));
-        const context = await resolveContractActionContext(db, interaction);
-        const { data: contract, error } = await db.from('discovery_contracts').select('id,contract_number,contract_text').eq('organization_id', context.organization.id).eq('id', contractId).maybeSingle();
-        if (error) throw error;
-        if (!contract) return reply(interactionMessage('Contractul nu mai există în istoricul organizației.'));
-        return reply(contractCopyModal(contract));
+        const deferred = await deferInteraction(interaction, false);
+        let result;
+        try {
+          const context = await resolveContractActionContext(db, interaction);
+          const { data: contract, error } = await db.from('discovery_contracts').select('id,contract_number,contract_text').eq('organization_id', context.organization.id).eq('id', contractId).maybeSingle();
+          if (error) throw error;
+          result = contract
+            ? interactionMessage(`**${String(contract.contract_number || 'Contract')}**\n\n\`\`\`text\n${String(contract.contract_text || '').slice(0, 3800)}\n\`\`\`\nSelectează textul cu Ctrl+A și copiază-l cu Ctrl+C.`)
+            : interactionMessage('Contractul nu mai există în istoricul organizației.');
+        } catch (error) { console.error('[discord-interactions]', error); result = interactionMessage(readableError(error, 'Contractul nu a putut fi încărcat pentru copiere.')); }
+        await sendFollowup(deferred.applicationId, deferred.interactionToken, result);
+        return new Response(null, { status: 204 });
       }
       if (parts[2] === 'publish') {
         const contractId = String(parts[3] || '').trim();
