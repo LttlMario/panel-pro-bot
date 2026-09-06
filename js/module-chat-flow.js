@@ -27,6 +27,6 @@
   send.addEventListener('click',capture,true); input.addEventListener('keydown',capture,true); log.innerHTML=''; if (step !== 'goal' && Object.keys(state).length) say('Am reluat conversația de unde ai rămas. Poți continua sau spune „resetare asistent” pentru un modul nou.'); else say('Spune-mi ce vrei să facă modulul. Îți voi pune întrebările necesare și îl voi construi complet.');
   const originalProcess = process;
   // Comanda de resetare rămâne disponibilă în orice etapă.
-  const wrappedProcess = raw => { if (/^(resetare|resetează|reset)\s*(asistent|wizard|modul)?$/i.test(raw.trim())) { clearMemory(); Object.keys(state).forEach(k=>delete state[k]); step='goal'; log.innerHTML=''; say('Am resetat asistentul. Spune-mi ce vrei să facă noul modul.'); return; } originalProcess(raw); };
+  const wrappedProcess = raw => { if (/^(resetare|resetează|reset)\s*(asistent|wizard|modul)?$/i.test(raw.trim())) { clearMemory(); Object.keys(state).forEach(k=>delete state[k]); step='goal'; log.innerHTML=''; say('Am resetat asistentul. Spune-mi ce vrei să facă noul modul.'); return; } originalProcess(raw); persist(); }; 
   process = wrappedProcess;
 })();
