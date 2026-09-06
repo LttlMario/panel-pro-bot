@@ -1321,7 +1321,7 @@ function stashDecisionView(kind: 'request' | 'donation', id: string, row: any) {
 
 function stashManageItemsView(rows: any[]) {
   if (!rows.length) return interactionMessage('Nu există articole disponibile în Stash.');
-  const options = rows.slice(0, 25).map((row: any) => ({ label: String(row.title || 'Articol').slice(0, 100), value: String(row.id), description: `${row.quantity} ${row.unit || 'buc.'} · ${String(row.category || 'General').slice(0, 70)}`.slice(0, 100) }));
+  const options = rows.slice(0, 25).map((row: any) => ({ label: String(row.title || 'Articol').slice(0, 100), value: String(row.id), description: `${row.quantity} ${row.unit || 'buc.'} · ${String(row.location || 'General').slice(0, 55)} · ${String(row.category || 'General').slice(0, 35)}`.slice(0, 100) }));
   return interactionMessage('Selectează articolul pe care vrei să îl modifici sau să îl elimini.', { components: [{ type: 1, components: [{ type: 3, custom_id: 'panel:stash:select_manage_item', placeholder: 'Alege un articol din Stash', min_values: 1, max_values: 1, options }] }] });
 }
 
@@ -1332,7 +1332,7 @@ function stashItemActionView(id: string, row: any) {
 function stashInventoryEmbed(rows: any[]) {
   const available = rows.filter((row: any) => String(row.status || 'available') === 'available');
   const description = available.length
-    ? available.slice(0, 25).map((row: any, index: number) => `**${index + 1}. ${String(row.title).slice(0, 100)}** · ${row.quantity} ${row.unit || 'buc.'} · ${String(row.category || 'General').slice(0, 60)}`).join('\n')
+    ? available.slice(0, 25).map((row: any, index: number) => `**${index + 1}. ${String(row.title).slice(0, 100)}** · ${row.quantity} ${row.unit || 'buc.'} · 📍 ${String(row.location || 'General').slice(0, 55)} · ${String(row.category || 'General').slice(0, 45)}`).join('\n')
     : 'Nu există articole disponibile momentan pentru cereri.';
   return { allowed_mentions: { parse: [] }, embeds: [{ title: '📦 Inventar Stash · Disponibil pentru cereri', description, color: 0x22c55e, footer: { text: `Panel Pro · ${available.length} articole disponibile` }, timestamp: new Date().toISOString() }] };
 }
@@ -1342,7 +1342,7 @@ function stashChangeEmbed(action: 'archived' | 'deleted', row: any) {
 }
 
 async function publishStashInventory(db: any, context: any, change: 'archived' | 'deleted', row: any) {
-  const { data: available, error } = await db.from('discovery_stash_items').select('title,category,quantity,unit,status').eq('organization_id', context.organization.id).eq('status', 'available').order('created_at', { ascending: false }).limit(25);
+  const { data: available, error } = await db.from('discovery_stash_items').select('title,category,location,quantity,unit,status').eq('organization_id', context.organization.id).eq('status', 'available').order('created_at', { ascending: false }).limit(25);
   if (error) throw error;
   await deliverDiscordRoute(db, context.settings, 'log_stash', JSON.stringify(stashChangeEmbed(change, row)), { postOnly: true });
   await deliverDiscordRoute(db, context.settings, 'log_stash', JSON.stringify(stashInventoryEmbed(available || [])), { postOnly: true });
@@ -2348,7 +2348,7 @@ Deno.serve(async (request) => {
         let result;
         try {
           const context = await resolveStashContext(db, interaction, 'stash', 'write');
-          const { data, error } = await db.from('discovery_stash_items').select('id,title,category,quantity,unit,status').eq('organization_id', context.organization.id).eq('status', 'available').order('created_at', { ascending: false }).limit(25);
+          const { data, error } = await db.from('discovery_stash_items').select('id,title,category,location,quantity,unit,status').eq('organization_id', context.organization.id).eq('status', 'available').order('created_at', { ascending: false }).limit(25);
           if (error) throw error;
           result = stashManageItemsView(data || []);
         } catch (error) { result = interactionMessage(readableError(error, 'Articolele Stash nu au putut fi încărcate.')); }
