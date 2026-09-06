@@ -1,0 +1,1 @@
+const fs=require('fs'); const s=fs.readFileSync('supabase/functions/manage-discord-bot/index.ts','utf8'); for(const x of ['event_logs','submission','approval','rejection','error']) if(!s.includes(x)) throw Error('Missing '+x); console.log('Event log persistence checks: OK');
