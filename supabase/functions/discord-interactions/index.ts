@@ -950,7 +950,7 @@ function contractEmbed(contract: any, organization: any, title: string, instruct
   if (instructionText) fields.push({ name: '📎 Imagini necesare', value: instructionText, inline: false });
   return {
     title: `📄 ${title} · ${organization.name}`.slice(0, 256),
-    description: String(contract.contract_text || 'Contractul a fost generat din șablonul configurat în Panel Pro și salvat în istoricul organizației.').slice(0, 4096),
+    description: 'Contractul a fost generat din șablonul configurat în Panel Pro și salvat în istoricul organizației.',
     color: 0x14b8a6,
     fields,
     footer: { text: 'Panel Pro · Log contracte · datele sunt salvate în Supabase' },
@@ -2501,10 +2501,24 @@ Deno.serve(async (request) => {
       if (parts[2] === 'copy') {
         const contractId = String(parts[3] || '').trim();
         if (!/^[0-9a-f-]{36}$/i.test(contractId)) return reply(interactionMessage('Contractul selectat nu este valid.'));
-        const embed = interaction.message?.embeds?.[0] || {};
-        const text = String(embed.description || '').trim();
-        if (text) return reply(contractCopyModal({ id: contractId, contract_number: embed.title?.replace(/^📄\s*/, '') || 'Contract', contract_text: text }));
-        return reply(interactionMessage('Textul contractului nu este disponibil în mesajul original. Generează din nou contractul și încearcă iar.'));
+        const deferred = await deferInteraction(interaction, false);
+        try {
+          const context = await resolveContractActionContext(db, interaction);
+          const { data: contract, error } = await db.from('discovery_contracts').select('id,contract_number,contract_text').eq('organization_id', context.organization.id).eq('id', contractId).maybeSingle();
+          if (error) throw error;
+          if (!contract) { await sendFollowup(deferred.applicationId, deferred.interactionToken, interactionMessage('Contractul nu mai există în istoricul organizației.')); return new Response(null, { status: 204 }); }
+          const text = String(contract.contract_text || '').trim();
+          const chunks = text.match(/[\s\S]{1,1800}/g) || [''];
+          for (let index = 0; index < chunks.length; index += 1) {
+            const prefix = index === 0 ? `**${String(contract.contract_number || 'Contract')} · copiere**\n\n` : `**Continuare ${index + 1}/${chunks.length}**\n\n`;
+            await sendFollowup(deferred.applicationId, deferred.interactionToken, interactionMessage(`${prefix}\`\`\`text\n${chunks[index]}\n\`\`\``));
+          }
+          return new Response(null, { status: 204 });
+        } catch (error) {
+          console.error('[discord-interactions]', error);
+          await sendFollowup(deferred.applicationId, deferred.interactionToken, interactionMessage(readableError(error, 'Contractul nu a putut fi încărcat pentru copiere.')));
+          return new Response(null, { status: 204 });
+        }
       }
       if (parts[2] === 'publish') {
         const contractId = String(parts[3] || '').trim();
