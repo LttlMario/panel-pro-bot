@@ -289,7 +289,7 @@ Deno.serve(async (request) => {
       if (customSettingError) throw customSettingError;
       const customModules = sanitizeCustomModules(customSetting?.custom_modules || {});
       const modules = Object.fromEntries(Object.entries(MODULES).map(([key, value]) => [key, { label: value.label, title: value.title, description: value.description, color: value.color, buttons: value.buttons, premium: value.premium, log_key: LOG_ROUTES[key] || '', log_label: LOG_LABELS[LOG_ROUTES[key] || ''] || '' }]));
-      for (const [key, value] of Object.entries(customModules)) modules[key] = { label: value.label, title: value.title, description: value.description, color: value.color, buttons: value.buttons, premium: false, active: value.active !== false, log_key: value.log_key, log_label: `Log ${value.label}` };
+      for (const [key, value] of Object.entries(customModules)) modules[key] = { label: value.label, title: value.title, description: value.description, color: value.color, buttons: value.buttons, premium: false, active: value.active !== false, log_key: value.log_key, log_label: `Log ${value.label}`, response_flow: value.response_flow || { enabled: false, log_key: `log_${key}_response` } };
       return reply(request, { ok: true, user: { id: String(discord.id), username: clean(discord.global_name || discord.username, 120), platform_admin: platformAdmin }, platform_admin: platformAdmin, guilds, diagnostics, reconciliation, modules });
     }
     if (action === 'custom_modules' || action === 'save_custom_modules') {
