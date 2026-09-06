@@ -628,5 +628,8 @@ Deno.serve(async (request) => {
       return reply(request, { ok: true, result, failures: delivery.failures || [] });
     }
     return reply(request, { error: 'Acțiune necunoscută.' }, 400);
-  } catch (error) { return reply(request, { error: error instanceof Error ? error.message : 'Eroare internă.' }, 400); }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : (error && typeof error === 'object' ? String((error as any).message || (error as any).details || (error as any).hint || '') : '');
+    return reply(request, { error: detail || 'Eroare internă.' }, 400);
+  }
 });

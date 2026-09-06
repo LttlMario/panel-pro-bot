@@ -45,7 +45,7 @@
       $('install').href=`https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(config.clientId)}&scope=bot%20applications.commands&permissions=125952`;
       const notice=(text,error=false)=>{const node=$('notice');node.textContent=text;node.className=`protected-content mb-5 rounded-xl border p-4 text-sm ${error?'border-red-400/30 bg-red-500/10 text-red-100':'border-emerald-400/30 bg-emerald-500/10 text-emerald-100'}`;node.hidden=!text};
       const unlock=()=>{ $('access-gate').style.display='none'; document.querySelectorAll('.protected-content').forEach(node=>{node.style.display='';}); };
-      const call=async(body)=>{const response=await fetch(`${api}/functions/v1/manage-discord-bot`,{method:'POST',headers:{'Content-Type':'application/json',apikey:key,Authorization:`Bearer ${key}`},body:JSON.stringify({...body,access_token:state.token,application_id:config.clientId})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'Cererea nu a putut fi finalizată.');return result};
+      const call=async(body)=>{const response=await fetch(`${api}/functions/v1/manage-discord-bot`,{method:'POST',headers:{'Content-Type':'application/json',apikey:key},body:JSON.stringify({...body,access_token:state.token,application_id:config.clientId})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'Cererea nu a putut fi finalizată.');return result};
       const planLabel=g=>g.plan==='premium'?'Premium activ':g.plan==='trial'?'Trial activ · 30 zile':'Free';
       function render(){
         const g=state.guilds.find(x=>x.id===state.selected);if(!g)return;

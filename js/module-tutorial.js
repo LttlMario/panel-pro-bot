@@ -7,7 +7,7 @@
   const content = document.getElementById('tutorial-content');
   const verify = async () => {
     try {
-      const response = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY, Authorization: `Bearer ${KEY}` }, body: JSON.stringify({ action: 'custom_modules', access_token: token(), application_id: '1531023771211792384' }) });
+      const response = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY }, body: JSON.stringify({ action: 'custom_modules', access_token: token(), application_id: '1531023771211792384' }) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Accesul nu a putut fi verificat.');
       if (data.platform_admin !== true) throw new Error('Acces permis doar administratorului global.');

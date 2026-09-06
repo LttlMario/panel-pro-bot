@@ -19,7 +19,7 @@
   const call = async (body) => {
     const accessToken = token();
     if (!accessToken) throw new Error('Sesiunea Discord lipsește. Intră din nou prin login cu Discord.');
-    const response = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY, Authorization: `Bearer ${KEY}` }, body: JSON.stringify({ ...body, access_token: accessToken, application_id: APPLICATION_ID }) });
+    const response = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY }, body: JSON.stringify({ ...body, access_token: accessToken, application_id: APPLICATION_ID }) });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || 'Serverele Discovery nu au putut fi încărcate.');
     return result;

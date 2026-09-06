@@ -6,13 +6,13 @@
   const token = () => sessionStorage.getItem('discovery_access_token') || sessionStorage.getItem('discord_bot_admin_token') || '';
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
   async function sendPremiumPurchase(guildId, renewal = false) {
-    const response = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY, Authorization: `Bearer ${KEY}` }, body: JSON.stringify({ action: 'send_premium_purchase', guild_id: guildId, renewal, view_scope: 'personal', access_token: token(), application_id: APP }) });
+    const response = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY }, body: JSON.stringify({ action: 'send_premium_purchase', guild_id: guildId, renewal, view_scope: 'personal', access_token: token(), application_id: APP }) });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || 'Mesajul Premium nu a putut fi trimis pe Discord.');
     return data;
   }
   const call = async (body) => {
-    const response = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY, Authorization: `Bearer ${KEY}` }, body: JSON.stringify({ ...body, view_scope: 'personal', access_token: token(), application_id: APP }) });
+    const response = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY }, body: JSON.stringify({ ...body, view_scope: 'personal', access_token: token(), application_id: APP }) });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || 'Dashboardul nu a putut încărca detaliile serverului.');
     return data;
@@ -50,7 +50,7 @@
   const token = () => sessionStorage.getItem('discovery_access_token') || sessionStorage.getItem('discord_bot_admin_token') || '';
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
   async function sendPremiumPurchase(guildId, renewal = false) {
-    const response = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY, Authorization: `Bearer ${KEY}` }, body: JSON.stringify({ action: 'send_premium_purchase', guild_id: guildId, renewal, view_scope: 'personal', access_token: token(), application_id: APP }) });
+    const response = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY }, body: JSON.stringify({ action: 'send_premium_purchase', guild_id: guildId, renewal, view_scope: 'personal', access_token: token(), application_id: APP }) });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || 'Mesajul Premium nu a putut fi trimis pe Discord.');
     return data;
@@ -135,7 +135,7 @@
   const token = () => sessionStorage.getItem('discovery_access_token') || sessionStorage.getItem('discord_bot_admin_token') || '';
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
   async function call(body) {
-    const response = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY, Authorization: `Bearer ${KEY}` }, body: JSON.stringify({ ...body, view_scope: 'personal', access_token: token(), application_id: APP }) });
+    const response = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY }, body: JSON.stringify({ ...body, view_scope: 'personal', access_token: token(), application_id: APP }) });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || 'Accesul nu a putut fi încărcat.');
     return data;
@@ -195,7 +195,7 @@
   const token = () => sessionStorage.getItem('discovery_access_token') || sessionStorage.getItem('discord_bot_admin_token') || '';
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
   async function load(guildId, body = {}) {
-    const response = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY, Authorization: `Bearer ${KEY}` }, body: JSON.stringify({ action: 'dashboard_overview', guild_id: guildId, ...body, view_scope: 'personal', access_token: token(), application_id: APP }) });
+    const response = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY }, body: JSON.stringify({ action: 'dashboard_overview', guild_id: guildId, ...body, view_scope: 'personal', access_token: token(), application_id: APP }) });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || 'Nu s-a putut salva modulul.');
     return data;

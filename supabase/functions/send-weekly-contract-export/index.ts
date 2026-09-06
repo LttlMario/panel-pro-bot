@@ -79,7 +79,7 @@ async function discordMemberState(guildId: string, discordId: string, botToken: 
 async function refreshDiscordEmployees(db: any, organization: any, botToken: string) {
   const [{ data: guilds, error: guildError }, { data: employees, error: employeeError }] = await Promise.all([
     db.from('discovery_guilds').select('guild_id').eq('organization_id', organization.id).eq('enabled', true),
-    db.from('discovery_employees').select('id,discord_id,status').eq('organization_id', organization.id).eq('status', 'active').not('discord_id', 'is', null),
+    db.from('discovery_employees').select('id,discord_id,active').eq('organization_id', organization.id).eq('active', true).not('discord_id', 'is', null),
   ]);
   if (guildError) throw guildError;
   if (employeeError) throw employeeError;
@@ -96,7 +96,7 @@ async function refreshDiscordEmployees(db: any, organization: any, botToken: str
     }
     if (!known) continue;
     const now = new Date().toISOString();
-    await db.from('discovery_employees').update(found ? { last_discord_seen_at: now, updated_at: now } : { status: 'inactive', left_at: now, updated_at: now }).eq('id', employee.id);
+    await db.from('discovery_employees').update({ active: found, updated_at: now }).eq('id', employee.id);
     if (!found) await db.from('discovery_members').update({ active: false, last_verified_at: now }).eq('organization_id', organization.id).eq('discord_id', employee.discord_id);
   }
 }
@@ -167,7 +167,7 @@ Deno.serve(async (request) => {
         if (!reportRoute) throw new Error('Canalul de log Discord pentru raportul săptămânal nu este configurat. Configurează „Log raport săptămânal contracte” sau „Log contracte”.');
         const employeeIds = [...new Set((contracts || []).map((contract: any) => String(contract.employee_id)))];
         const { data: employees, error: employeesError } = employeeIds.length
-          ? await db.from('discovery_employees').select('id,full_name,cnp,status').in('id', employeeIds)
+          ? await db.from('discovery_employees').select('id,full_name,cnp,active').in('id', employeeIds)
           : { data: [], error: null };
         if (employeesError) throw employeesError;
         const employeeMap = new Map((employees || []).map((employee: any) => [String(employee.id), employee]));
@@ -191,9 +191,9 @@ Deno.serve(async (request) => {
         if (previousItemsResult.error && !isMissingRelation(previousItemsResult.error)) throw previousItemsResult.error;
         const previouslyReported = new Set((previousItemsResult.data || []).map((item: any) => String(item.employee_id)));
         const uniqueEmployees = [...unique.values()];
-        const activeNew = uniqueEmployees.filter((employee: any) => employee.status !== 'inactive' && !previouslyReported.has(String(employee.id)));
-        const activePrevious = uniqueEmployees.filter((employee: any) => employee.status !== 'inactive' && previouslyReported.has(String(employee.id)));
-        const inactive = uniqueEmployees.filter((employee: any) => employee.status === 'inactive');
+        const activeNew = uniqueEmployees.filter((employee: any) => employee.active !== false && !previouslyReported.has(String(employee.id)));
+        const activePrevious = uniqueEmployees.filter((employee: any) => employee.active !== false && previouslyReported.has(String(employee.id)));
+        const inactive = uniqueEmployees.filter((employee: any) => employee.active === false);
 
         const exportItems = [...unique.values()].map((employee: any) => ({ employee_id: employee.id, full_name: employee.full_name, cnp: employee.cnp }));
         const { data: batch, error: batchError } = await db.from('discovery_contract_export_batches').insert({ organization_id: organization.id, export_type: 'weekly_discord', status: 'processing', period_start: period.start, period_end: period.end }).select('id').maybeSingle();
