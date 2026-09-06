@@ -209,7 +209,7 @@
   document.getElementById('restore-draft-module')?.addEventListener('click', loadSmartDraft);
   document.getElementById('export-module')?.addEventListener('click', () => { const blob = new Blob([JSON.stringify(readSmartConfig(), null, 2)], { type: 'application/json' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${keyInput?.value?.trim() || 'modul'}-config.json`; link.click(); URL.revokeObjectURL(link.href); showStatus('Configurația modulului a fost exportată.', 'ok'); });
   document.getElementById('import-module')?.addEventListener('click', () => document.getElementById('module-import-file')?.click());
-  document.getElementById('module-import-file')?.addEventListener('change', event => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { try { const config = JSON.parse(String(reader.result || '{}')); document.getElementById('label').value = config.label || ''; document.getElementById('title').value = config.title || ''; document.getElementById('description').value = config.description || ''; document.getElementById('color').value = config.color || '#5865f2'; handler.value = config.handler || 'none'; document.getElementById('module-template').value = config.handler || 'none'; renderButtons(config.buttons || []); fillAdvanced(config); renderWorkflow(); advancedOpen = false; moduleStage = 0; applyProgressiveStage(); showStatus('Configurația a fost importată. Verifică valorile înainte de salvare.', 'ok'); } catch (_) { showStatus('Fișierul importat nu este o configurație validă.', 'error'); } }; reader.readAsText(file); });
+  document.getElementById('module-import-file')?.addEventListener('change', event => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { try { const config = JSON.parse(String(reader.result || '{}')); document.getElementById('label').value = config.label || ''; document.getElementById('title').value = config.title || ''; document.getElementById('description').value = config.description || ''; document.getElementById('color').value = config.color || '#5865f2'; handler.value = config.handler || 'none'; templateSelect.value = config.handler || 'none'; renderButtons(config.buttons || []); fillAdvanced(config); renderWorkflow(); advancedOpen = false; moduleStage = 0; applyProgressiveStage(); showStatus('Configurația a fost importată. Verifică valorile înainte de salvare.', 'ok'); } catch (_) { showStatus('Fișierul importat nu este o configurație validă.', 'error'); } }; reader.readAsText(file); });
   cloneButton?.addEventListener('click', event => {
     event.preventDefault(); event.stopImmediatePropagation();
     const config = readSmartConfig();
@@ -221,7 +221,7 @@
       document.getElementById('title').value = `${config.title || 'Modul'} copie`;
       document.getElementById('description').value = config.description || '';
       document.getElementById('color').value = config.color || '#5865f2';
-      handler.value = config.handler || 'none'; document.getElementById('module-template').value = config.handler || 'none';
+      handler.value = config.handler || 'none'; templateSelect.value = config.handler || 'none';
       renderButtons(config.buttons || []); fillAdvanced(config); renderWorkflow(); advancedOpen = false; moduleStage = 0; applyProgressiveStage();
       showStatus('Modulul a fost duplicat complet ca draft nou.', 'ok');
     }, 0);
@@ -302,7 +302,7 @@
       try {
         const body = JSON.parse(init.body);
         if (body.action === 'save_custom_modules' && body.custom_modules) {
-          const selectedTemplate = document.getElementById('module-template')?.value || 'none';
+          const selectedTemplate = templateSelect?.value || 'none';
           const currentKey = keyInput?.value?.trim();
           if (currentKey && body.custom_modules[currentKey]) body.custom_modules[currentKey].template_key = selectedTemplate;
           init = { ...init, body: JSON.stringify(body) };
@@ -312,4 +312,5 @@
     return constructorFetch(input, init);
   };
 })();
+
 
