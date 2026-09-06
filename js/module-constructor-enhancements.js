@@ -6,7 +6,7 @@
   const toolbar = document.querySelector('#editor')?.parentElement?.querySelector('.toolbar') || document.querySelector('.toolbar');
   const addToolButton = (id, label, className = 'button') => { if (document.getElementById(id) || !toolbar) return null; const button = document.createElement('button'); button.id = id; button.type = 'button'; button.className = className; button.textContent = label; toolbar.appendChild(button); return button; };
   const testButton = addToolButton('test-module', '🧪 Testează local');
-  const cloneButton = addToolButton('clone-module', '📋 Clonează');
+  const cloneButton = null;
   const resetButton = addToolButton('reset-module', '↺ Resetează');
   const smartTools = document.createElement('div');
   smartTools.id = 'smart-module-tools';
@@ -25,7 +25,7 @@
   const handlerField = handler?.closest('.field');
   const templateField = document.createElement('label');
   templateField.className = 'field';
-  templateField.innerHTML = '<span>Șablon modul</span><select id="module-template"><option value="none">Modul simplu (doar embed)</option><optgroup label="Comunicare"><option value="announcement">Anunț</option><option value="poll">Sondaj</option><option value="event">Eveniment / reminder</option></optgroup><optgroup label="Formulare"><option value="request">Cerere / formular</option><option value="approval">Cerere cu aprobare</option><option value="recruitment">Recrutare / aplicație</option><option value="feedback">Feedback</option><option value="suggestion">Sugestie</option><option value="complaint">Reclamație / incident</option><option value="ticket">Ticket / solicitare suport</option></optgroup><optgroup label="Administrare"><option value="report">Raport</option><option value="inventory">Inventar / evidență</option><option value="survey">Chestionar</option></optgroup></select><small class="muted">Alege un șablon și vom pregăti automat câmpurile și acțiunile potrivite.</small>';
+  templateField.innerHTML = '<span>🧭 Asistent wizard · alege tipul modulului</span><select id="module-template"><option value="none">Modul simplu (doar embed)</option><optgroup label="Comunicare"><option value="announcement">Anunț</option><option value="poll">Sondaj</option><option value="event">Eveniment / reminder</option></optgroup><optgroup label="Formulare"><option value="request">Cerere / formular</option><option value="approval">Cerere cu aprobare</option><option value="recruitment">Recrutare / aplicație</option><option value="feedback">Feedback</option><option value="suggestion">Sugestie</option><option value="complaint">Reclamație / incident</option><option value="ticket">Ticket / solicitare suport</option></optgroup><optgroup label="Administrare"><option value="report">Raport</option><option value="inventory">Inventar / evidență</option><option value="survey">Chestionar</option></optgroup></select><small class="muted">Alege un șablon și vom pregăti automat câmpurile și acțiunile potrivite.</small>';
   templateField.after(smartTools);
   handlerField?.before(templateField);
   if (handlerField) handlerField.hidden = true;
