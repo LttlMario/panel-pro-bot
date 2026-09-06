@@ -301,7 +301,10 @@ Deno.serve(async (request) => {
         if (error) throw error;
         return reply(request, { ok: true, custom_modules: customModules });
       }
-      return reply(request, { ok: true, platform_admin: platformAdmin, custom_modules: setting?.custom_modules && typeof setting.custom_modules === 'object' ? setting.custom_modules : {} });
+      const { data: registeredGuilds, error: registeredGuildsError } = await db.from('discovery_guilds').select('guild_id,guild_name,organization_id').eq('enabled', true).order('guild_name');
+      if (registeredGuildsError) throw registeredGuildsError;
+      const guildsForSelector = (registeredGuilds || []).filter((item: any) => id(item.guild_id)).map((item: any) => ({ id: String(item.guild_id), name: clean(item.guild_name || item.guild_id, 120), organization_id: String(item.organization_id || ''), bot_installed: true, is_owner: false, can_manage_access: true }));
+      return reply(request, { ok: true, platform_admin: platformAdmin, guilds: guildsForSelector, custom_modules: setting?.custom_modules && typeof setting.custom_modules === 'object' ? setting.custom_modules : {} });
     }
     if (action === 'global_config' || action === 'save_global_config') {
       if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate modifica setările globale ale botului.' }, 403);
