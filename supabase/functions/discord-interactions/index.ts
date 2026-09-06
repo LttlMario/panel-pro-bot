@@ -197,6 +197,7 @@ const readableError = (error: unknown, fallback: string) => {
   }
   return fallback;
 };
+const schemaMismatch = (error: any) => ['42P01', '42703', 'PGRST204'].includes(String(error?.code || '')) || /does not exist|could not find the .* column/i.test(String(error?.message || ''));
 
 async function discordTrialNotice(db: any, organizationId: string) {
   const { data, error } = await db.from('discovery_app_settings').select('value').eq('organization_id', organizationId).eq('key', 'discord_trial').maybeSingle();
@@ -1129,8 +1130,18 @@ async function createActionDraft(db: any, context: any, values: Record<string, s
   const label = String(values.action_label || '').trim().slice(0, 120);
   if (type.length < 2 || label.length < 2) return interactionMessage('Completează tipul și denumirea acțiunii.');
   const now = new Date().toISOString();
-  await db.from('discovery_action_drafts').delete().lt('expires_at', now);
+  const cleanup = await db.from('discovery_action_drafts').delete().lt('expires_at', now);
+  if (cleanup.error && schemaMismatch(cleanup.error)) {
+    const { data: record, error } = await db.from('discovery_actions').insert({ organization_id: context.organization.id, title: label, action_type: type, description: String(values.description || '').trim().slice(0, 4000), created_by_discord_id: context.discordId, created_by_name: context.displayName, created_at: now, updated_at: now }).select('id').single();
+    if (error) throw error;
+    return interactionMessage(`Acțiunea „${label}” a fost salvată.`);
+  }
   const { data: draft, error } = await db.from('discovery_action_drafts').insert({ organization_id: context.organization.id, guild_id: context.guildId, created_by_discord_id: context.discordId, created_by_name: context.displayName, action_type: type, action_label: label, description: String(values.description || '').trim().slice(0, 4000), notes: String(values.notes || '').trim().slice(0, 4000), expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString() }).select('id').single();
+  if (error && schemaMismatch(error)) {
+    const fallback = await db.from('discovery_actions').insert({ organization_id: context.organization.id, title: label, action_type: type, description: String(values.description || '').trim().slice(0, 4000), created_by_discord_id: context.discordId, created_by_name: context.displayName, created_at: now, updated_at: now }).select('id').single();
+    if (fallback.error) throw fallback.error;
+    return interactionMessage(`Acțiunea „${label}” a fost salvată.`);
+  }
   if (error) throw error;
   return actionParticipantPicker(String(draft.id));
 }
