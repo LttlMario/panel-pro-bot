@@ -314,9 +314,10 @@ Deno.serve(async (request) => {
       const customModules = sanitizeCustomModules(customSetting?.custom_modules || {});
       if (action === 'assistant_schema_check') {
         const checks = [];
-        for (const table of ['discovery_bot_global_settings', 'discovery_custom_module_submissions', 'discovery_guilds']) {
-          const { error } = await db.from(table).select('*', { head: true, count: 'exact' }).limit(1);
-          checks.push({ table, ok: !error, error: error ? String(error.message || error) : null });
+        const requiredColumns: Record<string, string[]> = { discovery_bot_global_settings: ['id','custom_modules','modules'], discovery_custom_module_submissions: ['id','organization_id','guild_id','module_key','status','review_note','values_json'], discovery_guilds: ['guild_id','organization_id','enabled'] };
+        for (const [table, columns] of Object.entries(requiredColumns)) {
+          const { error } = await db.from(table).select(columns.join(','), { head: true, count: 'exact' }).limit(1);
+          checks.push({ table, required_columns: columns, ok: !error, error: error ? String(error.message || error) : null });
         }
         return reply(request, { ok: true, checks, isolation: { organization_scoped: true, guild_scoped: true } });
       }
