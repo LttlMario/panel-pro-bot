@@ -541,6 +541,26 @@ Deno.serve(async (request) => {
       if (error) throw error;
       return reply(request, { ok: true, contract_template: saved?.value || null });
     }
+    if (action === 'stash_locations' || action === 'save_stash_location' || action === 'delete_stash_location') {
+      if (selectedGuild.plan === 'free') return reply(request, { error: 'Locațiile Stash sunt disponibile în Trial sau Premium.' }, 403);
+      const organizationId = selectedGuild.organization_id;
+      if (action === 'stash_locations') {
+        const { data, error } = await db.from('discovery_stash_locations').select('id,name,description,active').eq('organization_id', organizationId).order('name');
+        if (error) throw error;
+        return reply(request, { ok: true, locations: data || [] });
+      }
+      if (action === 'delete_stash_location') {
+        const { error } = await db.from('discovery_stash_locations').update({ active: false, updated_at: new Date().toISOString() }).eq('organization_id', organizationId).eq('id', String(body.id || ''));
+        if (error) throw error;
+        return reply(request, { ok: true });
+      }
+      const name = clean(body.name, 100);
+      const description = clean(body.description, 300);
+      if (name.length < 2) return reply(request, { error: 'Numele locației este obligatoriu.' }, 400);
+      const { data, error } = await db.from('discovery_stash_locations').upsert({ organization_id: organizationId, name, description, active: true, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,name' }).select('id,name,description,active').single();
+      if (error) throw error;
+      return reply(request, { ok: true, location: data });
+    }
     if (action === 'save') {
       const requested = body.routes && typeof body.routes === 'object' ? body.routes : {};
       const available = new Set((await channels(db, guildId)).map((channel: any) => channel.id));

@@ -4,6 +4,11 @@ alter table public.discovery_organizations
 alter table public.discovery_stash_items add column if not exists location text not null default 'General';
 alter table public.discovery_stash_requests add column if not exists location text not null default 'General';
 alter table public.discovery_stash_donations add column if not exists location text not null default 'General';
+create table if not exists public.discovery_stash_locations (
+  id uuid primary key default gen_random_uuid(), organization_id uuid not null references public.discovery_organizations(id) on delete cascade,
+  name text not null, description text not null default '', active boolean not null default true, created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
+  unique (organization_id, name)
+);
 
 create table if not exists public.discovery_scheduled_report_runs (
   id uuid primary key default gen_random_uuid(),
