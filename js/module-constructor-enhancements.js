@@ -293,6 +293,7 @@
       } catch (_) {}
     }
     const response = await originalFetch(input, init);
+    if (!response.ok && String(input).includes('manage-discord-bot')) { try { const detail = await response.clone().json(); const message = detail.error || detail.message || `Cererea a fost respinsă (HTTP ${response.status}).`; const statusNode = document.getElementById('status'); if (statusNode) { statusNode.textContent = message; statusNode.className = 'status error'; } } catch (_) {} }
     if (init?.body && typeof init.body === 'string' && String(input).includes('manage-discord-bot')) { try { const savedBody = JSON.parse(init.body); if (savedBody.action === 'save_custom_modules' && response.ok) { syncStatus.textContent = 'Se sincronizează comenzile slash…'; const syncResponse = await fetch('https://zrjxlbkbctlapgupktxw.supabase.co/functions/v1/sync-discord-commands', { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: 'sb_publishable_LfngX7pwFruPw35_ZUdO4Q_MGAHoeW0' }, body: JSON.stringify({ access_token: token(), application_id: '1531023771211792384' }) }); syncStatus.textContent = syncResponse.ok ? '✓ Modul salvat și comenzile slash sincronizate.' : '✓ Modul salvat; sincronizarea slash a eșuat.'; } } catch (_) { syncStatus.textContent = '✓ Modul salvat; sincronizarea slash a eșuat.'; } }
     return response;
   };
