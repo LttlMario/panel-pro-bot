@@ -1470,10 +1470,13 @@ async function handleStashDecision(db: any, context: any, kind: 'request' | 'don
     return interactionMessage(`Cererea a fost ${decision === 'approved' ? 'aprobată' : 'respinsă'} și logul a fost actualizat.`);
   }
   if (decision === 'approved') {
+    // Claim the pending donation before creating inventory so double-clicks cannot create duplicate items.
+    const { data: donation, error } = await db.from('discovery_stash_donations').update({ status: 'approved', reviewed_by_discord_id: context.discordId, reviewed_by_name: context.displayName, reviewed_at: now, updated_at: now }).eq('organization_id', context.organization.id).eq('id', id).eq('status', 'pending').select('*').maybeSingle();
+    if (error) throw error;
+    if (!donation) throw new Error('Donația a fost deja procesată.');
     const { data: item, error: itemError } = await db.from('discovery_stash_items').insert({ organization_id: context.organization.id, title: row.title, category: row.category || 'General', location: row.location || 'General', quantity: row.quantity, unit: 'buc.', description: row.note || '', status: 'available', source_type: 'donation', created_by_discord_id: row.donated_by_discord_id, created_by_name: row.donated_by_name, updated_by_discord_id: context.discordId, created_at: now, updated_at: now }).select('*').single();
     if (itemError) throw itemError;
-    const { data: donation, error } = await db.from('discovery_stash_donations').update({ status: 'approved', reviewed_by_discord_id: context.discordId, reviewed_by_name: context.displayName, reviewed_at: now, stash_item_id: item.id, updated_at: now }).eq('organization_id', context.organization.id).eq('id', id).eq('status', 'pending').select('*').single();
-    if (error) throw error;
+    await db.from('discovery_stash_donations').update({ stash_item_id: item.id, updated_at: new Date().toISOString() }).eq('organization_id', context.organization.id).eq('id', id);
     const itemDelivery = await deliverDiscordRoute(db, context.settings, 'log_stash', JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [{ title: '✅ Donație aprobată și adăugată în Stash', fields: [{ name: 'Articol', value: String(item.title), inline: true }, { name: 'Categorie', value: String(item.category), inline: true }, { name: 'Număr iteme', value: String(item.quantity), inline: true }, { name: 'Donat de', value: String(donation.donated_by_name), inline: true }, { name: 'Status', value: 'Disponibil', inline: true }], color: 0x22c55e, timestamp: now }], components: [{ type: 1, components: [{ type: 2, style: 4, label: 'Șterge articolul', custom_id: `panel:stash:delete_item:${item.id}` }] }] }), { postOnly: true });
     const itemMessageIds = Object.fromEntries((itemDelivery.results || []).filter((entry: any) => entry.id).map((entry: any) => [entry.target, String(entry.id)]));
     if (Object.keys(itemMessageIds).length) await db.from('discovery_stash_items').update({ discord_message_ids: itemMessageIds }).eq('organization_id', context.organization.id).eq('id', item.id);
