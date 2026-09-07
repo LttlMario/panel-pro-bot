@@ -1,6 +1,9 @@
 [functions.sync-discord-role]
 verify_jwt = false
 
+[functions.sync-official-roles]
+verify_jwt = false
+
 [functions.username-login]
 verify_jwt = false
 

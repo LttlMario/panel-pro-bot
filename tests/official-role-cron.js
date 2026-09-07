@@ -1,0 +1,1 @@
+const fs=require('fs');const s=fs.readFileSync('supabase/migrations/20260907000200_official_role_sync_cron.sql','utf8');for(const x of ['pg_cron','pg_net','panel-pro-official-role-sync','sync-official-roles','panel_pro_cron_secret'])if(!s.includes(x))throw Error('Missing role cron element: '+x);console.log('Official role cron checks: OK');
