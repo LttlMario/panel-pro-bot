@@ -15,6 +15,13 @@ const demoModal = (action: string) => ({ type: 9, data: { custom_id: `panel:demo
   { type: 1, components: [{ type: 4, custom_id: 'demo_subject', label: 'Subiect / nume', style: 1, required: true, max_length: 120, placeholder: 'Exemplu de date pentru demonstrație' }] },
   { type: 1, components: [{ type: 4, custom_id: 'demo_details', label: 'Detalii', style: 2, required: false, max_length: 1000, placeholder: 'Aceste date nu vor fi salvate' }] },
 ] } });
+const demoContractModal = () => ({ type: 9, data: { custom_id: 'panel:demo:submit:panel:contracts:create', title: '🧪 Generează contract · Demo', components: [
+  { type: 1, components: [{ type: 4, custom_id: 'employee_name', label: 'Nume și prenume', style: 1, required: true, max_length: 120, placeholder: 'Ex: Ion Popescu' }] },
+  { type: 1, components: [{ type: 4, custom_id: 'cnp', label: 'CNP angajat', style: 1, required: true, max_length: 13, placeholder: 'Introdu CNP-ul' }] },
+  { type: 1, components: [{ type: 4, custom_id: 'phone', label: 'Număr de telefon', style: 1, required: true, max_length: 30, placeholder: '07xx xxx xxx' }] },
+  { type: 1, components: [{ type: 4, custom_id: 'salary', label: 'Salariu', style: 1, required: true, max_length: 80, placeholder: 'Ex: 100 lei/lună' }] },
+  { type: 1, components: [{ type: 4, custom_id: 'schedule', label: 'Program', style: 1, required: true, max_length: 80, placeholder: 'Ex: 20:00-23:00' }] },
+] } });
 const demoInteraction = (interaction: any, customId: string, isButton: boolean, isModalSubmit: boolean) => {
   const action = customId.startsWith('panel:demo:') ? customId.slice('panel:demo:'.length) : customId;
   const simulated: Record<string, string> = {
@@ -25,6 +32,7 @@ const demoInteraction = (interaction: any, customId: string, isButton: boolean, 
   };
   const baseAction = action.replace(/^submit:/, '');
   const simulatedText = simulated[baseAction] || `Acțiunea **${baseAction || action}** ar fi fost executată în botul real.`;
+  if (isButton && baseAction === 'panel:contracts:create') return demoContractModal();
   if (baseAction === 'panel:pontaj:shift_day') return interactionMessage('Ai selectat **Tura de zi**. În serverul real, tura de zi este disponibilă între **23:00 și 20:00**. Poți porni pontajul demonstrativ când ești gata.');
   if (baseAction === 'panel:pontaj:shift_night') return interactionMessage('Ai selectat **Tura de noapte**. Dacă ora este între **20:00 și 23:00**, pontajul este încadrat ca tură de noapte. Poți porni pontajul demonstrativ când ești gata.');
   if (baseAction === 'panel:pontaj:start') { const startedAt = Date.now(); return interactionMessage('', { embeds: [{ title: '🟢 Pontaj pornit · Demo', description: 'Tura de lucru a început. Timerul rulează local în această simulare.', color: 0x22c55e, footer: { text: 'Panel Pro · Demo' } }], components: [{ type: 1, components: [{ type: 2, style: 2, label: '⏸️ Pauză', custom_id: `panel:demo:timer:pause:${startedAt}` }, { type: 2, style: 4, label: '⏹️ Stop', custom_id: `panel:demo:timer:stop:${startedAt}` }] }] }); }
@@ -32,7 +40,8 @@ const demoInteraction = (interaction: any, customId: string, isButton: boolean, 
   if (isModalSubmit) {
     const values: Record<string, string> = {};
     for (const row of interaction?.data?.components || []) for (const component of row?.components || []) values[String(component?.custom_id || '')] = String(component?.value || '').trim();
-    return interactionMessage('', { embeds: [{ title: '🧪 Demo · acțiune simulată', description: `${simulatedText}\n\nDate demonstrative: **${values.demo_subject || 'exemplul tău'}**.\n\n✅ Ai văzut cum ar funcționa în serverul real. Nimic nu se activează și nu se păstrează după demo.`, color: 0x8b5cf6, footer: { text: 'Panel Pro · Demo' } }] });
+    const contractDetails = baseAction === 'panel:contracts:create' ? `\n\n**Contract demonstrativ**\n• Nume: ${values.employee_name || '—'}\n• CNP: ${values.cnp || '—'}\n• Telefon: ${values.phone || '—'}\n• Funcție: ${values.position || 'Angajat'}\n• Salariu: ${values.salary || '100 lei/lună'}\n• Program: ${values.schedule || '20:00-23:00'}\n• Data începerii: ${values.start_date || 'azi'}` : `\n\nDate demonstrative: **${values.demo_subject || 'exemplul tău'}**.`;
+    return interactionMessage('', { embeds: [{ title: '🧪 Demo · acțiune simulată', description: `${simulatedText}${contractDetails}\n\n✅ Ai văzut cum ar funcționa în serverul real. Nimic nu se activează și nu se păstrează după demo.`, color: 0x8b5cf6, footer: { text: 'Panel Pro · Demo' } }] });
   }
   if (isButton && /(^|:)(create|new|request|donate|item)$/.test(action)) return demoModal(action);
   return interactionMessage('', { embeds: [{ title: '🧪 Demo · acțiune simulată', description: `${simulatedText}\n\n✅ Ai văzut cum ar funcționa în serverul real. Nimic nu se activează și nu se păstrează după demo.`, color: 0x22c55e, footer: { text: 'Panel Pro · Demo' } }] });
