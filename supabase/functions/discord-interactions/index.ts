@@ -19,8 +19,6 @@ const demoContractModal = () => ({ type: 9, data: { custom_id: 'panel:demo:submi
   { type: 1, components: [{ type: 4, custom_id: 'employee_name', label: 'Nume și prenume', style: 1, required: true, max_length: 120, placeholder: 'Ex: Ion Popescu' }] },
   { type: 1, components: [{ type: 4, custom_id: 'cnp', label: 'CNP angajat', style: 1, required: true, max_length: 13, placeholder: 'Introdu CNP-ul' }] },
   { type: 1, components: [{ type: 4, custom_id: 'phone', label: 'Număr de telefon', style: 1, required: true, max_length: 30, placeholder: '07xx xxx xxx' }] },
-  { type: 1, components: [{ type: 4, custom_id: 'salary', label: 'Salariu', style: 1, required: true, max_length: 80, placeholder: 'Ex: 100 lei/lună' }] },
-  { type: 1, components: [{ type: 4, custom_id: 'schedule', label: 'Program', style: 1, required: true, max_length: 80, placeholder: 'Ex: 20:00-23:00' }] },
 ] } });
 const demoInteraction = (interaction: any, customId: string, isButton: boolean, isModalSubmit: boolean) => {
   const action = customId.startsWith('panel:demo:') ? customId.slice('panel:demo:'.length) : customId;
@@ -40,7 +38,7 @@ const demoInteraction = (interaction: any, customId: string, isButton: boolean, 
   if (isModalSubmit) {
     const values: Record<string, string> = {};
     for (const row of interaction?.data?.components || []) for (const component of row?.components || []) values[String(component?.custom_id || '')] = String(component?.value || '').trim();
-    const contractDetails = baseAction === 'panel:contracts:create' ? `\n\n**Contract demonstrativ**\n• Nume: ${values.employee_name || '—'}\n• CNP: ${values.cnp || '—'}\n• Telefon: ${values.phone || '—'}\n• Funcție: ${values.position || 'Angajat'}\n• Salariu: ${values.salary || '100 lei/lună'}\n• Program: ${values.schedule || '20:00-23:00'}\n• Data începerii: ${values.start_date || 'azi'}` : `\n\nDate demonstrative: **${values.demo_subject || 'exemplul tău'}**.`;
+    const contractDetails = baseAction === 'panel:contracts:create' ? `\n\n**Contract demonstrativ**\n• Nume: ${values.employee_name || '—'}\n• CNP: ${values.cnp || '—'}\n• Telefon: ${values.phone || '—'}\n• Funcție: completată automat din setarea contractului\n• Salariu: completat automat din setarea contractului\n• Program: completat automat din setarea contractului\n\nÎn fluxul real trebuie completate doar numele, CNP-ul și numărul de telefon; celelalte date sunt preluate automat din configurația contractului.` : `\n\nDate demonstrative: **${values.demo_subject || 'exemplul tău'}**.`;
     return interactionMessage('', { embeds: [{ title: '🧪 Demo · acțiune simulată', description: `${simulatedText}${contractDetails}\n\n✅ Ai văzut cum ar funcționa în serverul real. Nimic nu se activează și nu se păstrează după demo.`, color: 0x8b5cf6, footer: { text: 'Panel Pro · Demo' } }] });
   }
   if (isButton && /(^|:)(create|new|request|donate|item)$/.test(action)) return demoModal(action);
