@@ -325,6 +325,7 @@ async function provisionOfficialServer(db: any, guildId: string) {
   } catch (error) { console.error('[provision] module catalog failed', error); }
   for (const [name, body] of Object.entries(messages)) { const id=channelIds[name]; if(!id) continue; const existingMessages=await fetch(DISCORD_API + '/channels/' + id + '/messages?limit=50',{headers}).then((r)=>r.ok?r.json():[]).catch(()=>[]); const title=String(body?.embeds?.[0]?.title||''); const current=Array.isArray(existingMessages)&&existingMessages.find((m:any)=>(m.embeds||[]).some((e:any)=>String(e.title||'')===title)); if(current?.id){ const r=await fetch(DISCORD_API + '/channels/' + id + '/messages/'+current.id,{method:'PATCH',headers,body:JSON.stringify({allowed_mentions:{parse:[]},...body})}); if(!r.ok && r.status!==429) console.error('[provision update]',name,r.status); continue; } const r=await fetch(DISCORD_API + '/channels/' + id + '/messages',{method:'POST',headers,body:JSON.stringify({allowed_mentions:{parse:[]},...body})}); if(!r.ok && r.status!==429) console.error('[provision]',name,r.status); }
   let routeConfiguration: any = null;
+  let demoConfiguration: any = null;
   try {
     const linked = await db.from('discovery_guilds').select('organization_id').eq('guild_id', guildId).eq('enabled', true).maybeSingle();
     if (linked.data?.organization_id) {
@@ -335,7 +336,8 @@ async function provisionOfficialServer(db: any, guildId: string) {
       if (!saved.error) routeConfiguration = { matched: automatic.matched, unmatched: automatic.unmatched };
     }
   } catch (error) { console.error('[provision routes]', error); }
-  return { roles: roleNames.length, categories: categories.length, channels: Object.values(groups).flat().length, created_channels: created, role_ids: roleIds, route_configuration: routeConfiguration };
+  try { demoConfiguration = await provisionDemoCategory(db, guildId); } catch (error) { console.error('[provision demo]', error); }
+  return { roles: roleNames.length, categories: categories.length, channels: Object.values(groups).flat().length, created_channels: created, role_ids: roleIds, route_configuration: routeConfiguration, demo_configuration: demoConfiguration };
 }
 async function syncOfficialRoles(db: any, guildId: string) {
   const token = await getPlatformSecret(db, 'discord_bot_token');
@@ -501,10 +503,6 @@ Deno.serve(async (request) => {
     const guildId = clean(body.guild_id, 30);
     const selectedGuild = guilds.find((guild: any) => guild.id === guildId);
     if (!selectedGuild) return reply(request, { error: platformAdmin ? 'Serverul nu este disponibil sau botul nu este instalat.' : 'Serverul nu este disponibil: trebuie să fii owner și botul trebuie să fie instalat.' }, 403);
-    if (action === 'provision_demo_category') {
-      const result = await provisionDemoCategory(db, guildId);
-      return reply(request, { ok: true, demo: true, message: 'Categoria demo a fost configurată. Mesajele și butoanele sunt demonstrative și nu scriu în baza de date.', result });
-    }
     if (action === 'rename_guild') {
       if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate redenumi un server din registrul Discovery.' }, 403);
       const name = clean(body.name, 120);
