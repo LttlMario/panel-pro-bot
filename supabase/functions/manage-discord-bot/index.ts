@@ -359,6 +359,34 @@ async function syncOfficialRoles(db: any, guildId: string) {
   return result;
 }
 
+async function provisionDemoCategory(db: any, guildId: string) {
+  const token = await getPlatformSecret(db, 'discord_bot_token');
+  const headers = { ...botHeaders(token), 'Content-Type': 'application/json' };
+  const base = `${DISCORD_API}/guilds/${guildId}`;
+  const api = async (path: string, options: RequestInit = {}) => { const response = await fetch(base + path, { ...options, headers: { ...headers, ...(options.headers || {}) } }); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(`Discord API ${path} HTTP ${response.status}: ${String(body?.message || 'Missing Permissions')}`); return body; };
+  const existing = await api('/channels');
+  const categoryName = '🧪 DEMO · MODULE PANEL PRO';
+  const category = (Array.isArray(existing) ? existing : []).find((channel: any) => Number(channel.type) === 4 && String(channel.name) === categoryName) || await api('/channels', { method: 'POST', body: JSON.stringify({ name: categoryName, type: 4 }) });
+  const definitions = { ...mergeModuleDefinitions(MODULES, await readGlobalModules(db)) } as Record<string, any>;
+  const created: string[] = [];
+  const channelsByName = new Map((Array.isArray(existing) ? existing : []).filter((channel: any) => Number(channel.type) === 0).map((channel: any) => [String(channel.name), channel]));
+  for (const [key, definition] of Object.entries(definitions)) {
+    const slug = key.replace(/[^a-z0-9-]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'modul';
+    const name = `demo-${slug}`;
+    const channel = channelsByName.get(name) || await api('/channels', { method: 'POST', body: JSON.stringify({ name, type: 0, parent_id: String(category.id) }) });
+    if (!channelsByName.has(name)) { channelsByName.set(name, channel); created.push(name); }
+    const messages = await fetch(`${DISCORD_API}/channels/${channel.id}/messages?limit=50`, { headers }).then((response) => response.ok ? response.json() : []).catch(() => []);
+    const demo = payload(key, false, definitions);
+    demo.embeds = (demo.embeds || []).map((embed: any) => ({ ...embed, title: `🧪 DEMO · ${embed.title || definition.label}`, description: `${embed.description || ''}\n\n**Acesta este un demo.** Butoanele sunt dezactivate și nu salvează nimic în baza de date.` }));
+    demo.components = (demo.components || []).map((row: any) => ({ ...row, components: (row.components || []).map((component: any) => ({ ...component, disabled: true })) }));
+    const title = String(demo.embeds?.[0]?.title || '');
+    const current = Array.isArray(messages) && messages.find((message: any) => (message.embeds || []).some((embed: any) => String(embed.title || '') === title));
+    const requestOptions: RequestInit = { method: current?.id ? 'PATCH' : 'POST', headers, body: JSON.stringify({ allowed_mentions: { parse: [] }, ...demo }) };
+    await fetch(`${DISCORD_API}/channels/${channel.id}/messages${current?.id ? `/${current.id}` : ''}`, requestOptions);
+  }
+  return { category_id: String(category.id), category_name: categoryName, modules: Object.keys(definitions).length, created_channels: created };
+}
+
 function payload(moduleKey: string, donation: boolean, definitions = MODULES) {
   const definition = definitions[moduleKey];
   const rows: any[] = [];
@@ -473,6 +501,10 @@ Deno.serve(async (request) => {
     const guildId = clean(body.guild_id, 30);
     const selectedGuild = guilds.find((guild: any) => guild.id === guildId);
     if (!selectedGuild) return reply(request, { error: platformAdmin ? 'Serverul nu este disponibil sau botul nu este instalat.' : 'Serverul nu este disponibil: trebuie să fii owner și botul trebuie să fie instalat.' }, 403);
+    if (action === 'provision_demo_category') {
+      const result = await provisionDemoCategory(db, guildId);
+      return reply(request, { ok: true, demo: true, message: 'Categoria demo a fost configurată. Mesajele și butoanele sunt demonstrative și nu scriu în baza de date.', result });
+    }
     if (action === 'rename_guild') {
       if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate redenumi un server din registrul Discovery.' }, 403);
       const name = clean(body.name, 120);
