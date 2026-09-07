@@ -2309,6 +2309,9 @@ Deno.serve(async (request) => {
   const isCustom = customId.startsWith('panel:custom:') || customId.startsWith('panel:custom_submit:') || customId.startsWith('panel:custom_review:') || customId.startsWith('panel:custom_reason:');
   if (!isComponent && !isModalSubmit) return reply(interactionMessage('Acest tip de interacțiune nu este disponibil.'));
   if (!isPontaj && !isRequests && !isContracts && !isAnnouncements && !isDiscipline && !isActions && !isStash && !isMarketplace && !isBotAccess && !isDiscovery && !isCustom && !isTicket) return reply(interactionMessage('Acest buton nu aparține unui modul Panel Pro.'));
+  // Confirmă imediat interacțiunile ticket; verificările DB/Discord pot dura peste limita de 3 secunde.
+  let ticketDeferred: any = null;
+  if (isTicket && !(isButton && customId === 'panel:ticket:open')) ticketDeferred = await deferInteraction(interaction, false);
   try {
     const key = serviceKey();
     if (!key) throw new Error('Cheia secretă Supabase lipsește.');
@@ -2317,11 +2320,10 @@ Deno.serve(async (request) => {
     await syncInteractionMemberRole(db, interaction).catch((error) => console.error('[discord-interactions] member role sync failed', error));
     if (isTicket) {
       if (isButton && customId === 'panel:ticket:open') return reply(ticketModal());
-      const deferred = await deferInteraction(interaction, false);
       let result;
       try { result = await handleTicket(db, interaction, customId, isButton, isModalSubmit); }
       catch (error) { console.error('[discord-interactions] ticket failed', error); result = interactionMessage(readableError(error, 'Ticketul nu a putut fi procesat.')); }
-      await sendFollowup(deferred.applicationId, deferred.interactionToken, result);
+      await sendFollowup(ticketDeferred.applicationId, ticketDeferred.interactionToken, result);
       return new Response(null, { status: 204 });
     }
     if (isCustom) {
