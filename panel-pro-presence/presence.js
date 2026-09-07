@@ -2,8 +2,11 @@ const RPC = require('discord-rpc');
 const CLIENT_ID = '1531023771211792384';
 const rpc = new RPC.Client({ transport: 'ipc' });
 const startedAt = Date.now();
+let heartbeat;
+let connected = false;
 
 function updateActivity() {
+  if (!connected) return;
   rpc.setActivity({
     details: 'Panel Pro · Pontaj, Contracte, Stash și Loguri',
     state: 'Vezi profilul meu pentru linkuri și informații',
@@ -15,13 +18,21 @@ function updateActivity() {
       { label: 'Open website', url: 'https://bot.panel-pro.ro/' }
     ],
     instance: false
-  }).then(() => console.log('Rich Presence actualizat cu butoane.')).catch((error) => console.error('Rich Presence nu a acceptat butoanele:', error.message || error));
+  }).catch((error) => console.error('Rich Presence nu a acceptat actualizarea:', error.message || error));
 }
 
 rpc.on('ready', () => {
+  connected = true;
   updateActivity();
-  setInterval(updateActivity, 15000);
-  console.log('Panel Pro Rich Presence este activ. Poți închide fereastra pentru a opri statusul.');
+  clearInterval(heartbeat);
+  // Reassert the activity regularly so it survives Discord activity refreshes.
+  heartbeat = setInterval(updateActivity, 5000);
+  console.log('Panel Pro Rich Presence este activ. Dezactivează jocurile detectate din Discord pentru a-l păstra afișat.');
+});
+rpc.on('disconnected', () => {
+  connected = false;
+  clearInterval(heartbeat);
+  console.error('Discord Desktop s-a deconectat. Repornește aplicația pentru reconectare.');
 });
 rpc.login({ clientId: CLIENT_ID }).catch(() => {
   console.error('Nu s-a putut conecta la Discord Desktop. Deschide aplicația Discord și încearcă din nou.');

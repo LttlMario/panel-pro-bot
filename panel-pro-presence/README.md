@@ -2,16 +2,16 @@
 
 Această aplicație locală afișează în profilul Discord activitatea **Playing Panel Pro Bot**.
 
+Pentru ca Discord să nu înlocuiască activitatea cu jocul detectat automat, în Discord Desktop deschide:
+**User Settings → Activity Privacy → Display current activity as a status** și dezactivează opțiunea.
+
+Aplicația reafișează activitatea la fiecare 5 secunde și include linkurile configurate în Rich Presence. Trebuie să rămână pornită cât timp vrei să apară activitatea.
+
 ## Pornire
 
 1. Instalează Node.js LTS.
 2. Deschide Discord Desktop și autentifică-te.
 3. Deschide PowerShell în acest folder.
-4. Rulează:
-   ```powershell
-   npm install
-   npm start
-   ```
-5. Lasă fereastra pornită cât timp vrei să apară activitatea.
+4. Rulează `npm install`, apoi `npm start`.
 
-Aplicația nu citește tokenuri, parole sau date din servere. Pentru oprire, închide fereastra PowerShell.
+Aplicația nu citește tokenuri, parole sau date din servere.
