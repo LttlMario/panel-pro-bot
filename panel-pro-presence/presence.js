@@ -5,8 +5,8 @@ const startedAt = Date.now();
 
 function updateActivity() {
   rpc.setActivity({
-    details: 'Administrează-ți comunitatea Discord',
-    state: 'Pontaj · Contracte · Stash · Loguri',
+    details: 'Panel Pro · Pontaj, Contracte, Stash și Loguri',
+    state: 'bot.panel-pro.ro · discord.gg/nYUs5heDG',
     startTimestamp: startedAt,
     largeImageKey: 'panel-pro',
     largeImageText: 'Panel Pro Bot',
