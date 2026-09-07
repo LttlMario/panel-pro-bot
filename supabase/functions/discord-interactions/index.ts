@@ -15,10 +15,10 @@ const demoModal = (action: string) => ({ type: 9, data: { custom_id: `panel:demo
   { type: 1, components: [{ type: 4, custom_id: 'demo_subject', label: 'Subiect / nume', style: 1, required: true, max_length: 120, placeholder: 'Exemplu de date pentru demonstrație' }] },
   { type: 1, components: [{ type: 4, custom_id: 'demo_details', label: 'Detalii', style: 2, required: false, max_length: 1000, placeholder: 'Aceste date nu vor fi salvate' }] },
 ] } });
-const demoContractModal = () => ({ type: 9, data: { custom_id: 'panel:demo:submit:panel:contracts:create', title: '🧪 Generează contract · Demo', components: [
-  { type: 1, components: [{ type: 4, custom_id: 'employee_name', label: 'Nume și prenume', style: 1, required: true, max_length: 120, placeholder: 'Ex: Ion Popescu' }] },
-  { type: 1, components: [{ type: 4, custom_id: 'cnp', label: 'CNP angajat', style: 1, required: true, max_length: 13, placeholder: 'Introdu CNP-ul' }] },
-  { type: 1, components: [{ type: 4, custom_id: 'phone', label: 'Număr de telefon', style: 1, required: true, max_length: 30, placeholder: '07xx xxx xxx' }] },
+const demoContractModal = () => ({ type: 9, data: { custom_id: 'panel:demo:submit:panel:contracts:create', title: '🧪 Contract demo · 3 date', components: [
+  { type: 1, components: [{ type: 4, custom_id: 'employee_name', label: 'Nume și prenume · obligatoriu', style: 1, required: true, max_length: 120, placeholder: 'Ex: Ion Popescu · restul se completează automat' }] },
+  { type: 1, components: [{ type: 4, custom_id: 'cnp', label: 'CNP · obligatoriu', style: 1, required: true, max_length: 13, placeholder: 'Introdu CNP-ul angajatului' }] },
+  { type: 1, components: [{ type: 4, custom_id: 'phone', label: 'Telefon · obligatoriu', style: 1, required: true, max_length: 30, placeholder: '07xx xxx xxx' }] },
 ] } });
 const demoInteraction = (interaction: any, customId: string, isButton: boolean, isModalSubmit: boolean) => {
   const action = customId.startsWith('panel:demo:') ? customId.slice('panel:demo:'.length) : customId;
