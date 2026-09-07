@@ -2105,7 +2105,11 @@ async function ticketDiscordApi(db: any, path: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers || {}); headers.set('Authorization', `Bot ${token}`); headers.set('Content-Type', 'application/json');
   const response = await fetch(`${DISCORD_API}${path}`, { ...init, headers });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(String(body?.message || `Discord a răspuns cu HTTP ${response.status}.`));
+  if (!response.ok) {
+    if (response.status === 403 && (String(body?.message || '').toLowerCase().includes('missing access') || Number(body?.code) === 50001)) throw new Error('Botul nu are acces la server sau la categoria de ticket. Acordă-i View Channel și Manage Channels pe server și pe categoria Suport.');
+    if (response.status === 403 && Number(body?.code) === 50013) throw new Error('Botul nu are permisiunea necesară pentru această acțiune Discord. Verifică Manage Channels și Send Messages.');
+    throw new Error(String(body?.message || `Discord a răspuns cu HTTP ${response.status}.`));
+  }
   return body;
 }
 async function ticketEvent(db: any, ticket: any, actor: string, eventType: string, details: any = {}) {
@@ -2138,7 +2142,15 @@ async function handleTicket(db: any, interaction: any, customId: string, isButto
     const channels = await ticketDiscordApi(db, `/guilds/${guildId}/channels`); const list = Array.isArray(channels) ? channels : []; const category = list.find((c: any) => c.type === 4 && /suport/i.test(String(c.name || '')));
     const roles = await ticketDiscordApi(db, `/guilds/${guildId}/roles`); const supportRole = (Array.isArray(roles) ? roles : []).find((r: any) => /^(support|staff)$/i.test(String(r.name || '')));
     const safeName = `ticket-${displayName.toLowerCase().replace(/[^a-z0-9-]+/gi,'-').replace(/^-+|-+$/g,'').slice(0, 36) || discordId.slice(-6)}`;
-    const overwrites = [{ id: guildId, type: 0, deny: '1024' }, { id: discordId, type: 1, allow: '68608' }, ...(supportRole?.id ? [{ id: String(supportRole.id), type: 0, allow: '68608' }] : [])];
+    const overwrites: any[] = [{ id: guildId, type: 0, deny: '1024' }, { id: discordId, type: 1, allow: '68608' }, ...(supportRole?.id ? [{ id: String(supportRole.id), type: 0, allow: '68608' }] : [])];
+    // @everyone is denied by design; explicitly retain the bot's channel access.
+    try {
+      const botId = String(interaction.application_id || '').trim();
+      if (/^\d{15,22}$/.test(botId)) {
+        const botMember = await ticketDiscordApi(db, `/guilds/${guildId}/members/${botId}`);
+        for (const roleId of Array.isArray(botMember?.roles) ? botMember.roles : []) if (String(roleId) !== guildId && !overwrites.some((item) => String(item.id) === String(roleId))) overwrites.push({ id: String(roleId), type: 0, allow: '68608' });
+      }
+    } catch (_) {}
     const channel = await ticketDiscordApi(db, `/guilds/${guildId}/channels`, { method: 'POST', body: JSON.stringify({ name: safeName, type: 0, parent_id: category?.id, permission_overwrites: overwrites, topic: `Panel Pro ticket · ${discordId}` }) });
     const { data: row, error: insertError } = await db.from('discovery_support_tickets').insert({ organization_id: guild.organization_id, guild_id: guildId, channel_id: String(channel.id), opened_by_discord_id: discordId, opened_by_name: displayName, subject, description, status: 'open' }).select('id').single();
     if (insertError) { try { await ticketDiscordApi(db, `/channels/${channel.id}`, { method: 'DELETE' }); } catch (_) {} throw insertError; }
