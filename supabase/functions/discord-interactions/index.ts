@@ -2153,7 +2153,6 @@ async function handleTicket(db: any, interaction: any, customId: string, isButto
         for (const roleId of Array.isArray(botMember?.roles) ? botMember.roles : []) if (String(roleId) !== guildId && !overwrites.some((item) => String(item.id) === String(roleId))) overwrites.push({ id: String(roleId), type: 0, allow: '68608' });
       }
       if (botRole?.id && !overwrites.some((item) => String(item.id) === String(botRole.id))) overwrites.push({ id: String(botRole.id), type: 0, allow: '68608' });
-      }
     } catch (_) {}
     const channel = await ticketDiscordApi(db, `/guilds/${guildId}/channels`, { method: 'POST', body: JSON.stringify({ name: safeName, type: 0, parent_id: category?.id, permission_overwrites: overwrites, topic: `Panel Pro ticket · ${discordId}` }) });
     if (botRole?.id) await ticketDiscordApi(db, `/channels/${channel.id}/permissions/${botRole.id}`, { method: 'PUT', body: JSON.stringify({ id: String(botRole.id), type: 0, allow: '68608', deny: '0' }) }).catch(() => null);
