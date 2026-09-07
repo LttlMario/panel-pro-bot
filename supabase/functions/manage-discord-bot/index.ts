@@ -390,6 +390,21 @@ async function syncOfficialRoles(db: any, guildId: string) {
   return result;
 }
 
+async function announceExistingCommunity(db: any, guildId: string) {
+  const token = await getPlatformSecret(db, 'discord_bot_token');
+  const headers = { ...botHeaders(token), 'Content-Type': 'application/json' };
+  const channelsResponse = await fetch(`${DISCORD_API}/guilds/${guildId}/channels`, { headers });
+  const channels = await channelsResponse.json().catch(() => []);
+  const welcome = (Array.isArray(channels) ? channels : []).find((channel: any) => Number(channel.type) === 0 && /bun.?venit/i.test(String(channel.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')));
+  if (!welcome?.id) throw new Error('Canalul bun venit nu a fost găsit. Rulează mai întâi configurarea serverului oficial.');
+  const membersResponse = await fetch(`${DISCORD_API}/guilds/${guildId}/members?limit=1`, { headers });
+  const members = membersResponse.headers.get('x-total-count');
+  const description = `Mulțumim tuturor celor care fac deja parte din comunitatea Panel Pro. De acum, intrările, plecările și avansările vor fi anunțate automat aici.`;
+  const response = await fetch(`${DISCORD_API}/channels/${welcome.id}/messages`, { method: 'POST', headers, body: JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [{ title: '👋 Bun venit comunității existente!', description, fields: [{ name: 'Comunitate', value: members ? `${members} membri` : 'Membrii existenți ai serverului', inline: true }, { name: 'Ce urmează', value: 'Mesajele automate sunt active pentru evenimentele noi.', inline: true }], color: 0x22d3ee, footer: { text: 'Panel Pro · mesaj pentru comunitatea existentă' }, timestamp: new Date().toISOString() }] }) });
+  if (!response.ok) throw new Error(`Mesajul nu a putut fi trimis (HTTP ${response.status}).`);
+  return { channel_id: String(welcome.id), members: members ? Number(members) : null };
+}
+
 async function provisionDemoCategory(db: any, guildId: string) {
   const token = await getPlatformSecret(db, 'discord_bot_token');
   const headers = { ...botHeaders(token), 'Content-Type': 'application/json' };
@@ -456,7 +471,7 @@ Deno.serve(async (request) => {
     const action = clean(body.action, 30) || 'bootstrap';
     const personalView = clean(body.view_scope, 30) === 'personal';
     const diagnostics: Record<string, any> = {};
-    if (action === 'provision_official_server' || action === 'sync_official_roles') { if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate configura serverul oficial.' }, 403); const target=clean(body.guild_id,30); if (target !== '1544703486384537603') return reply(request,{error:'Serverul oficial nu este valid.'},400); const result=action === 'provision_official_server' ? await provisionOfficialServer(db,target) : await syncOfficialRoles(db,target); return reply(request,{ok:true,guild_id:target,result}); }
+    if (action === 'provision_official_server' || action === 'sync_official_roles' || action === 'announce_existing_community') { if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate configura serverul oficial.' }, 403); const target=clean(body.guild_id,30); if (target !== '1544703486384537603') return reply(request,{error:'Serverul oficial nu este valid.'},400); const result=action === 'provision_official_server' ? await provisionOfficialServer(db,target) : action === 'sync_official_roles' ? await syncOfficialRoles(db,target) : await announceExistingCommunity(db,target); return reply(request,{ok:true,guild_id:target,result}); }
     if (action === 'bootstrap') {
       const discoveryBotToken = await getPlatformSecret(db, 'discord_bot_token');
       const botIdentityResponse = discoveryBotToken
@@ -474,7 +489,7 @@ Deno.serve(async (request) => {
     // Operațiunile globale nu trebuie să depindă de scope-ul OAuth `guilds`.
     // Administratorul global poate deschide constructorul chiar dacă tokenul
     // Discord existent a fost emis înainte de adăugarea scope-ului.
-    const globalOnlyAction = ['custom_modules', 'save_custom_modules', 'global_config', 'save_global_config', 'assistant_catalog', 'assistant_schema_check', 'provision_official_server', 'sync_official_roles'].includes(action);
+    const globalOnlyAction = ['custom_modules', 'save_custom_modules', 'global_config', 'save_global_config', 'assistant_catalog', 'assistant_schema_check', 'provision_official_server', 'sync_official_roles', 'announce_existing_community'].includes(action);
     const guilds = globalOnlyAction
       ? []
       : await ownedGuilds(db, { ...discord, access_token: accessToken }, applicationId, platformAdmin || !personalView, diagnostics);
