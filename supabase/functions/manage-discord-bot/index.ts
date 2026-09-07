@@ -72,6 +72,24 @@ async function discordUser(token: string) {
   return response.json();
 }
 
+async function refreshGuildEntitlements(db: any, guildId: string, organizationId: string, applicationId: string) {
+  const botToken = await getPlatformSecret(db, 'discord_bot_token');
+  if (!botToken) return;
+  const response = await fetch(`${DISCORD_API}/applications/${applicationId}/entitlements?guild_id=${encodeURIComponent(guildId)}&limit=100`, { headers: botHeaders(botToken) });
+  if (!response.ok) return;
+  const items = await response.json().catch(() => []);
+  const skuIds = new Set(String(Deno.env.get('DISCORD_PREMIUM_GUILD_SKU_IDS') || Deno.env.get('DISCORD_PREMIUM_GUILD_SKU_ID') || '').split(',').map((value) => value.trim()).filter((value) => id(value)));
+  for (const item of Array.isArray(items) ? items : []) {
+    const skuId = String(item?.sku_id || '').trim(); const entitlementId = String(item?.id || '').trim();
+    if (!skuIds.has(skuId) || !entitlementId) continue;
+    const active = !item?.deleted && (!item?.ends_at || Date.parse(String(item.ends_at)) > Date.now());
+    const { data: existing } = await db.from('discovery_guild_entitlements').select('id').eq('guild_id', guildId).eq('organization_id', organizationId).eq('sku_id', skuId).eq('raw_entitlement->>id', entitlementId).maybeSingle();
+    const payload = { guild_id: guildId, organization_id: organizationId, sku_id: skuId, owner_type: 2, purchaser_user_id: item?.user_id || null, active, starts_at: item?.starts_at || new Date().toISOString(), ends_at: item?.ends_at || null, raw_entitlement: item, updated_at: new Date().toISOString() };
+    if (existing?.id) await db.from('discovery_guild_entitlements').update(payload).eq('id', existing.id);
+    else await db.from('discovery_guild_entitlements').insert(payload);
+  }
+}
+
 async function ensureDiscordOrganization(db: any, user: any, guild: any, applicationId: string) {
   const guildId = String(guild.id);
   const { data: linked, error: linkedError } = await db.from('discovery_guilds').select('organization_id,kind').eq('guild_id', guildId).eq('enabled', true).maybeSingle();
@@ -169,6 +187,7 @@ async function ownedGuilds(db: any, user: any, applicationId: string, platformAd
     const isRoleAdmin = !isOwner && adminRoleIds.length ? (await memberRoleIds(db, String(guild.id), String(user.id))).some((roleId: string) => adminRoleIds.includes(roleId)) : false;
     const isUserAdmin = !isOwner && adminUserIds.includes(String(user.id));
     if (!platformAdmin && !isOwner && !isRoleAdmin && !isUserAdmin) continue;
+    await refreshGuildEntitlements(db, String(guild.id), String(organization?.id || linked.organization_id), applicationId);
     const { data: entitlement } = await db.from('discovery_guild_entitlements').select('sku_id,ends_at,active').eq('guild_id', String(guild.id)).eq('active', true).order('updated_at', { ascending: false }).limit(1).maybeSingle();
     const premium = Boolean(entitlement && (!entitlement.ends_at || Date.parse(String(entitlement.ends_at)) > Date.now()));
     const trial = !premium && Date.parse(String(trialValue.ends_at || '')) > Date.now();
