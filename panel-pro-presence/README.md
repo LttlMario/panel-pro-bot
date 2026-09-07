@@ -5,7 +5,7 @@ Această aplicație locală afișează în profilul Discord activitatea **Playin
 Pentru ca Discord să nu înlocuiască activitatea cu jocul detectat automat, în Discord Desktop deschide:
 **User Settings → Activity Privacy → Display current activity as a status** și dezactivează opțiunea.
 
-Aplicația reafișează activitatea la fiecare 5 secunde și include linkurile configurate în Rich Presence. Trebuie să rămână pornită cât timp vrei să apară activitatea.
+Aplicația reafișează activitatea la fiecare 2,5 secunde și include linkurile configurate în Rich Presence. Trebuie să rămână pornită cât timp vrei să apară activitatea. Discord poate afișa deasupra jocul detectat automat; pentru Panel Pro permanent, dezactivează jocurile respective din **Registered Games** sau oprește partajarea activității jocurilor.
 
 ## Pornire
 

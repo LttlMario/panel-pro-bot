@@ -26,8 +26,8 @@ rpc.on('ready', () => {
   updateActivity();
   clearInterval(heartbeat);
   // Reassert the activity regularly so it survives Discord activity refreshes.
-  heartbeat = setInterval(updateActivity, 5000);
-  console.log('Panel Pro Rich Presence este activ. Dezactivează jocurile detectate din Discord pentru a-l păstra afișat.');
+  heartbeat = setInterval(updateActivity, 2500);
+  console.log('Panel Pro Rich Presence este activ și se reîmprospătează la 2,5 secunde. Discord poate prioritiza jocurile detectate automat.');
 });
 rpc.on('disconnected', () => {
   connected = false;
