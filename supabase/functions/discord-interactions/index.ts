@@ -2169,7 +2169,7 @@ async function handleTicket(db: any, interaction: any, customId: string, isButto
     return interactionMessage(`Ticketul a fost deschis: <#${channel.id}>. Echipa de suport va răspunde acolo.`);
   }
   const parts = customId.split(':'); const action = parts[2] || ''; const ticketId = String(parts[3] || '').trim();
-  if (!['claim','close'].includes(action) || !/^[0-9a-f-]{20,40}$/i.test(ticketId)) return interactionMessage('Acțiunea ticketului nu este validă.');
+  if (!['claim','close','notify','transcript','add_member_submit','add_member_select','reopen'].includes(action) || !/^[0-9a-f-]{20,40}$/i.test(ticketId)) return interactionMessage('Acțiunea ticketului nu este validă.');
   const { data: ticket, error: ticketError } = await db.from('discovery_support_tickets').select('*').eq('id', ticketId).eq('organization_id', guild.organization_id).eq('guild_id', guildId).maybeSingle(); if (ticketError) throw ticketError; if (!ticket) return interactionMessage('Ticketul nu mai există.');
   if (action === 'claim') { if (!(await isTicketStaff(db, interaction))) return interactionMessage('Doar echipa de suport poate prelua ticketul.'); const { error } = await db.from('discovery_support_tickets').update({ status: 'claimed', claimed_by_discord_id: discordId, claimed_by_name: displayName, claimed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', ticketId).in('status', ['open','claimed']); if (error) throw error; await ticketEvent(db, ticket, discordId, 'claimed', {}); await ticketDiscordApi(db, `/channels/${ticket.channel_id}/messages`, { method: 'POST', body: JSON.stringify({ content: `✅ Ticket preluat de <@${discordId}>.`, allowed_mentions: { parse: [] } }) }); return interactionMessage('Ticketul a fost preluat.'); }
   const isStaff = await isTicketStaff(db, interaction);
@@ -2198,9 +2198,9 @@ async function handleTicket(db: any, interaction: any, customId: string, isButto
     await ticketDiscordApi(db, `/channels/${ticket.channel_id}/messages`, { method: 'POST', body: JSON.stringify({ content: `🔄 Ticket redeschis de <@${discordId}>.`, allowed_mentions: { parse: [] } }) });
     return interactionMessage('Ticketul a fost redeschis.');
   }
-  if (action === 'add_member_submit' && isModalSubmit) {
+  if ((action === 'add_member_submit' && isModalSubmit) || (action === 'add_member_select' && isButton === false)) {
     if (!isStaff) return interactionMessage('Doar echipa de suport poate adăuga membri în ticket.');
-    const memberId = String(modalValues(interaction).member_id || '').trim();
+    const memberId = String(action === 'add_member_select' ? interaction.data?.values?.[0] : modalValues(interaction).member_id || '').trim();
     if (!/^\d{15,22}$/.test(memberId)) return interactionMessage('Introdu un ID Discord valid.');
     const member = await ticketDiscordApi(db, `/guilds/${guildId}/members/${memberId}`);
     if (!member?.user?.id) return interactionMessage('Membrul nu a fost găsit pe acest server.');
@@ -2213,6 +2213,12 @@ async function handleTicket(db: any, interaction: any, customId: string, isButto
   let transcript = ''; try { const messages = await ticketDiscordApi(db, `/channels/${ticket.channel_id}/messages?limit=100`); transcript = (Array.isArray(messages) ? messages.reverse() : []).map((m: any) => `[${m.timestamp || ''}] ${m.author?.username || m.author?.id || 'utilizator'}: ${String(m.content || '').replace(/\n/g,' ')}`).join('\n').slice(0, 50000); } catch (_) {}
   const { error } = await db.from('discovery_support_tickets').update({ status: 'closed', transcript, closed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', ticketId).in('status', ['open','claimed']); if (error) throw error;
   await ticketEvent(db, ticket, discordId, 'closed', { transcript_length: transcript.length });
+  try {
+    const { data: logSettings } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', ticket.organization_id).maybeSingle();
+    const logRoutes = logSettings?.discord_channel_routes || {};
+    const logRoute = logRoutes.ticket_logs?.primary || logRoutes.support_tickets?.primary || logRoutes.log_tickets?.primary || logRoutes.ticket_logs?.secondary || logRoutes.support_tickets?.secondary || logRoutes.log_tickets?.secondary;
+    if (logRoute?.channel_id) await ticketDiscordApi(db, `/channels/${logRoute.channel_id}/messages`, { method: 'POST', body: JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [{ title: `📄 Transcript ticket · ${ticket.subject || 'Suport'}`, description: (transcript || 'Nu există mesaje').slice(0, 4000), color: 0xef4444, fields: [{ name: 'Închis de', value: `<@${discordId}>`, inline: true }, { name: 'Ticket', value: String(ticket.id), inline: true }], footer: { text: 'Panel Pro · Transcript securizat' }, timestamp: new Date().toISOString() }] }) });
+  } catch (logError) { console.error('[discord-interactions] ticket transcript log failed', logError); }
   try { await ticketDiscordApi(db, `/channels/${ticket.channel_id}`, { method: 'PATCH', body: JSON.stringify({ name: `inchis-${String(ticket.channel_id).slice(-6)}` }) }); } catch (_) {}
   try { if (interaction.message?.id) await ticketDiscordApi(db, `/channels/${ticket.channel_id}/messages/${interaction.message.id}`, { method: 'PATCH', body: JSON.stringify({ components: ticketControls(ticketId, true) }) }); } catch (_) {}
   return interactionMessage('Ticketul a fost închis. Transcriptul a fost salvat în jurnal.');
@@ -2367,13 +2373,13 @@ Deno.serve(async (request) => {
   const isMarketplace = customId.startsWith('panel:marketplace:');
   const isBotAccess = customId.startsWith('panel:bot_access:');
   const isDiscovery = customId.startsWith('panel:discovery:');
-  const isTicket = customId === 'panel:ticket:open' || customId === 'panel:ticket:submit' || customId.startsWith('panel:ticket:claim:') || customId.startsWith('panel:ticket:close:') || customId.startsWith('panel:ticket:notify:') || customId.startsWith('panel:ticket:transcript:') || customId.startsWith('panel:ticket:add_member:') || customId.startsWith('panel:ticket:add_member_submit:') || customId.startsWith('panel:ticket:reopen:');
+  const isTicket = customId === 'panel:ticket:open' || customId === 'panel:ticket:submit' || customId.startsWith('panel:ticket:claim:') || customId.startsWith('panel:ticket:close:') || customId.startsWith('panel:ticket:notify:') || customId.startsWith('panel:ticket:transcript:') || customId.startsWith('panel:ticket:add_member:') || customId.startsWith('panel:ticket:add_member_submit:') || customId.startsWith('panel:ticket:add_member_select:') || customId.startsWith('panel:ticket:reopen:');
   const isCustom = customId.startsWith('panel:custom:') || customId.startsWith('panel:custom_submit:') || customId.startsWith('panel:custom_review:') || customId.startsWith('panel:custom_reason:');
   if (!isComponent && !isModalSubmit) return reply(interactionMessage('Acest tip de interacțiune nu este disponibil.'));
   if (!isPontaj && !isRequests && !isContracts && !isAnnouncements && !isDiscipline && !isActions && !isStash && !isMarketplace && !isBotAccess && !isDiscovery && !isCustom && !isTicket) return reply(interactionMessage('Acest buton nu aparține unui modul Panel Pro.'));
   // Modalul trebuie returnat imediat; orice acces la DB înainte de răspuns poate depăși limita Discord de 3 secunde.
   if (isTicket && isButton && customId === 'panel:ticket:open') return reply(ticketModal());
-  if (isTicket && isButton && customId.startsWith('panel:ticket:add_member:')) { const id = customId.slice('panel:ticket:add_member:'.length); if (!/^[0-9a-f-]{20,40}$/i.test(id)) return reply(interactionMessage('Ticketul nu este valid.')); return reply(ticketAddMemberModal(id)); }
+  if (isTicket && isButton && customId.startsWith('panel:ticket:add_member:')) { const id = customId.slice('panel:ticket:add_member:'.length); if (!/^[0-9a-f-]{20,40}$/i.test(id)) return reply(interactionMessage('Ticketul nu este valid.')); return reply(interactionMessage('Alege membrul care trebuie adăugat în ticket.', { components: [{ type: 1, components: [{ type: 5, custom_id: `panel:ticket:add_member_select:${id}`, placeholder: 'Selectează un membru', min_values: 1, max_values: 1 }] }] })); }
   // Confirmă imediat interacțiunile ticket; verificările DB/Discord pot dura peste limita de 3 secunde.
   let ticketDeferred: any = null;
   if (isTicket && !(isButton && customId === 'panel:ticket:open')) ticketDeferred = await deferInteraction(interaction, false);
