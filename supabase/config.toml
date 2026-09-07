@@ -31,6 +31,9 @@ verify_jwt = false
 [functions.discord-app-events]
 verify_jwt = false
 
+[functions.discord-member-events]
+verify_jwt = false
+
 [functions.send-discord-notification]
 verify_jwt = false
 
