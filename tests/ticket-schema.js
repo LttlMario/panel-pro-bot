@@ -1,0 +1,1 @@
+const fs=require('fs'); const p='tests/ticket-schema.js'; const s=fs.readFileSync('supabase/migrations/20260907000100_support_tickets.sql','utf8'); for(const x of ['discovery_support_tickets','organization_id','guild_id','channel_id','transcript','status','open_user']) if(!s.includes(x)) throw Error('Missing ticket schema element: '+x); console.log('Ticket schema checks: OK');
