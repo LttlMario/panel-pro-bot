@@ -83,7 +83,8 @@ async function refreshGuildEntitlements(db: any, guildId: string, organizationId
     const skuId = String(item?.sku_id || '').trim(); const entitlementId = String(item?.id || '').trim();
     if (!skuIds.has(skuId) || !entitlementId) continue;
     const active = !item?.deleted && (!item?.ends_at || Date.parse(String(item.ends_at)) > Date.now());
-    const { data: existing } = await db.from('discovery_guild_entitlements').select('id').eq('guild_id', guildId).eq('organization_id', organizationId).eq('sku_id', skuId).eq('raw_entitlement->>id', entitlementId).maybeSingle();
+    const { data: existing } = await db.from('discovery_guild_entitlements').select('id,raw_entitlement').eq('guild_id', guildId).eq('organization_id', organizationId).eq('sku_id', skuId).eq('raw_entitlement->>id', entitlementId).maybeSingle();
+    if (existing?.raw_entitlement?.panel_revoked === true) continue;
     const payload = { guild_id: guildId, organization_id: organizationId, sku_id: skuId, owner_type: 2, purchaser_user_id: item?.user_id || null, active, starts_at: item?.starts_at || new Date().toISOString(), ends_at: item?.ends_at || null, raw_entitlement: item, updated_at: new Date().toISOString() };
     if (existing?.id) await db.from('discovery_guild_entitlements').update(payload).eq('id', existing.id);
     else await db.from('discovery_guild_entitlements').insert(payload);
@@ -567,6 +568,15 @@ Deno.serve(async (request) => {
       const { data: entitlement, error } = await db.from('discovery_guild_entitlements').insert({ guild_id: guildId, organization_id: selectedGuild.organization_id, sku_id: skuId, owner_type: 2, active: true, starts_at: now, ends_at: endsAt, purchaser_user_id: String(discord.id), raw_entitlement: { source: 'platform_admin_grant', granted_by: String(discord.id), days } }).select('id,guild_id,sku_id,starts_at,ends_at,active').single();
       if (error) throw error;
       return reply(request, { ok: true, entitlement });
+    }
+    if (action === 'revoke_premium') {
+      if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate retrage Premium.' }, 403);
+      const now = new Date().toISOString();
+      const { data: activeEntitlements, error: readError } = await db.from('discovery_guild_entitlements').select('id,raw_entitlement').eq('guild_id', guildId).eq('organization_id', selectedGuild.organization_id).eq('active', true);
+      if (readError) throw readError;
+      const updates = (activeEntitlements || []).map((item: any) => db.from('discovery_guild_entitlements').update({ active: false, raw_entitlement: { ...(item.raw_entitlement || {}), panel_revoked: true, revoked_at: now }, updated_at: now }).eq('id', item.id));
+      await Promise.all(updates);
+      return reply(request, { ok: true, guild_id: guildId, premium_active: false, revoked: updates.length });
     }
     if (action === 'send_premium_purchase') {
       const skuId = String(Deno.env.get('DISCORD_PREMIUM_GUILD_SKU_IDS') || Deno.env.get('DISCORD_PREMIUM_GUILD_SKU_ID') || '').split(',').map((value) => value.trim()).find((value) => id(value)) || '';
