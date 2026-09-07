@@ -324,7 +324,18 @@ async function provisionOfficialServer(db: any, guildId: string) {
     if (messages['🧩・module-disponibile']?.embeds?.[0]) { const embed=messages['🧩・module-disponibile'].embeds[0]; embed.description=`Catalog actualizat automat · ${new Date().toLocaleString('ro-RO')}\n\nAlege modulele potrivite comunității tale din https://bot.panel-pro.ro.`; embed.fields=[{name:'🆓 Module Free',value:builtins.filter((line)=>line.startsWith('🆓')).map((line)=>'• '+line.replace('🆓 Free · ','')).join('\n')||'Momentan nu există module Free.',inline:false},{name:'⭐ Module Premium',value:all.filter((line)=>line.startsWith('⭐')).map((line)=>'• '+line.replace('⭐ Premium · ','')).join('\n')||'Momentan nu există module Premium.',inline:false},{name:'⚙️ Module personalizate',value:customLines.filter((line)=>!builtins.includes(line)).map((line)=>'• '+line.replace(/^\S+ (?:Free|Premium) · /,'')).join('\n')||'Creează module personalizate din dashboard.',inline:false}]; }
   } catch (error) { console.error('[provision] module catalog failed', error); }
   for (const [name, body] of Object.entries(messages)) { const id=channelIds[name]; if(!id) continue; const existingMessages=await fetch(DISCORD_API + '/channels/' + id + '/messages?limit=50',{headers}).then((r)=>r.ok?r.json():[]).catch(()=>[]); const title=String(body?.embeds?.[0]?.title||''); const current=Array.isArray(existingMessages)&&existingMessages.find((m:any)=>(m.embeds||[]).some((e:any)=>String(e.title||'')===title)); if(current?.id){ const r=await fetch(DISCORD_API + '/channels/' + id + '/messages/'+current.id,{method:'PATCH',headers,body:JSON.stringify({allowed_mentions:{parse:[]},...body})}); if(!r.ok && r.status!==429) console.error('[provision update]',name,r.status); continue; } const r=await fetch(DISCORD_API + '/channels/' + id + '/messages',{method:'POST',headers,body:JSON.stringify({allowed_mentions:{parse:[]},...body})}); if(!r.ok && r.status!==429) console.error('[provision]',name,r.status); }
-  return { roles: roleNames.length, categories: categories.length, channels: Object.values(groups).flat().length, created_channels: created, role_ids: roleIds };
+  let routeConfiguration: any = null;
+  try {
+    const linked = await db.from('discovery_guilds').select('organization_id').eq('guild_id', guildId).eq('enabled', true).maybeSingle();
+    if (linked.data?.organization_id) {
+      const current = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', linked.data.organization_id).maybeSingle();
+      const available = await channels(db, guildId);
+      const automatic = autoRouteChannels(available, guildId, current.data?.discord_channel_routes || {}, MODULES);
+      const saved = await db.from('discovery_settings').update({ discord_channel_routes: automatic.routes, updated_at: new Date().toISOString() }).eq('organization_id', linked.data.organization_id);
+      if (!saved.error) routeConfiguration = { matched: automatic.matched, unmatched: automatic.unmatched };
+    }
+  } catch (error) { console.error('[provision routes]', error); }
+  return { roles: roleNames.length, categories: categories.length, channels: Object.values(groups).flat().length, created_channels: created, role_ids: roleIds, route_configuration: routeConfiguration };
 }
 async function syncOfficialRoles(db: any, guildId: string) {
   const token = await getPlatformSecret(db, 'discord_bot_token');
