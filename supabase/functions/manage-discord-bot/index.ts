@@ -7,6 +7,7 @@ import { mergeModuleDefinitions, readGlobalModules, sanitizeModuleOverrides } fr
 import { discordPremiumButton } from '../_shared/discord-premium.ts';
 
 const DISCORD_API = 'https://discord.com/api/v10';
+const OFFICIAL_GUILD_ID = '1544703486384537603';
 const MODULES: Record<string, { label: string; premium: boolean; title: string; description: string; color: number; buttons: any[] }> = {
   pontaj: { label: 'Pontaj și ture', premium: false, title: '🕒 Pontaj · Panel Pro', description: 'Alege tura și folosește butoanele pentru Start, Pauză și Stop.', color: 0x22c55e, buttons: [{ label: 'Tura de zi', style: 1, id: 'panel:pontaj:shift_day' }, { label: 'Tura de noapte', style: 1, id: 'panel:pontaj:shift_night' }, { label: 'Start', style: 3, id: 'panel:pontaj:start' }, { label: 'Pauză', style: 2, id: 'panel:pontaj:pause' }, { label: 'Stop', style: 4, id: 'panel:pontaj:stop' }, { label: 'Pontajul meu', style: 1, id: 'panel:pontaj:my_stats' }] },
   requests_organization: { label: 'Învoiri organizație', premium: true, title: '📝 Învoiri · Organizație', description: 'Trimite și consultă învoirile organizației.', color: 0xf59e0b, buttons: [{ label: 'Trimite învoire', style: 1, id: 'panel:requests:organization:new' }, { label: 'Învoirile mele', style: 2, id: 'panel:requests:organization:mine' }] },
@@ -177,6 +178,7 @@ async function ownedGuilds(db: any, user: any, applicationId: string, platformAd
     const { data: organization, error } = await db.from('discovery_organizations').select('id,name,access_mode,active').eq('id', linked.organization_id).maybeSingle();
     if (error) throw error;
     if (organization?.access_mode !== 'discord_only' && !platformAdmin) continue;
+    if (String(guild.id) === OFFICIAL_GUILD_ID && !platformAdmin) continue;
     const { data: packageSetting } = await db.from('discovery_app_settings').select('key,value').eq('organization_id', linked.organization_id).in('key', ['organization_package', 'discord_trial', 'discord_bot_admin_roles', 'discord_bot_admin_users']);
     const packageValue = (packageSetting || []).find((item: any) => item.key === 'organization_package')?.value || {};
     const trialValue = (packageSetting || []).find((item: any) => item.key === 'discord_trial')?.value || {};

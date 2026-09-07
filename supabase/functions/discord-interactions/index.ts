@@ -8,6 +8,7 @@ import { readGlobalModules } from '../_shared/global-bot-settings.ts';
 
 const DISCORD_PUBLIC_KEY = () => String(Deno.env.get('DISCORD_PUBLIC_KEY') || Deno.env.get('DISCORD_APPLICATION_PUBLIC_KEY') || '').trim();
 const DISCORD_API = 'https://discord.com/api/v10';
+const OFFICIAL_GUILD_ID = '1544703486384537603';
 const serviceKey = () => Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') || '{}').default;
 const reply = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 const interactionMessage = (content: string, extra: Record<string, unknown> = {}) => ({ type: 4, data: { content, flags: 64, ...extra } });
@@ -79,6 +80,7 @@ async function isGuildOwner(db: any, guildId: string, discordId: string) {
 async function botAccessOrganization(db: any, interaction: any) {
   const guildId = String(interaction?.guild_id || '');
   const discordId = String(interaction?.member?.user?.id || interaction?.user?.id || '');
+  if (guildId === OFFICIAL_GUILD_ID && !(await isPlatformAdminAccount(db, discordId))) throw new Error('Serverul oficial Panel Pro este protejat. Configurarea botului se face doar din serverul tău Discord.');
   const { data: guild, error } = await db.from('discovery_guilds').select('organization_id').eq('guild_id', guildId).eq('enabled', true).maybeSingle();
   if (error) throw error;
   if (!guild?.organization_id) throw new Error('Serverul Discord nu este asociat unei organizații Panel Pro.');
