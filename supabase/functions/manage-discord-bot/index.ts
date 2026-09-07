@@ -210,6 +210,39 @@ async function channels(db: any, guildId: string) {
   return (Array.isArray(raw) ? raw : []).filter((item: any) => [0, 5].includes(Number(item.type)) && id(item.id)).map((item: any) => ({ id: String(item.id), name: clean(item.name || item.id, 100), category_name: categories.get(String(item.parent_id || '')) || '', type: Number(item.type) })).sort((a: any, b: any) => `${a.category_name}/${a.name}`.localeCompare(`${b.category_name}/${b.name}`, 'ro'));
 }
 
+// Potrivește automat modulele și jurnalele cu canalele existente. Numele
+// canalelor pot conține emoji sau diacritice, de aceea comparația este
+// normalizată și nu depinde de formatul exact al denumirii.
+function autoRouteChannels(channelList: any[], guildId: string, currentRoutes: Record<string, any> = {}, definitions: Record<string, any> = MODULES) {
+  const normalize = (value: unknown) => String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  const rows = (Array.isArray(channelList) ? channelList : []).map((channel: any) => ({ ...channel, search: normalize(`${channel.category_name || ''} ${channel.name || ''}`), nameSearch: normalize(channel.name || '') }));
+  const blocked = (row: any) => /(^| )(log|audit|staff|cereri suport|incidente)( |$)/.test(row.search);
+  const matchers: Record<string, string[]> = {
+    pontaj: ['pontaj', 'ture'], requests_organization: ['invoiri organizatie', 'cereri organizatie'], requests_departments: ['invoiri angajati', 'invoiri departamente'],
+    organization: ['anunturi organizatie'], departments: ['anunturi angajati'], contracts: ['contracte'], contract_identity_weekly: ['raport saptamanal contracte'],
+    actions_organization: ['actiuni organizatie'], marketplace: ['marketplace legal'], illegal_marketplace: ['marketplace ilegal'], event_reminders: ['evenimente', 'remindere'],
+    stash_requests: ['cereri stash'], stash_donations: ['donatii stash'], stash: ['stash'], status_live: ['status live', 'status servicii', 'status api'],
+  };
+  const routes: Record<string, any> = { ...(currentRoutes || {}) }; const matched: Record<string, string> = {}; const unmatched: string[] = [];
+  for (const [key, definition] of Object.entries(definitions || {})) {
+    const terms = matchers[key] || [normalize((definition as any).label || key)];
+    const found = rows.find((row: any) => !blocked(row) && terms.some((term) => row.search.includes(normalize(term))));
+    if (found) { matched[key] = String(found.id); routes[key] = { ...(routes[key] || {}), primary: { ...(routes[key]?.primary || {}), channel_id: String(found.id), guild_id: guildId, enabled: true } }; }
+    else if (!routes[key]?.primary?.channel_id) unmatched.push(key);
+  }
+  const logFallback = rows.find((row: any) => row.nameSearch === 'staff log' || row.nameSearch.includes('staff log'))?.id;
+  const logTerms: Record<string, string[]> = { log_pontaj: ['pontaj'], log_requests_organization: ['invoiri organizatie'], log_requests_departments: ['invoiri angajati'], log_announcements_organization: ['anunturi organizatie'], log_announcements_departments: ['anunturi angajati'], log_contracts: ['contracte'], log_contract_identity_weekly: ['raport saptamanal contracte'], log_actions_organization: ['actiuni organizatie'], log_marketplace: ['marketplace legal'], log_illegal_marketplace: ['marketplace ilegal'], log_stash: ['stash'], log_stash_requests: ['cereri stash'], log_stash_donations: ['donatii stash'], log_event_reminders: ['evenimente', 'remindere'] };
+  for (const logKey of Object.values(LOG_ROUTES)) {
+    const terms = logTerms[logKey] || []; const found = rows.find((row: any) => /(^| )(log|audit)( |$)/.test(row.search) && terms.some((term) => row.search.includes(normalize(term)))); const channelId = found?.id || logFallback;
+    if (channelId) routes[logKey] = { ...(routes[logKey] || {}), primary: { ...(routes[logKey]?.primary || {}), channel_id: String(channelId), guild_id: guildId, enabled: true } };
+  }
+  const support = (needle: string) => rows.find((row: any) => row.nameSearch.includes(needle))?.id;
+  for (const [key, needle] of [['support_tickets', 'deschide ticket'], ['support_questions', 'intrebari'], ['support_suggestions', 'sugestii'], ['support_bug_reports', 'raporteaza problema'], ['support_feedback', 'trimite feedback'], ['status_servicii', 'status servicii'], ['staff_log', 'staff log'], ['support_requests_log', 'cereri suport'], ['audit_actions', 'audit actiuni'], ['incidents', 'incidente']] as const) {
+    const channelId = support(needle); if (channelId) routes[key] = { ...(routes[key] || {}), primary: { ...(routes[key]?.primary || {}), channel_id: String(channelId), guild_id: guildId, enabled: true } };
+  }
+  return { routes, matched, unmatched };
+}
+
 async function guildRoles(db: any, guildId: string) {
   const botToken = await getPlatformSecret(db, 'discord_bot_token');
   const response = await fetch(`${DISCORD_API}/guilds/${guildId}/roles`, { headers: botHeaders(botToken) });
@@ -494,7 +527,7 @@ Deno.serve(async (request) => {
     }
     const { data: settings, error: settingsError } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', selectedGuild.organization_id).maybeSingle();
     if (settingsError) throw settingsError;
-    if (action === 'dashboard_overview' || action === 'repair_guild' || action === 'set_module_enabled') {
+    if (action === 'dashboard_overview' || action === 'repair_guild' || action === 'auto_configure_routes' || action === 'set_module_enabled') {
       const customSetting = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
       if (customSetting.error) throw customSetting.error;
       const definitions = { ...mergeModuleDefinitions(MODULES, await readGlobalModules(db)), ...sanitizeCustomModules(customSetting.data?.custom_modules || {}) } as Record<string, any>;
@@ -534,6 +567,13 @@ Deno.serve(async (request) => {
       let channelList: any[] = [];
       let channelError = '';
       try { channelList = await channels(db, guildId); } catch (error) { channelError = error instanceof Error ? error.message : 'Canalele Discord nu au putut fi verificate.'; }
+      if ((action === 'auto_configure_routes' || action === 'repair_guild') && !channelError) {
+        const automatic = autoRouteChannels(channelList, guildId, routes, definitions);
+        Object.assign(routes, automatic.routes);
+        const { error: routeError } = await db.from('discovery_settings').update({ discord_channel_routes: routes, updated_at: new Date().toISOString(), updated_by_discord_id: String(discord.id) }).eq('organization_id', selectedGuild.organization_id);
+        if (routeError) throw routeError;
+        if (action === 'auto_configure_routes') return reply(request, { ok: true, configured: true, matched: automatic.matched, unmatched: automatic.unmatched, channels: { total: channelList.length }, routes });
+      }
       const availableChannels = new Set(channelList.map((channel: any) => String(channel.id)));
       const modules = Object.entries(definitions).map(([key, definition]: [string, any]) => ({ key, label: definition.label, premium: definition.premium === true, active: definition.active !== false, enabled: routes[key]?.primary?.enabled !== false, embed_configured: Boolean(routes[key]?.primary?.channel_id && availableChannels.has(String(routes[key].primary.channel_id))), log_configured: Boolean(definition.log_key && routes[definition.log_key]?.primary?.channel_id && availableChannels.has(String(routes[definition.log_key].primary.channel_id))) }));
       const [activityResult, auditResult] = await Promise.all([
