@@ -108,7 +108,10 @@ Deno.serve(async (request) => {
       const channelId = String(settings?.discord_channel_routes?.billing_thanks?.primary?.channel_id || '').trim();
       const botToken = await getPlatformSecret(db, 'discord_bot_token');
       if (/^\d{15,22}$/.test(channelId) && botToken) {
-        const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, { method: 'POST', headers: { Authorization: `Bot ${botToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [{ title: '💙 Mulțumim că ești alături de Panel Pro!', description: 'Serverul tău folosește planul gratuit Panel Pro. Îți mulțumim că faci parte din comunitate! Dacă activezi Trial sau Premium, funcțiile eligibile vor fi confirmate automat aici.', color: 0x3b82f6, footer: { text: 'Panel Pro · comunitate' }, timestamp: new Date().toISOString() }] }) });
+        const { data: trialSetting } = await db.from('discovery_app_settings').select('value').eq('organization_id', linked.organization_id).eq('key', 'discord_trial').maybeSingle();
+        const trialActive = Date.parse(String(trialSetting?.value?.ends_at || '')) > Date.now();
+        const planText = trialActive ? 'perioada Trial' : 'planul gratuit';
+        const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, { method: 'POST', headers: { Authorization: `Bot ${botToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [{ title: trialActive ? '🧪 Mulțumim pentru activarea Trialului!' : '💙 Mulțumim că ești alături de Panel Pro!', description: `Serverul tău folosește ${planText} Panel Pro. Îți mulțumim că faci parte din comunitate! Funcțiile eligibile sunt disponibile automat.`, color: trialActive ? 0x8b5cf6 : 0x3b82f6, footer: { text: 'Panel Pro · comunitate' }, timestamp: new Date().toISOString() }] }) });
         if (!response.ok) console.error('[discord-app-events] free welcome message failed', response.status);
       }
     }
