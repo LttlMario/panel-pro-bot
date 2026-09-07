@@ -378,7 +378,7 @@ async function provisionDemoCategory(db: any, guildId: string) {
     const messages = await fetch(`${DISCORD_API}/channels/${channel.id}/messages?limit=50`, { headers }).then((response) => response.ok ? response.json() : []).catch(() => []);
     const demo = payload(key, false, definitions);
     demo.embeds = (demo.embeds || []).map((embed: any) => ({ ...embed, title: `🧪 DEMO · ${embed.title || definition.label}`, description: `${embed.description || ''}\n\n**Acesta este un demo.** Butoanele sunt dezactivate și nu salvează nimic în baza de date.` }));
-    demo.components = (demo.components || []).map((row: any) => ({ ...row, components: (row.components || []).map((component: any) => ({ ...component, disabled: true })) }));
+    demo.components = (demo.components || []).map((row: any) => ({ ...row, components: (row.components || []).map((component: any) => component.custom_id ? { ...component, custom_id: `panel:demo:${component.custom_id}` } : component) }));
     const title = String(demo.embeds?.[0]?.title || '');
     const current = Array.isArray(messages) && messages.find((message: any) => (message.embeds || []).some((embed: any) => String(embed.title || '') === title));
     const requestOptions: RequestInit = { method: current?.id ? 'PATCH' : 'POST', headers, body: JSON.stringify({ allowed_mentions: { parse: [] }, ...demo }) };

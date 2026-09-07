@@ -11,6 +11,20 @@ const DISCORD_API = 'https://discord.com/api/v10';
 const serviceKey = () => Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') || '{}').default;
 const reply = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 const interactionMessage = (content: string, extra: Record<string, unknown> = {}) => ({ type: 4, data: { content, flags: 64, ...extra } });
+const demoModal = (action: string) => ({ type: 9, data: { custom_id: `panel:demo:submit:${action.slice(0, 40)}`, title: '🧪 Demo Panel Pro', components: [
+  { type: 1, components: [{ type: 4, custom_id: 'demo_subject', label: 'Subiect / nume', style: 1, required: true, max_length: 120, placeholder: 'Exemplu de date pentru demonstrație' }] },
+  { type: 1, components: [{ type: 4, custom_id: 'demo_details', label: 'Detalii', style: 2, required: false, max_length: 1000, placeholder: 'Aceste date nu vor fi salvate' }] },
+] });
+const demoInteraction = (interaction: any, customId: string, isButton: boolean, isModalSubmit: boolean) => {
+  const action = customId.startsWith('panel:demo:') ? customId.slice('panel:demo:'.length) : customId;
+  if (isModalSubmit) {
+    const values: Record<string, string> = {};
+    for (const row of interaction?.data?.components || []) for (const component of row?.components || []) values[String(component?.custom_id || '')] = String(component?.value || '').trim();
+    return interactionMessage('', { embeds: [{ title: '🧪 Demo · acțiune simulată', description: `Acțiunea **${action.replace(/^submit:/, '')}** a fost executată demonstrativ pentru **${values.demo_subject || 'exemplul tău'}**.\n\n✅ Răspunsul este real în Discord.\n🛡️ Nu s-a scris nimic în Supabase și nu s-a trimis nimic către panelul web.`, color: 0x8b5cf6, footer: { text: 'Panel Pro · Demo izolată' } }] });
+  }
+  if (isButton && /(^|:)(create|new|request|donate|item)$/.test(action)) return demoModal(action);
+  return interactionMessage('', { embeds: [{ title: '🧪 Demo · acțiune simulată', description: `Ai testat **${action}**. În serverul real această acțiune ar actualiza pontajul, contractul, cererea sau logul.\n\n✅ Aici este doar o simulare Discord; nu se salvează date și nu se apelează panelul web.`, color: 0x22c55e, footer: { text: 'Panel Pro · Demo izolată' } }] });
+};
 const ticketModal = () => ({ type: 9, data: { custom_id: 'panel:ticket:submit', title: 'Deschide un ticket', components: [
   { type: 1, components: [{ type: 4, custom_id: 'subject', label: 'Subiect', style: 1, required: true, max_length: 120, placeholder: 'Ex: Ajutor configurare bot' }] },
   { type: 1, components: [{ type: 4, custom_id: 'description', label: 'Descriere', style: 2, required: true, max_length: 2000, placeholder: 'Descrie pe scurt cu ce te putem ajuta' }] },
@@ -2375,6 +2389,8 @@ Deno.serve(async (request) => {
   const isButton = isComponent && Number(interaction?.data?.component_type || 2) === 2;
   const isSelect = isComponent && [3, 5, 6].includes(Number(interaction?.data?.component_type || 0));
   const isModalSubmit = Number(interaction?.type) === 5;
+  // Demo-urile sunt complet izolate: răspund direct în Discord și nu inițializează clientul Supabase.
+  if (customId.startsWith('panel:demo:')) return reply(demoInteraction(interaction, customId, isButton, isModalSubmit));
   const isPontaj = customId.startsWith('panel:pontaj:');
   const isRequests = customId.startsWith('panel:requests:');
   const isContracts = customId.startsWith('panel:contracts:');
