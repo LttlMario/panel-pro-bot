@@ -371,10 +371,11 @@ async function provisionDemoCategory(db: any, guildId: string) {
   const category = (Array.isArray(existing) ? existing : []).find((channel: any) => Number(channel.type) === 4 && String(channel.name) === categoryName) || await api('/channels', { method: 'POST', body: JSON.stringify({ name: categoryName, type: 4 }) });
   const definitions = { ...mergeModuleDefinitions(MODULES, await readGlobalModules(db)) } as Record<string, any>;
   const created: string[] = [];
-  const channelsByName = new Map((Array.isArray(existing) ? existing : []).filter((channel: any) => Number(channel.type) === 0).map((channel: any) => [String(channel.name), channel]));
+  const oldDemoChannels = (Array.isArray(existing) ? existing : []).filter((channel: any) => Number(channel.type) === 0 && String(channel.parent_id || '') === String(category.id) && /^demo-/i.test(String(channel.name || '')));
+  for (const oldChannel of oldDemoChannels) await fetch(`${DISCORD_API}/channels/${oldChannel.id}`, { method: 'DELETE', headers }).catch(() => null);
+  const channelsByName = new Map((Array.isArray(existing) ? existing : []).filter((channel: any) => Number(channel.type) === 0 && !oldDemoChannels.some((old: any) => String(old.id) === String(channel.id))).map((channel: any) => [String(channel.name), channel]));
   for (const [key, definition] of Object.entries(definitions)) {
-    const slug = key.replace(/[^a-z0-9-]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'modul';
-    const name = `demo-${slug}`;
+    const name = String((definition as any).label || key).toLowerCase().replace(/\s+/g, '-').replace(/[^\p{L}\p{N}_-]+/gu, '').replace(/-+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90) || 'modul';
     const channel = channelsByName.get(name) || await api('/channels', { method: 'POST', body: JSON.stringify({ name, type: 0, parent_id: String(category.id) }) });
     if (!channelsByName.has(name)) { channelsByName.set(name, channel); created.push(name); }
     const messages = await fetch(`${DISCORD_API}/channels/${channel.id}/messages?limit=50`, { headers }).then((response) => response.ok ? response.json() : []).catch(() => []);

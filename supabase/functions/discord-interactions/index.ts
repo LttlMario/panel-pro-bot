@@ -17,13 +17,21 @@ const demoModal = (action: string) => ({ type: 9, data: { custom_id: `panel:demo
 ] } });
 const demoInteraction = (interaction: any, customId: string, isButton: boolean, isModalSubmit: boolean) => {
   const action = customId.startsWith('panel:demo:') ? customId.slice('panel:demo:'.length) : customId;
+  const simulated: Record<string, string> = {
+    'panel:pontaj:start': 'Pontajul ar fi pornit și ora de început ar fi fost înregistrată.', 'panel:pontaj:pause': 'Pontajul ar fi trecut în pauză.', 'panel:pontaj:stop': 'Pontajul ar fi fost oprit și durata turei ar fi fost calculată.', 'panel:pontaj:my_stats': 'Ar fi fost afișate statisticile tale de pontaj.',
+    'panel:contracts:create': 'S-ar fi deschis formularul pentru generarea contractului.', 'panel:contracts:settings': 'S-ar fi deschis setările șablonului de contract.', 'panel:contracts:info': 'Ar fi fost afișate variabilele disponibile pentru contract.',
+    'panel:stash:create': 'S-ar fi deschis formularul pentru adăugarea unui articol în Stash.', 'panel:stash:request': 'S-ar fi trimis o cerere pentru un articol Stash.', 'panel:stash:donate': 'S-ar fi înregistrat o donație Stash pentru aprobare.',
+    'panel:discovery:reminder_create': 'S-ar fi creat un eveniment cu reminder automat.', 'panel:discovery:weekly_report': 'S-ar fi generat raportul săptămânal al contractelor.',
+  };
+  const baseAction = action.replace(/^submit:/, '');
+  const simulatedText = simulated[baseAction] || `Acțiunea **${baseAction || action}** ar fi fost executată în botul real.`;
   if (isModalSubmit) {
     const values: Record<string, string> = {};
     for (const row of interaction?.data?.components || []) for (const component of row?.components || []) values[String(component?.custom_id || '')] = String(component?.value || '').trim();
-    return interactionMessage('', { embeds: [{ title: '🧪 Demo · acțiune simulată', description: `Acțiunea **${action.replace(/^submit:/, '')}** a fost executată demonstrativ pentru **${values.demo_subject || 'exemplul tău'}**.\n\n✅ Răspunsul este real în Discord.\n🛡️ Nu s-a scris nimic în Supabase și nu s-a trimis nimic către panelul web.`, color: 0x8b5cf6, footer: { text: 'Panel Pro · Demo izolată' } }] });
+    return interactionMessage('', { embeds: [{ title: '🧪 Demo · acțiune simulată', description: `${simulatedText}\n\nDate demonstrative: **${values.demo_subject || 'exemplul tău'}**.\n\n✅ Răspunsul este real în Discord.\n🛡️ Nu s-a scris nimic în Supabase și nu s-a trimis nimic către panelul web.`, color: 0x8b5cf6, footer: { text: 'Panel Pro · Demo izolată' } }] });
   }
   if (isButton && /(^|:)(create|new|request|donate|item)$/.test(action)) return demoModal(action);
-  return interactionMessage('', { embeds: [{ title: '🧪 Demo · acțiune simulată', description: `Ai testat **${action}**. În serverul real această acțiune ar actualiza pontajul, contractul, cererea sau logul.\n\n✅ Aici este doar o simulare Discord; nu se salvează date și nu se apelează panelul web.`, color: 0x22c55e, footer: { text: 'Panel Pro · Demo izolată' } }] });
+  return interactionMessage('', { embeds: [{ title: '🧪 Demo · acțiune simulată', description: `${simulatedText}\n\n✅ Aici este doar o simulare Discord; nu se salvează date și nu se apelează panelul web.`, color: 0x22c55e, footer: { text: 'Panel Pro · Demo izolată' } }] });
 };
 const ticketModal = () => ({ type: 9, data: { custom_id: 'panel:ticket:submit', title: 'Deschide un ticket', components: [
   { type: 1, components: [{ type: 4, custom_id: 'subject', label: 'Subiect', style: 1, required: true, max_length: 120, placeholder: 'Ex: Ajutor configurare bot' }] },
