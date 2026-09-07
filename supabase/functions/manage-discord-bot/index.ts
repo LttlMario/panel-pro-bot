@@ -226,6 +226,19 @@ async function memberRoleIds(db: any, guildId: string, discordId: string) {
   return Array.isArray(member?.roles) ? member.roles.map((value: any) => String(value)) : [];
 }
 
+async function provisionOfficialServer(db: any, guildId: string) {
+  const token = await getPlatformSecret(db, 'discord_bot_token'); const base = DISCORD_API + '/guilds/' + guildId; const headers = { ...botHeaders(token), 'Content-Type': 'application/json' };
+  const api = async (path: string, body?: any) => { const r = await fetch(base + path, body ? { method: 'POST', headers, body: JSON.stringify(body) } : { headers }); if (!r.ok) throw new Error('Discord API ' + path + ' HTTP ' + r.status); return await r.json().catch(() => ({})); };
+  const existingRoles = await api('/roles'); const roleNames = ['Administrator','Staff','Support','Moderator','Premium','Member']; const roleIds: Record<string,string> = {};
+  for (const name of roleNames) { const found = (Array.isArray(existingRoles) ? existingRoles : []).find((r:any) => !r.managed && String(r.name).toLowerCase() === name.toLowerCase()); const role = found || await api('/roles', { name, permissions: '0', color: name === 'Premium' ? 0xf59e0b : name === 'Administrator' ? 0x5865f2 : 0x334155, hoist: name !== 'Member', mentionable: true }); roleIds[name] = String(role.id); }
+  const existing = await api('/channels'); const categories = ['📌 START AICI','📚 DOCUMENTAȚIE','🛠️ SUPORT','🌐 COMUNITATE','💎 PREMIUM','📊 INFORMAȚII BOT','🔒 STAFF']; const categoryIds: Record<string,string> = {};
+  for (const name of categories) { const found=(Array.isArray(existing)?existing:[]).find((c:any)=>Number(c.type)===4&&String(c.name)===name); categoryIds[name]=String(found?.id || (await api('/channels',{name,type:4})).id); }
+  const groups: Record<string,string[]> = { '📌 START AICI':['👋・bun-venit','📖・ghid-panel-pro','✅・cum-incepi','📜・reguli','🔐・confidențialitate','📢・anunțuri-oficiale','🆕・noutăți'], '📚 DOCUMENTAȚIE':['📘・documentație','⚙️・configurare-bot','🧩・module-disponibile','🎛️・permisiuni','📝・exemple-module','❓・întrebări-frecvente','🔗・comenzi-disponibile'], '🛠️ SUPORT':['🎫・deschide-ticket','🙋・întrebări','💡・sugestii','🐞・raportează-problemă','📎・trimite-feedback','🟢・status-servicii'], '🌐 COMUNITATE':['💬・discuții-generale','🎮・discuții-roleplay','🤝・prezentări-servere','🏆・showcase-configurări','📸・capturi-din-servere','🗳️・sondaje-comunitate','📅・evenimente'], '💎 PREMIUM':['⭐・panel-pro-premium','🚀・funcții-premium','🎁・oferte-și-beneficii','💎・preturi-si-premium'], '📊 INFORMAȚII BOT':['📈・statistici-bot','🤖・comenzi-bot','🔄・istoric-versiuni','🛡️・securitate','📡・status-api','🌍・limbi-disponibile'], '🔒 STAFF':['🛡️・staff-chat','📋・staff-log','🚨・incidente','📥・cereri-suport','🧾・audit-acțiuni'] };
+  const readOnly=new Set(['👋・bun-venit','📖・ghid-panel-pro','✅・cum-incepi','📜・reguli','🔐・confidențialitate','📢・anunțuri-oficiale','🆕・noutăți','📘・documentație','⚙️・configurare-bot','🧩・module-disponibile','🎛️・permisiuni','📝・exemple-module','❓・întrebări-frecvente','🔗・comenzi-disponibile','💎・preturi-si-premium','🟢・status-servicii']); let created=0;
+  for (const cat of Object.keys(groups)) for (const name of groups[cat]) { if ((Array.isArray(existing)?existing:[]).some((c:any)=>Number(c.type)===0&&String(c.name)===name)) continue; const overwrites:any[]=[]; if(readOnly.has(name)) overwrites.push({id:guildId,type:0,allow:'1024',deny:'2048'}); if(cat==='🔒 STAFF') overwrites.push({id:guildId,type:0,allow:'0',deny:'1024'}); await api('/channels',{name,type:0,parent_id:categoryIds[cat],permission_overwrites:overwrites}); created++; }
+  return { roles: roleNames.length, categories: categories.length, channels: Object.values(groups).flat().length, created_channels: created, role_ids: roleIds };
+}
+
 function payload(moduleKey: string, donation: boolean, definitions = MODULES) {
   const definition = definitions[moduleKey];
   const rows: any[] = [];
@@ -263,6 +276,7 @@ Deno.serve(async (request) => {
     const action = clean(body.action, 30) || 'bootstrap';
     const personalView = clean(body.view_scope, 30) === 'personal';
     const diagnostics: Record<string, any> = {};
+    if (action === 'provision_official_server') { if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate configura serverul oficial.' }, 403); const target=clean(body.guild_id,30); if (target !== '1544703486384537603') return reply(request,{error:'Serverul oficial nu este valid.'},400); const result=await provisionOfficialServer(db,target); return reply(request,{ok:true,guild_id:target,result}); }
     if (action === 'bootstrap') {
       const discoveryBotToken = await getPlatformSecret(db, 'discord_bot_token');
       const botIdentityResponse = discoveryBotToken
@@ -280,7 +294,7 @@ Deno.serve(async (request) => {
     // Operațiunile globale nu trebuie să depindă de scope-ul OAuth `guilds`.
     // Administratorul global poate deschide constructorul chiar dacă tokenul
     // Discord existent a fost emis înainte de adăugarea scope-ului.
-    const globalOnlyAction = ['custom_modules', 'save_custom_modules', 'global_config', 'save_global_config', 'assistant_catalog', 'assistant_schema_check'].includes(action);
+    const globalOnlyAction = ['custom_modules', 'save_custom_modules', 'global_config', 'save_global_config', 'assistant_catalog', 'assistant_schema_check', 'provision_official_server'].includes(action);
     const guilds = globalOnlyAction
       ? []
       : await ownedGuilds(db, { ...discord, access_token: accessToken }, applicationId, platformAdmin || !personalView, diagnostics);
