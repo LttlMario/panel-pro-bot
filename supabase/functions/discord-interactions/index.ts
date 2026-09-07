@@ -2117,8 +2117,15 @@ async function ticketEvent(db: any, ticket: any, actor: string, eventType: strin
   if (error) console.error('[discord-interactions] ticket audit failed', error);
   try {
     const { data: settings } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', ticket.organization_id).maybeSingle();
-    const routes = settings?.discord_channel_routes || {}; const route = routes.ticket_logs?.primary || routes.support_tickets?.primary || routes.log_tickets?.primary;
-    if (route?.channel_id) await ticketDiscordApi(db, `/channels/${route.channel_id}/messages`, { method: 'POST', body: JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [{ title: `🎫 Activitate suport · ${eventType}`, description: 'Un ticket a fost actualizat în sistemul Panel Pro.', color: eventType === 'closed' ? 0xef4444 : eventType === 'claimed' ? 0x22c55e : 0x5865f2, footer: { text: 'Detaliile rămân disponibile doar în jurnalul securizat.' }, timestamp: new Date().toISOString() }] }) });
+    const routes = settings?.discord_channel_routes || {};
+    let route = routes.ticket_logs?.primary || routes.support_tickets?.primary || routes.log_tickets?.primary;
+    if (!route?.channel_id) {
+      const channels = await ticketDiscordApi(db, `/guilds/${ticket.guild_id}/channels`);
+      const names = eventType === 'created' ? ['cereri-support', 'cereri-support'] : ['staff-log', 'audit-actiuni', 'audit-acțiuni'];
+      const found = (Array.isArray(channels) ? channels : []).find((channel: any) => channel.type === 0 && names.includes(String(channel.name || '').toLowerCase()));
+      if (found?.id) route = { channel_id: String(found.id) };
+    }
+    if (route?.channel_id) await ticketDiscordApi(db, `/channels/${route.channel_id}/messages`, { method: 'POST', body: JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [{ title: `🎫 Activitate suport · ${eventType}`, description: `Ticket: **${ticket.subject || 'Solicitare suport'}**\nID: \`${ticket.id}\``, color: eventType === 'closed' ? 0xef4444 : eventType === 'claimed' ? 0x22c55e : 0x5865f2, footer: { text: 'Panel Pro · Jurnal suport' }, timestamp: new Date().toISOString() }] }) });
   } catch (logError) { console.error('[discord-interactions] ticket Discord log failed', logError); }
 }
 async function isTicketStaff(db: any, interaction: any) {
@@ -2216,7 +2223,12 @@ async function handleTicket(db: any, interaction: any, customId: string, isButto
   try {
     const { data: logSettings } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', ticket.organization_id).maybeSingle();
     const logRoutes = logSettings?.discord_channel_routes || {};
-    const logRoute = logRoutes.ticket_logs?.primary || logRoutes.support_tickets?.primary || logRoutes.log_tickets?.primary || logRoutes.ticket_logs?.secondary || logRoutes.support_tickets?.secondary || logRoutes.log_tickets?.secondary;
+    let logRoute = logRoutes.ticket_logs?.primary || logRoutes.support_tickets?.primary || logRoutes.log_tickets?.primary || logRoutes.ticket_logs?.secondary || logRoutes.support_tickets?.secondary || logRoutes.log_tickets?.secondary;
+    if (!logRoute?.channel_id) {
+      const channels = await ticketDiscordApi(db, `/guilds/${ticket.guild_id}/channels`);
+      const found = (Array.isArray(channels) ? channels : []).find((channel: any) => channel.type === 0 && ['staff-log', 'audit-actiuni', 'audit-acțiuni'].includes(String(channel.name || '').toLowerCase()));
+      if (found?.id) logRoute = { channel_id: String(found.id) };
+    }
     if (logRoute?.channel_id) await ticketDiscordApi(db, `/channels/${logRoute.channel_id}/messages`, { method: 'POST', body: JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [{ title: `📄 Transcript ticket · ${ticket.subject || 'Suport'}`, description: (transcript || 'Nu există mesaje').slice(0, 4000), color: 0xef4444, fields: [{ name: 'Închis de', value: `<@${discordId}>`, inline: true }, { name: 'Ticket', value: String(ticket.id), inline: true }], footer: { text: 'Panel Pro · Transcript securizat' }, timestamp: new Date().toISOString() }] }) });
   } catch (logError) { console.error('[discord-interactions] ticket transcript log failed', logError); }
   try { await ticketDiscordApi(db, `/channels/${ticket.channel_id}`, { method: 'PATCH', body: JSON.stringify({ name: `inchis-${String(ticket.channel_id).slice(-6)}` }) }); } catch (_) {}
