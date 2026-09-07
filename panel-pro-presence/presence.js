@@ -6,7 +6,7 @@ const startedAt = Date.now();
 function updateActivity() {
   rpc.setActivity({
     details: 'Panel Pro · Pontaj, Contracte, Stash și Loguri',
-    state: 'bot.panel-pro.ro · discord.gg/nYUs5heDG',
+    state: 'Vezi profilul meu pentru linkuri și informații',
     startTimestamp: startedAt,
     largeImageKey: 'panel-pro',
     largeImageText: 'Panel Pro Bot',
