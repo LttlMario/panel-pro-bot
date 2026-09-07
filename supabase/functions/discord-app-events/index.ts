@@ -10,6 +10,10 @@ const hexBytes = (value: string, length: number) => {
   return bytes;
 };
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
+async function claimNotification(db: any, organizationId: string, eventKey: string, eventType: string, guildId: string) {
+  const { data } = await db.from('discovery_discord_notification_events').insert({ organization_id: organizationId, event_key: eventKey, event_type: eventType, guild_id: guildId }).select('event_key').maybeSingle();
+  return Boolean(data?.event_key);
+}
 
 async function verifySignature(request: Request, rawBody: string) {
   const publicKey = hexBytes(DISCORD_PUBLIC_KEY(), 32);
@@ -79,9 +83,9 @@ Deno.serve(async (request) => {
     const { data: settings } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', linked.organization_id).maybeSingle();
     const channelId = String(settings?.discord_channel_routes?.billing_thanks?.primary?.channel_id || '').trim();
     const botToken = await getPlatformSecret(db, 'discord_bot_token');
-    if (/^\d{15,22}$/.test(channelId) && botToken && !isDeleted) {
+    if (/^\d{15,22}$/.test(channelId) && botToken && await claimNotification(db, linked.organization_id, `entitlement:${entitlementId}:${eventType}`, 'entitlement', entitlementGuildId)) {
       const purchasedBy = data.user_id ? `<@${data.user_id}>` : 'comunitatea ta';
-      const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, { method: 'POST', headers: { Authorization: `Bot ${botToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ allowed_mentions: { users: data.user_id ? [String(data.user_id)] : [] }, embeds: [{ title: '🎉 Mulțumim pentru activarea planului!', description: `Mulțumim, ${purchasedBy}! **Panel Pro ${eventType === 'ENTITLEMENT_CREATE' ? 'Premium' : 'Premium'}** este activ pentru serverul tău.`, fields: [{ name: 'Ce urmează', value: 'Funcțiile eligibile se activează automat. Poți verifica statusul din dashboard.', inline: false }, { name: 'Suport', value: 'Pentru ajutor, deschide un ticket în canalul de suport.', inline: false }], color: 0xf59e0b, footer: { text: 'Panel Pro · confirmare abonament' }, timestamp: new Date().toISOString() }] }) });
+      const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, { method: 'POST', headers: { Authorization: `Bot ${botToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ allowed_mentions: { users: data.user_id ? [String(data.user_id)] : [] }, embeds: [{ title: isDeleted ? '🔔 Abonamentul Panel Pro s-a încheiat' : '🎉 Mulțumim pentru activarea planului!', description: isDeleted ? `Abonamentul pentru ${purchasedBy} nu mai este activ. Funcțiile Premium se actualizează automat.` : `Mulțumim, ${purchasedBy}! **Panel Pro Premium** este activ pentru serverul tău.`, fields: [{ name: 'Ce urmează', value: isDeleted ? 'Poți reactiva abonamentul oricând din pagina Premium.' : 'Funcțiile eligibile se activează automat. Poți verifica statusul din dashboard.', inline: false }, { name: 'Suport', value: 'Pentru ajutor, deschide un ticket în canalul de suport.', inline: false }], color: isDeleted ? 0xef4444 : 0xf59e0b, footer: { text: 'Panel Pro · confirmare abonament' }, timestamp: new Date().toISOString() }] }) });
       if (!response.ok) console.error('[discord-app-events] billing message failed', response.status);
     }
     return new Response(null, { status: 204 });
@@ -107,7 +111,7 @@ Deno.serve(async (request) => {
       const { data: settings } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', linked.organization_id).maybeSingle();
       const channelId = String(settings?.discord_channel_routes?.billing_thanks?.primary?.channel_id || '').trim();
       const botToken = await getPlatformSecret(db, 'discord_bot_token');
-      if (/^\d{15,22}$/.test(channelId) && botToken) {
+      if (/^\d{15,22}$/.test(channelId) && botToken && await claimNotification(db, linked.organization_id, `installation:${guildId}`, 'installation', guildId)) {
         const { data: trialSetting } = await db.from('discovery_app_settings').select('value').eq('organization_id', linked.organization_id).eq('key', 'discord_trial').maybeSingle();
         const trialActive = Date.parse(String(trialSetting?.value?.ends_at || '')) > Date.now();
         const planText = trialActive ? 'perioada Trial' : 'planul gratuit';

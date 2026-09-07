@@ -34,6 +34,9 @@ verify_jwt = false
 [functions.discord-member-events]
 verify_jwt = false
 
+[functions.discord-entitlement-reminders]
+verify_jwt = false
+
 [functions.send-discord-notification]
 verify_jwt = false
 
