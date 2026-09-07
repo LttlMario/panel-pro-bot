@@ -2140,9 +2140,11 @@ async function handleTicket(db: any, interaction: any, customId: string, isButto
     const { data: active, error: activeError } = await db.from('discovery_support_tickets').select('id,channel_id').eq('organization_id', guild.organization_id).eq('guild_id', guildId).eq('opened_by_discord_id', discordId).in('status', ['open','claimed']).maybeSingle();
     if (activeError) throw activeError; if (active) return interactionMessage(`Ai deja un ticket activ: ${active.channel_id ? `<#${active.channel_id}>` : 'în curs de creare'}.`);
     const channels = await ticketDiscordApi(db, `/guilds/${guildId}/channels`); const list = Array.isArray(channels) ? channels : []; const category = list.find((c: any) => c.type === 4 && /suport/i.test(String(c.name || '')));
-    const roles = await ticketDiscordApi(db, `/guilds/${guildId}/roles`); const supportRole = (Array.isArray(roles) ? roles : []).find((r: any) => /^(support|staff)$/i.test(String(r.name || '')));
+    const roles = await ticketDiscordApi(db, `/guilds/${guildId}/roles`); const roleList = Array.isArray(roles) ? roles : [];
+    const supportRole = roleList.find((r: any) => /^(support|staff)$/i.test(String(r.name || '')));
+    const botRole = roleList.find((r: any) => String(r.id) !== guildId && /panel\s*pro|bot/i.test(String(r.name || '')));
     const safeName = `ticket-${displayName.toLowerCase().replace(/[^a-z0-9-]+/gi,'-').replace(/^-+|-+$/g,'').slice(0, 36) || discordId.slice(-6)}`;
-    const overwrites: any[] = [{ id: guildId, type: 0, deny: '1024' }, { id: discordId, type: 1, allow: '68608' }, ...(supportRole?.id ? [{ id: String(supportRole.id), type: 0, allow: '68608' }] : [])];
+    const overwrites: any[] = [{ id: guildId, type: 0, deny: '1024' }, { id: discordId, type: 1, allow: '68608' }, ...(supportRole?.id ? [{ id: String(supportRole.id), type: 0, allow: '68608' }] : []), ...(botRole?.id ? [{ id: String(botRole.id), type: 0, allow: '68608' }] : [])];
     // @everyone is denied by design; explicitly retain the bot's channel access.
     try {
       const botId = String(interaction.application_id || '').trim();
@@ -2150,8 +2152,11 @@ async function handleTicket(db: any, interaction: any, customId: string, isButto
         const botMember = await ticketDiscordApi(db, `/guilds/${guildId}/members/${botId}`);
         for (const roleId of Array.isArray(botMember?.roles) ? botMember.roles : []) if (String(roleId) !== guildId && !overwrites.some((item) => String(item.id) === String(roleId))) overwrites.push({ id: String(roleId), type: 0, allow: '68608' });
       }
+      if (botRole?.id && !overwrites.some((item) => String(item.id) === String(botRole.id))) overwrites.push({ id: String(botRole.id), type: 0, allow: '68608' });
+      }
     } catch (_) {}
     const channel = await ticketDiscordApi(db, `/guilds/${guildId}/channels`, { method: 'POST', body: JSON.stringify({ name: safeName, type: 0, parent_id: category?.id, permission_overwrites: overwrites, topic: `Panel Pro ticket · ${discordId}` }) });
+    if (botRole?.id) await ticketDiscordApi(db, `/channels/${channel.id}/permissions/${botRole.id}`, { method: 'PUT', body: JSON.stringify({ id: String(botRole.id), type: 0, allow: '68608', deny: '0' }) }).catch(() => null);
     const { data: row, error: insertError } = await db.from('discovery_support_tickets').insert({ organization_id: guild.organization_id, guild_id: guildId, channel_id: String(channel.id), opened_by_discord_id: discordId, opened_by_name: displayName, subject, description, status: 'open' }).select('id').single();
     if (insertError) { try { await ticketDiscordApi(db, `/channels/${channel.id}`, { method: 'DELETE' }); } catch (_) {} throw insertError; }
     await ticketEvent(db, { id: row.id, organization_id: guild.organization_id, guild_id: guildId }, discordId, 'created', { subject });
