@@ -14,7 +14,7 @@ const interactionMessage = (content: string, extra: Record<string, unknown> = {}
 const demoModal = (action: string) => ({ type: 9, data: { custom_id: `panel:demo:submit:${action.slice(0, 40)}`, title: '🧪 Demo Panel Pro', components: [
   { type: 1, components: [{ type: 4, custom_id: 'demo_subject', label: 'Subiect / nume', style: 1, required: true, max_length: 120, placeholder: 'Exemplu de date pentru demonstrație' }] },
   { type: 1, components: [{ type: 4, custom_id: 'demo_details', label: 'Detalii', style: 2, required: false, max_length: 1000, placeholder: 'Aceste date nu vor fi salvate' }] },
-] });
+] } });
 const demoInteraction = (interaction: any, customId: string, isButton: boolean, isModalSubmit: boolean) => {
   const action = customId.startsWith('panel:demo:') ? customId.slice('panel:demo:'.length) : customId;
   if (isModalSubmit) {
