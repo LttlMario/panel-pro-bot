@@ -578,7 +578,7 @@ Deno.serve(async (request) => {
       let channelList: any[] = [];
       let channelError = '';
       try { channelList = await channels(db, guildId); } catch (error) { channelError = error instanceof Error ? error.message : 'Canalele Discord nu au putut fi verificate.'; }
-      if ((action === 'auto_configure_routes' || action === 'repair_guild') && !channelError) {
+      if ((action === 'dashboard_overview' || action === 'auto_configure_routes' || action === 'repair_guild') && !channelError) {
         const automatic = autoRouteChannels(channelList, guildId, routes, definitions);
         Object.assign(routes, automatic.routes);
         const { error: routeError } = await db.from('discovery_settings').update({ discord_channel_routes: routes, updated_at: new Date().toISOString(), updated_by_discord_id: String(discord.id) }).eq('organization_id', selectedGuild.organization_id);
