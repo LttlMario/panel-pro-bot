@@ -25,13 +25,17 @@ const demoInteraction = (interaction: any, customId: string, isButton: boolean, 
   };
   const baseAction = action.replace(/^submit:/, '');
   const simulatedText = simulated[baseAction] || `Acțiunea **${baseAction || action}** ar fi fost executată în botul real.`;
+  if (baseAction === 'panel:pontaj:shift_day') return interactionMessage('Ai selectat **Tura de zi**. În serverul real, tura de zi este disponibilă între **08:00 și 20:00**. Poți porni pontajul demonstrativ când ești gata.');
+  if (baseAction === 'panel:pontaj:shift_night') return interactionMessage('Ai selectat **Tura de noapte**. Dacă ora este între **20:00 și 23:00**, pontajul este încadrat ca tură de noapte. Poți porni pontajul demonstrativ când ești gata.');
+  if (baseAction === 'panel:pontaj:start') { const startedAt = Date.now(); return interactionMessage('', { embeds: [{ title: '🟢 Pontaj pornit · Demo', description: 'Tura de lucru a început. Timerul rulează local în această simulare.', color: 0x22c55e, footer: { text: 'Panel Pro · Demo' } }], components: [{ type: 1, components: [{ type: 2, style: 2, label: '⏸️ Pauză', custom_id: `panel:demo:timer:pause:${startedAt}` }, { type: 2, style: 4, label: '⏹️ Stop', custom_id: `panel:demo:timer:stop:${startedAt}` }] }] }); }
+  if (baseAction.startsWith('panel:demo:timer:')) { const parts = baseAction.split(':'); const timerAction = parts[3] || ''; const startedAt = Number(parts[4] || 0); const elapsed = startedAt > 0 ? Math.max(0, Math.floor((Date.now() - startedAt) / 1000)) : 0; const mm = String(Math.floor(elapsed / 60)).padStart(2, '0'); const ss = String(elapsed % 60).padStart(2, '0'); if (timerAction === 'pause') return interactionMessage(`⏸️ **Pontaj pus pe pauză · Demo**\nTimer local: **${mm}:${ss}**\n\nCând ai continua în serverul real, pontajul ar fi reluat de la această durată.`); if (timerAction === 'stop') return interactionMessage(`⏹️ **Pontaj oprit · Demo**\nDurată simulată: **${mm}:${ss}**\n\nÎn serverul real, această durată ar fi salvată în pontaj.`); }
   if (isModalSubmit) {
     const values: Record<string, string> = {};
     for (const row of interaction?.data?.components || []) for (const component of row?.components || []) values[String(component?.custom_id || '')] = String(component?.value || '').trim();
-    return interactionMessage('', { embeds: [{ title: '🧪 Demo · acțiune simulată', description: `${simulatedText}\n\nDate demonstrative: **${values.demo_subject || 'exemplul tău'}**.\n\n✅ Răspunsul este real în Discord.\n🛡️ Nu s-a scris nimic în Supabase și nu s-a trimis nimic către panelul web.`, color: 0x8b5cf6, footer: { text: 'Panel Pro · Demo izolată' } }] });
+    return interactionMessage('', { embeds: [{ title: '🧪 Demo · acțiune simulată', description: `${simulatedText}\n\nDate demonstrative: **${values.demo_subject || 'exemplul tău'}**.\n\n✅ Ai văzut cum ar funcționa în serverul real. Nimic nu se activează și nu se păstrează după demo.`, color: 0x8b5cf6, footer: { text: 'Panel Pro · Demo' } }] });
   }
   if (isButton && /(^|:)(create|new|request|donate|item)$/.test(action)) return demoModal(action);
-  return interactionMessage('', { embeds: [{ title: '🧪 Demo · acțiune simulată', description: `${simulatedText}\n\n✅ Aici este doar o simulare Discord; nu se salvează date și nu se apelează panelul web.`, color: 0x22c55e, footer: { text: 'Panel Pro · Demo izolată' } }] });
+  return interactionMessage('', { embeds: [{ title: '🧪 Demo · acțiune simulată', description: `${simulatedText}\n\n✅ Ai văzut cum ar funcționa în serverul real. Nimic nu se activează și nu se păstrează după demo.`, color: 0x22c55e, footer: { text: 'Panel Pro · Demo' } }] });
 };
 const ticketModal = () => ({ type: 9, data: { custom_id: 'panel:ticket:submit', title: 'Deschide un ticket', components: [
   { type: 1, components: [{ type: 4, custom_id: 'subject', label: 'Subiect', style: 1, required: true, max_length: 120, placeholder: 'Ex: Ajutor configurare bot' }] },

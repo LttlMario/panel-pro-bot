@@ -380,7 +380,7 @@ async function provisionDemoCategory(db: any, guildId: string) {
     if (!channelsByName.has(name)) { channelsByName.set(name, channel); created.push(name); }
     const messages = await fetch(`${DISCORD_API}/channels/${channel.id}/messages?limit=50`, { headers }).then((response) => response.ok ? response.json() : []).catch(() => []);
     const demo = payload(key, false, definitions);
-    demo.embeds = (demo.embeds || []).map((embed: any) => ({ ...embed, title: `🧪 DEMO · ${embed.title || definition.label}`, description: `${embed.description || ''}\n\n**Acesta este un demo.** Butoanele sunt dezactivate și nu salvează nimic în baza de date.` }));
+    demo.embeds = (demo.embeds || []).map((embed: any) => ({ ...embed, title: `🧪 DEMO · ${embed.title || definition.label}`, description: `${embed.description || ''}\n\n**Exemplu interactiv:** apasă butoanele pentru a vedea cum ar funcționa modulul în serverul real. Rezultatele rămân doar în această demonstrație.` }));
     demo.components = (demo.components || []).map((row: any) => ({ ...row, components: (row.components || []).map((component: any) => component.custom_id ? { ...component, custom_id: `panel:demo:${component.custom_id}` } : component) }));
     const title = String(demo.embeds?.[0]?.title || '');
     const current = Array.isArray(messages) && messages.find((message: any) => (message.embeds || []).some((embed: any) => String(embed.title || '') === title));
