@@ -37,7 +37,46 @@ Deno.serve(async (request) => {
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') || '{}').default);
   const eventType = String(event.type);
   const guild = data.guild || {};
-  const guildId = String(guild.id || '').trim();
+  const guildId = String(guild.id || data.guild_id || '').trim();
+  // Premium Apps sends entitlement lifecycle events through the same app
+  // events endpoint. Persist the latest guild entitlement so all bot
+  // interactions and the Panel Pro dashboard see the purchase immediately.
+  if (['ENTITLEMENT_CREATE', 'ENTITLEMENT_UPDATE', 'ENTITLEMENT_DELETE'].includes(eventType)) {
+    const entitlementId = String(data.id || '').trim();
+    const entitlementGuildId = String(data.guild_id || guildId).trim();
+    const skuId = String(data.sku_id || '').trim();
+    if (!id(entitlementGuildId) || !entitlementId || !/^\d{15,22}$/.test(skuId)) return new Response(null, { status: 204 });
+    const { data: linked, error: linkedError } = await db.from('discovery_guilds').select('organization_id').eq('guild_id', entitlementGuildId).eq('enabled', true).maybeSingle();
+    if (linkedError) throw linkedError;
+    if (!linked?.organization_id) return new Response(null, { status: 204 });
+    const isDeleted = eventType === 'ENTITLEMENT_DELETE' || data.deleted === true;
+    const startsAt = data.starts_at || new Date().toISOString();
+    const endsAt = data.ends_at || null;
+    const { data: existing } = await db.from('discovery_guild_entitlements').select('id').eq('guild_id', entitlementGuildId).eq('organization_id', linked.organization_id).eq('sku_id', skuId).eq('raw_entitlement->>id', entitlementId).maybeSingle();
+    const payload = {
+      guild_id: entitlementGuildId,
+      organization_id: linked.organization_id,
+      sku_id: skuId,
+      owner_type: 2,
+      purchaser_user_id: data.user_id || null,
+      active: !isDeleted,
+      starts_at: startsAt,
+      ends_at: endsAt,
+      raw_entitlement: data,
+      updated_at: new Date().toISOString(),
+    };
+    const result = existing?.id
+      ? await db.from('discovery_guild_entitlements').update(payload).eq('id', existing.id)
+      : await db.from('discovery_guild_entitlements').insert(payload);
+    if (result.error) throw result.error;
+    await db.from('discovery_lifecycle_events').insert({
+      organization_id: linked.organization_id,
+      event_type: `discord_${eventType.toLowerCase()}`,
+      actor_discord_id: data.user_id || null,
+      details: { entitlement_id: entitlementId, guild_id: entitlementGuildId, sku_id: skuId, active: !isDeleted },
+    });
+    return new Response(null, { status: 204 });
+  }
   if (eventType === 'APPLICATION_AUTHORIZED' && Number(data.integration_type) === 0 && id(guildId)) {
     const { data: linked } = await db.from('discovery_guilds').select('organization_id').eq('guild_id', guildId).eq('enabled', true).maybeSingle();
     const now = String(event.timestamp || new Date().toISOString());
