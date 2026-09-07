@@ -2138,7 +2138,13 @@ async function handleTicket(db: any, interaction: any, customId: string, isButto
     const values = modalValues(interaction); const subject = String(values.subject || 'Solicitare suport').trim().slice(0, 120); const description = String(values.description || '').trim().slice(0, 2000);
     if (description.length < 3) return interactionMessage('Descrierea ticketului este obligatorie.');
     const { data: active, error: activeError } = await db.from('discovery_support_tickets').select('id,channel_id').eq('organization_id', guild.organization_id).eq('guild_id', guildId).eq('opened_by_discord_id', discordId).in('status', ['open','claimed']).maybeSingle();
-    if (activeError) throw activeError; if (active) return interactionMessage(`Ai deja un ticket activ: ${active.channel_id ? `<#${active.channel_id}>` : 'în curs de creare'}.`);
+    if (activeError) throw activeError;
+    if (active) {
+      let channelExists = false;
+      if (active.channel_id) { try { await ticketDiscordApi(db, `/channels/${active.channel_id}`); channelExists = true; } catch (error) { if (String(error instanceof Error ? error.message : error).includes('nu are acces')) throw error; } }
+      if (channelExists) return interactionMessage(`Ai deja un ticket activ: ${active.channel_id ? `<#${active.channel_id}>` : 'în curs de creare'}.`);
+      await db.from('discovery_support_tickets').update({ status: 'closed', closed_at: new Date().toISOString(), updated_at: new Date().toISOString(), transcript: String(active.channel_id ? 'Canalul Discord a fost șters manual.' : 'Ticketul nu a primit canal Discord.') }).eq('id', active.id).in('status', ['open','claimed']);
+    }
     const channels = await ticketDiscordApi(db, `/guilds/${guildId}/channels`); const list = Array.isArray(channels) ? channels : []; const category = list.find((c: any) => c.type === 4 && /suport/i.test(String(c.name || '')));
     const roles = await ticketDiscordApi(db, `/guilds/${guildId}/roles`); const roleList = Array.isArray(roles) ? roles : [];
     const supportRole = roleList.find((r: any) => /^(support|staff)$/i.test(String(r.name || '')));
