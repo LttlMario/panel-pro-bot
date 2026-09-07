@@ -11,11 +11,11 @@ function updateActivity() {
     largeImageKey: 'panel-pro',
     largeImageText: 'Panel Pro Bot',
     buttons: [
-      { label: 'Intră pe Discord', url: 'https://discord.gg/nYUs5heDG' },
-      { label: 'Deschide site-ul', url: 'https://bot.panel-pro.ro/' }
+      { label: 'Join Discord', url: 'https://discord.gg/nYUs5heDG' },
+      { label: 'Open website', url: 'https://bot.panel-pro.ro/' }
     ],
     instance: false
-  }).catch(() => {});
+  }).then(() => console.log('Rich Presence actualizat cu butoane.')).catch((error) => console.error('Rich Presence nu a acceptat butoanele:', error.message || error));
 }
 
 rpc.on('ready', () => {
