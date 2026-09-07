@@ -5,8 +5,8 @@ const startedAt = Date.now();
 
 function updateActivity() {
   rpc.setActivity({
-    details: 'Configurează serverul Discord',
-    state: 'Panel Pro Bot · bot.panel-pro.ro',
+    details: 'Administrează-ți comunitatea Discord',
+    state: 'Pontaj · Contracte · Stash · Loguri',
     startTimestamp: startedAt,
     largeImageKey: 'panel-pro',
     largeImageText: 'Panel Pro Bot',
