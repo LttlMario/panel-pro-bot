@@ -1,4 +1,5 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2.112.3';
+import { getPlatformSecret } from '../_shared/platform-secrets.ts';
 
 const DISCORD_PUBLIC_KEY = () => String(Deno.env.get('DISCORD_PUBLIC_KEY') || Deno.env.get('DISCORD_APPLICATION_PUBLIC_KEY') || '').trim();
 const id = (value: unknown) => /^\d{15,22}$/.test(String(value || '').trim());
@@ -75,6 +76,14 @@ Deno.serve(async (request) => {
       actor_discord_id: data.user_id || null,
       details: { entitlement_id: entitlementId, guild_id: entitlementGuildId, sku_id: skuId, active: !isDeleted },
     });
+    const { data: settings } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', linked.organization_id).maybeSingle();
+    const channelId = String(settings?.discord_channel_routes?.billing_thanks?.primary?.channel_id || '').trim();
+    const botToken = await getPlatformSecret(db, 'discord_bot_token');
+    if (/^\d{15,22}$/.test(channelId) && botToken && !isDeleted) {
+      const purchasedBy = data.user_id ? `<@${data.user_id}>` : 'comunitatea ta';
+      const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, { method: 'POST', headers: { Authorization: `Bot ${botToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ allowed_mentions: { users: data.user_id ? [String(data.user_id)] : [] }, embeds: [{ title: '🎉 Mulțumim pentru activarea planului!', description: `Mulțumim, ${purchasedBy}! **Panel Pro ${eventType === 'ENTITLEMENT_CREATE' ? 'Premium' : 'Premium'}** este activ pentru serverul tău.`, fields: [{ name: 'Ce urmează', value: 'Funcțiile eligibile se activează automat. Poți verifica statusul din dashboard.', inline: false }, { name: 'Suport', value: 'Pentru ajutor, deschide un ticket în canalul de suport.', inline: false }], color: 0xf59e0b, footer: { text: 'Panel Pro · confirmare abonament' }, timestamp: new Date().toISOString() }] }) });
+      if (!response.ok) console.error('[discord-app-events] billing message failed', response.status);
+    }
     return new Response(null, { status: 204 });
   }
   if (eventType === 'APPLICATION_AUTHORIZED' && Number(data.integration_type) === 0 && id(guildId)) {
@@ -94,6 +103,15 @@ Deno.serve(async (request) => {
       updated_at: new Date().toISOString(),
     }, { onConflict: 'guild_id' });
     if (error) { console.error('[discord-app-events] install upsert failed', error); return json({ error: 'Nu s-a putut salva instalarea.' }, 500); }
+    if (linked?.organization_id) {
+      const { data: settings } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', linked.organization_id).maybeSingle();
+      const channelId = String(settings?.discord_channel_routes?.billing_thanks?.primary?.channel_id || '').trim();
+      const botToken = await getPlatformSecret(db, 'discord_bot_token');
+      if (/^\d{15,22}$/.test(channelId) && botToken) {
+        const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, { method: 'POST', headers: { Authorization: `Bot ${botToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [{ title: '💙 Mulțumim că ești alături de Panel Pro!', description: 'Serverul tău folosește planul gratuit Panel Pro. Îți mulțumim că faci parte din comunitate! Dacă activezi Trial sau Premium, funcțiile eligibile vor fi confirmate automat aici.', color: 0x3b82f6, footer: { text: 'Panel Pro · comunitate' }, timestamp: new Date().toISOString() }] }) });
+        if (!response.ok) console.error('[discord-app-events] free welcome message failed', response.status);
+      }
+    }
   }
   // Discord's deauthorization event contains the user, but not a guild. It is
   // intentionally not used to remove guild rows because a user can deauthorize
