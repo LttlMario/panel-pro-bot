@@ -11,8 +11,8 @@ function updateActivity() {
     largeImageKey: 'panel-pro',
     largeImageText: 'Panel Pro Bot',
     buttons: [
-      { label: 'Deschide dashboardul', url: 'https://bot.panel-pro.ro' },
-      { label: 'Intră în comunitate', url: 'https://discord.com/channels/1544703486384537603' }
+      { label: 'Intră pe Discord', url: 'https://discord.gg/nYUs5heDG' },
+      { label: 'Deschide site-ul', url: 'https://bot.panel-pro.ro/' }
     ],
     instance: false
   }).catch(() => {});
