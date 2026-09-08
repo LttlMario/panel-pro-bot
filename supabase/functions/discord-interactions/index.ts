@@ -795,7 +795,7 @@ function disciplineTargetPicker(audience: 'organization' | 'departments', kind: 
 }
 
 function contractModal() {
-  const input = (custom_id: string, label: string, placeholder: string, max_length: number, required = true, value = '') => ({ type: 4, custom_id, label, style: 1, required, placeholder, max_length, ...(value ? { value } : {}) });
+  const input = (custom_id: string, label: string, placeholder: string, max_length: number, required = true, value = '') => ({ type: 4, custom_id, label: String(label).slice(0, 45), style: 1, required, placeholder: String(placeholder || '').slice(0, 100), max_length, ...(value ? { value } : {}) });
   return { type: 9, data: { custom_id: 'panel:contracts:submit', title: 'Generează contract', components: [
     { type: 1, components: [input('employee_name', 'Nume și prenume', 'Introdu numele și prenumele', 120)] },
     { type: 1, components: [input('cnp', 'CNP angajat', 'Introdu CNP-ul angajatului', 120)] },
@@ -805,7 +805,7 @@ function contractModal() {
 }
 
 function contractSettingsModal() {
-  const input = (custom_id: string, label: string, style: number, required: boolean, placeholder: string, max_length: number) => ({ type: 4, custom_id, label, style, required, placeholder, max_length });
+  const input = (custom_id: string, label: string, style: number, required: boolean, placeholder: string, max_length: number) => ({ type: 4, custom_id, label: String(label).slice(0, 45), style, required, placeholder: String(placeholder || '').slice(0, 100), max_length });
   return { type: 9, data: { custom_id: 'panel:contracts:settings_submit', title: 'Setează contractul', components: [
     { type: 1, components: [input('title', 'Numele contractului', 1, true, 'Ex: Contract de colaborare', 100)] },
     { type: 1, components: [input('position', 'Funcție implicită', 1, false, 'Ex: Angajat', 100)] },
