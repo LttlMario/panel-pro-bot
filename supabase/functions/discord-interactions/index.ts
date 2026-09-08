@@ -503,6 +503,11 @@ function channelMatches(settings: any, routeKey: string, target: string, channel
   return configured?.enabled !== false && String(configured?.channel_id || '') === String(channelId || '');
 }
 
+function marketplaceChannelMatches(settings: any, target: string, channelId: string) {
+  // Accept the legacy internal key as well as the current visible name.
+  return channelMatches(settings, 'marketplace', target, channelId) || channelMatches(settings, 'discovery_marketplace_legal', target, channelId);
+}
+
 async function resolveAnnouncementContext(db: any, interaction: any, audience: 'organization' | 'departments', permission: 'read' | 'write') {
   const guildId = String(interaction.guild_id || '').trim();
   const channelId = String(interaction.channel_id || '').trim();
@@ -1360,7 +1365,7 @@ async function resolveMarketplaceContext(db: any, interaction: any, kind: 'legal
   if (packageError) throw packageError;
   if (!organization?.active) throw new Error('Organizația este dezactivată.');
   const target = String(guild.kind || '') === 'secondary' ? 'secondary' : 'primary';
-  if (!channelMatches(settings, routeKey, target, channelId)) throw new Error(`Acest canal nu este configurat pentru ${PANEL_ROUTE_LABELS[routeKey]}.`);
+  if (kind === 'legal' ? !marketplaceChannelMatches(settings, target, channelId) : !channelMatches(settings, routeKey, target, channelId)) throw new Error(`Acest canal nu este configurat pentru ${PANEL_ROUTE_LABELS[routeKey]}.`);
   const platformAdmin = await isPlatformAdminAccount(db, discordId);
   const discordOnly = packageSetting?.value?.code === 'discord';
   if (!platformAdmin && !discordOnly && !isDiscordManager(interaction)) throw new Error('Nu ai permisiunea de a publica anunțuri în acest marketplace.');

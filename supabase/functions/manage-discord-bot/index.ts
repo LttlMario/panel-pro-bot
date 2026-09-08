@@ -247,14 +247,14 @@ function autoRouteChannels(channelList: any[], guildId: string, currentRoutes: R
   const matchers: Record<string, string[]> = {
     pontaj: ['pontaj', 'ture'], requests_organization: ['invoiri organizatie', 'cereri organizatie'], requests_departments: ['invoiri angajati', 'invoiri departamente'],
     organization: ['anunturi organizatie'], departments: ['anunturi angajati'], contracts: ['contracte'], contract_identity_weekly: ['raport saptamanal contracte'],
-    actions_organization: ['actiuni organizatie'], marketplace: ['marketplace legal'], illegal_marketplace: ['marketplace ilegal'], event_reminders: ['evenimente', 'remindere'],
+    actions_organization: ['actiuni organizatie'], marketplace: ['marketplace'], illegal_marketplace: ['marketplace ilegal'], event_reminders: ['evenimente', 'remindere'],
     stash_requests: ['cereri stash'], stash_donations: ['donatii stash'], stash: ['stash'], status_live: ['status live', 'status servicii', 'status api'],
   };
   const routes: Record<string, any> = { ...(currentRoutes || {}) }; const matched: Record<string, string> = {}; const unmatched: string[] = [];
   for (const [key, definition] of Object.entries(definitions || {})) {
     const terms = matchers[key] || [normalize((definition as any).label || key)];
     const exactName = normalize((definition as any).label || key).replace(/ /g, '-');
-    const preferred = rows.filter((row: any) => !blocked(row) && terms.some((term) => row.search.includes(normalize(term))));
+    const preferred = rows.filter((row: any) => !blocked(row) && !(key === 'marketplace' && row.nameSearch.includes('ilegal')) && terms.some((term) => row.search.includes(normalize(term))));
     const found = preferred.find((row: any) => normalize(row.name || '').replace(/ /g, '-') === exactName)
       || preferred.find((row: any) => normalize(row.category_name || '') === 'panel pro' || normalize(row.category_name || '').includes('panel pro'))
       || preferred[0];
@@ -262,7 +262,7 @@ function autoRouteChannels(channelList: any[], guildId: string, currentRoutes: R
     else if (!routes[key]?.primary?.channel_id) unmatched.push(key);
   }
   const logFallback = rows.find((row: any) => row.nameSearch === 'staff log' || row.nameSearch.includes('staff log'))?.id;
-  const logTerms: Record<string, string[]> = { log_pontaj: ['pontaj'], log_requests_organization: ['invoiri organizatie'], log_requests_departments: ['invoiri angajati'], log_announcements_organization: ['anunturi organizatie'], log_announcements_departments: ['anunturi angajati'], log_contracts: ['contracte'], log_contract_identity_weekly: ['raport saptamanal contracte'], log_actions_organization: ['actiuni organizatie'], log_marketplace: ['marketplace legal'], log_illegal_marketplace: ['marketplace ilegal'], log_stash: ['stash'], log_stash_requests: ['cereri stash'], log_stash_donations: ['donatii stash'], log_event_reminders: ['evenimente', 'remindere'] };
+  const logTerms: Record<string, string[]> = { log_pontaj: ['pontaj'], log_requests_organization: ['invoiri organizatie'], log_requests_departments: ['invoiri angajati'], log_announcements_organization: ['anunturi organizatie'], log_announcements_departments: ['anunturi angajati'], log_contracts: ['contracte'], log_contract_identity_weekly: ['raport saptamanal contracte'], log_actions_organization: ['actiuni organizatie'], log_marketplace: ['marketplace'], log_illegal_marketplace: ['marketplace ilegal'], log_stash: ['stash'], log_stash_requests: ['cereri stash'], log_stash_donations: ['donatii stash'], log_event_reminders: ['evenimente', 'remindere'] };
   for (const logKey of Object.values(LOG_ROUTES)) {
     const terms = logTerms[logKey] || []; const found = rows.find((row: any) => /(^| )(log|audit)( |$)/.test(row.search) && terms.some((term) => row.search.includes(normalize(term)))); const channelId = found?.id || logFallback;
     if (channelId) routes[logKey] = { ...(routes[logKey] || {}), primary: { ...(routes[logKey]?.primary || {}), channel_id: String(channelId), guild_id: guildId, enabled: true } };
