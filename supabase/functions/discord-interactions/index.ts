@@ -505,7 +505,7 @@ function channelMatches(settings: any, routeKey: string, target: string, channel
 
 function marketplaceChannelMatches(settings: any, target: string, channelId: string) {
   // Accept the legacy internal key as well as the current visible name.
-  return channelMatches(settings, 'marketplace', target, channelId) || channelMatches(settings, 'discovery_marketplace_legal', target, channelId);
+  return channelMatches(settings, 'marketplace', target, channelId) || channelMatches(settings, 'discovery_marketplace', target, channelId);
 }
 
 async function resolveAnnouncementContext(db: any, interaction: any, audience: 'organization' | 'departments', permission: 'read' | 'write') {
@@ -1390,7 +1390,7 @@ function marketplaceEmbed(kind: 'legal' | 'illegal', values: Record<string, any>
 }
 
 async function handleMarketplaceSubmit(db: any, context: any, kind: 'legal' | 'illegal', values: Record<string, any>) {
-  const table = kind === 'illegal' ? 'discovery_marketplace_illegal' : 'discovery_marketplace_legal';
+  const table = kind === 'illegal' ? 'discovery_marketplace_illegal' : 'discovery_marketplace';
   const name = String(values.name || '').trim();
   const products = String(values.products || '').trim();
   if (!name || !products) throw new Error('Completează numele și descrierea anunțului.');
@@ -2732,7 +2732,7 @@ Deno.serve(async (request) => {
       }
       const context = await resolveMarketplaceContext(db, interaction, kind);
       if (parts[3] === 'mine') {
-        const table = kind === 'illegal' ? 'discovery_marketplace_illegal' : 'discovery_marketplace_legal';
+        const table = kind === 'illegal' ? 'discovery_marketplace_illegal' : 'discovery_marketplace';
         let query = db.from(table).select('nume,tip_actiune,categorie,produse,pret,created_at').eq('created_by_discord_id', context.discordId).order('created_at', { ascending: false }).limit(10);
         query = kind === 'illegal' ? query.is('organization_id', null) : query.eq('organization_id', context.organization.id);
         const { data, error } = await query;

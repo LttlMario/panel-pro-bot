@@ -283,7 +283,7 @@ create table if not exists public.discovery_reactions (
   unique (post_id, user_discord_id, reaction)
 );
 
-create table if not exists public.discovery_marketplace_legal (
+create table if not exists public.discovery_marketplace (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid references public.discovery_organizations(id) on delete cascade,
   nume text not null,
@@ -423,7 +423,7 @@ begin
     'discovery_shift_selections','discovery_absences','discovery_employees','discovery_contracts',
     'discovery_contract_export_batches','discovery_contract_export_items','discovery_events',
     'discovery_event_reminder_runs','discovery_community_posts','discovery_poll_options',
-    'discovery_poll_votes','discovery_reactions','discovery_marketplace_legal','discovery_marketplace_illegal',
+    'discovery_poll_votes','discovery_reactions','discovery_marketplace','discovery_marketplace_illegal',
     'discovery_actions','discovery_action_report_runs','discovery_stash_items','discovery_stash_requests',
     'discovery_stash_donations','discovery_stash_withdrawals'
   ] loop

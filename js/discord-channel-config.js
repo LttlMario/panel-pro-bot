@@ -44,7 +44,7 @@
       log_announcements_departments: 'Log anunțuri · Angajați',
       log_contracts: 'Log contracte',
       log_contract_identity_weekly: 'Log raport săptămânal contracte',
-      log_marketplace: 'Log Marketplace legal',
+      log_marketplace: 'Log Marketplace',
       log_illegal_marketplace: 'Log Marketplace ilegal',
       actions_organization: 'Acțiuni organizație',
       log_actions_organization: 'Log acțiuni organizație',
