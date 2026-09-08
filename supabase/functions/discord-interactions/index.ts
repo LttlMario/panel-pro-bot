@@ -205,8 +205,8 @@ async function ensureDiscordOnlyOrganization(db: any, interaction: any) {
 }
 const controlPayload = async (db: any, routeKey: string, trialText = '', includeDonation = true, includePremium = true, includeTrial = false) => {
   const definitions: Record<string, { title: string; description: string; color: number; buttons: any[] }> = {
-    organization: { title: '📢 Anunțuri · Organizație', description: 'Publică anunțuri, întrebări și sondaje pentru organizație.', color: 0x8b5cf6, buttons: [{ label: 'Publică anunț', style: 1, id: 'panel:announcements:organization:create:announcement' }, { label: 'Pune întrebare', style: 2, id: 'panel:announcements:organization:create:question' }, { label: 'Creează sondaj', style: 3, id: 'panel:announcements:organization:create:poll' }] },
-    departments: { title: '📢 Anunțuri · Angajați', description: 'Publică anunțuri, întrebări și sondaje pentru angajați.', color: 0x8b5cf6, buttons: [{ label: 'Publică anunț', style: 1, id: 'panel:announcements:departments:create:announcement' }, { label: 'Pune întrebare', style: 2, id: 'panel:announcements:departments:create:question' }, { label: 'Creează sondaj', style: 3, id: 'panel:announcements:departments:create:poll' }] },
+    organization: { title: '📢 Anunțuri · Organizație', description: 'Publică anunțuri, întrebări, sondaje, avertismente și sancțiuni pentru organizație.', color: 0x8b5cf6, buttons: [{ label: 'Publică anunț', style: 1, id: 'panel:announcements:organization:create:announcement' }, { label: 'Pune întrebare', style: 2, id: 'panel:announcements:organization:create:question' }, { label: 'Creează sondaj', style: 3, id: 'panel:announcements:organization:create:poll' }, { label: 'Avertisment', style: 4, id: 'panel:announcements:organization:create:warning' }, { label: 'Sancțiune', style: 4, id: 'panel:announcements:organization:create:sanction' }] },
+    departments: { title: '📢 Anunțuri · Angajați', description: 'Publică anunțuri, întrebări, sondaje, avertismente și sancțiuni pentru angajați.', color: 0x8b5cf6, buttons: [{ label: 'Publică anunț', style: 1, id: 'panel:announcements:departments:create:announcement' }, { label: 'Pune întrebare', style: 2, id: 'panel:announcements:departments:create:question' }, { label: 'Creează sondaj', style: 3, id: 'panel:announcements:departments:create:poll' }, { label: 'Avertisment', style: 4, id: 'panel:announcements:departments:create:warning' }, { label: 'Sancțiune', style: 4, id: 'panel:announcements:departments:create:sanction' }] },
     pontaj: { title: '🕒 Pontaj · Panel Pro', description: 'Alege tura și folosește butoanele pentru Start, Pauză și Stop.', color: 0x22c55e, buttons: [{ label: 'Tura de zi', style: 1, id: 'panel:pontaj:shift_day' }, { label: 'Tura de noapte', style: 1, id: 'panel:pontaj:shift_night' }, { label: 'Start', style: 3, id: 'panel:pontaj:start' }, { label: 'Pauză', style: 2, id: 'panel:pontaj:pause' }, { label: 'Stop', style: 4, id: 'panel:pontaj:stop' }, { label: 'Pontajul meu', style: 1, id: 'panel:pontaj:my_stats' }] },
     requests_organization: { title: '📝 Învoiri · Organizație', description: 'Trimite și consultă învoirile organizației.', color: 0xf59e0b, buttons: [{ label: 'Trimite învoire', style: 1, id: 'panel:requests:organization:new' }, { label: 'Învoirile mele', style: 2, id: 'panel:requests:organization:mine' }] },
     requests_departments: { title: '📝 Învoiri · Angajați', description: 'Trimite și consultă învoirile angajaților.', color: 0xf59e0b, buttons: [{ label: 'Trimite învoire', style: 1, id: 'panel:requests:departments:new' }, { label: 'Învoirile mele', style: 2, id: 'panel:requests:departments:mine' }] },
@@ -1133,7 +1133,7 @@ async function handleContractPublish(db: any, context: any, contractId: string) 
 }
 
 async function sendDisciplineDiscord(db: any, context: any, kind: 'warning' | 'sanction', record: any, action = 'nou') {
-  const routeKey = context.logRouteKey || announcementRoutes(context.audience).log;
+  const routeKey = announcementRoutes(context.audience).log;
   const destinations = routeCandidates(context.settings, routeKey);
   if (!destinations.some((item: any) => item.candidates.length)) throw new Error(`Canalul Discord pentru ${routeKey} nu este configurat.`);
   const payload = JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [disciplineEmbed(record, kind, context, action)], components: disciplineComponents(context.audience, kind, String(record.id)) });
@@ -2813,6 +2813,12 @@ Deno.serve(async (request) => {
       const action = parts[3] || '';
       const postType = ['announcement', 'question', 'poll'].includes(parts[4]) ? parts[4] as 'announcement' | 'question' | 'poll' : null;
       if (!audience) return reply(interactionMessage('Categoria Anunțuri nu este validă.'));
+      if (action === 'create' && (parts[4] === 'warning' || parts[4] === 'sanction')) {
+        const kind = parts[4] as 'warning' | 'sanction';
+        const permission = kind === 'sanction' ? 'sanction' : 'write';
+        await resolveManagementContext(db, interaction, audience, permission as 'write' | 'sanction', audience === 'organization' ? 'organization' : 'departments', audience === 'organization' ? 'discipline_organization' : 'discipline_departments', 'discipline_permissions', `${audience}.${permission}`);
+        return reply(disciplineTargetPicker(audience, kind));
+      }
       if (action === 'create' && postType) return reply(announcementModal(audience, postType));
       if (action === 'edit') {
         const postId = parts[4] || '';
