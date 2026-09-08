@@ -2619,6 +2619,8 @@ Deno.serve(async (request) => {
   if (isDiscipline && isButton && customId.split(':')[3] === 'history' && customId.split(':')[4] === 'type') disciplineHistoryDeferred = await deferInteraction(interaction, false);
   let disciplineRoleDeferred: any = null;
   if (isDiscipline && isSelect && customId.split(':')[4] === 'role') disciplineRoleDeferred = await deferInteraction(interaction, false);
+  let actionsDeferred: any = null;
+  if (isActions && ((isButton && customId.split(':')[3] !== 'create') || isSelect || isModalSubmit)) actionsDeferred = await deferInteraction(interaction, false);
   try {
     const key = serviceKey();
     if (!key) throw new Error('Cheia secretă Supabase lipsește.');
@@ -3215,7 +3217,7 @@ Deno.serve(async (request) => {
       }
       if (action === 'stats') {
         const context = await resolveManagementContext(db, interaction, 'organization', 'read', 'organization', 'actions_organization', 'action_permissions', 'actions.organization.read');
-        const deferred = await deferInteraction(interaction, false);
+        const deferred = actionsDeferred || await deferInteraction(interaction, false);
         let result;
         try { result = await actionStats(db, context); } catch (error) { console.error('[discord-interactions]', error); result = interactionMessage(error instanceof Error ? error.message : 'Clasamentul nu a putut fi încărcat.'); }
         const followupId = await sendFollowup(deferred.applicationId, deferred.interactionToken, result);
@@ -3225,7 +3227,7 @@ Deno.serve(async (request) => {
       if (action === 'participants_skip') {
         const draftId = String(parts[4] || '').trim();
         const context = await resolveManagementContext(db, interaction, 'organization', 'write', 'organization', 'actions_organization', 'action_permissions', 'actions.organization.write');
-        const deferred = await deferInteraction(interaction, false);
+        const deferred = actionsDeferred || await deferInteraction(interaction, false);
         let result;
         try { result = await finalizeActionDraft(db, context, draftId, []); } catch (error) { console.error('[discord-interactions]', error); result = interactionMessage(readableError(error, 'Acțiunea nu a putut fi salvată.')); }
         const followupId = await sendFollowup(deferred.applicationId, deferred.interactionToken, result);
@@ -3233,7 +3235,7 @@ Deno.serve(async (request) => {
         return new Response(null, { status: 204 });
       }
       const context = await resolveManagementContext(db, interaction, 'organization', 'write', 'organization', 'actions_organization', 'action_permissions', 'actions.organization.write');
-      const deferred = await deferInteraction(interaction, false);
+      const deferred = actionsDeferred || await deferInteraction(interaction, false);
       let result;
       try { result = await handleActionButton(db, interaction, context, parts); } catch (error) { console.error('[discord-interactions]', error); result = interactionMessage(error instanceof Error ? error.message : 'Acțiunea nu a putut fi executată.'); }
       const followupId = await sendFollowup(deferred.applicationId, deferred.interactionToken, result);
@@ -3245,7 +3247,7 @@ Deno.serve(async (request) => {
       if (parts[3] !== 'participants') return reply(interactionMessage('Selectorul participanților nu este valid.'));
       const draftId = String(parts[4] || '').trim();
       const context = await resolveManagementContext(db, interaction, 'organization', 'write', 'organization', 'actions_organization', 'action_permissions', 'actions.organization.write');
-      const deferred = await deferInteraction(interaction, false);
+      const deferred = actionsDeferred || await deferInteraction(interaction, false);
       let result;
       try { result = await finalizeActionDraft(db, context, draftId, Array.isArray(interaction.data?.values) ? interaction.data.values : []); } catch (error) { console.error('[discord-interactions]', error); result = interactionMessage(readableError(error, 'Acțiunea nu a putut fi salvată.')); }
       const followupId = await sendFollowup(deferred.applicationId, deferred.interactionToken, result);
@@ -3254,7 +3256,7 @@ Deno.serve(async (request) => {
     }
     if (isActions && isModalSubmit) {
       if (customId !== 'panel:actions:organization:details') return reply(interactionMessage('Formularul Acțiuni nu este valid.'));
-      const deferred = await deferInteraction(interaction, false);
+      const deferred = actionsDeferred || await deferInteraction(interaction, false);
       let result;
       try {
         const context = await resolveManagementContext(db, interaction, 'organization', 'write', 'organization', 'actions_organization', 'action_permissions', 'actions.organization.write');

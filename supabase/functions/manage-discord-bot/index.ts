@@ -247,7 +247,7 @@ function autoRouteChannels(channelList: any[], guildId: string, currentRoutes: R
   const matchers: Record<string, string[]> = {
     pontaj: ['pontaj', 'ture'], requests_organization: ['invoiri organizatie', 'cereri organizatie'], requests_departments: ['invoiri angajati', 'invoiri departamente'],
     organization: ['anunturi organizatie'], departments: ['anunturi angajati'], contracts: ['contracte'], contract_identity_weekly: ['raport saptamanal contracte'],
-    actions_organization: ['actiuni organizatie'], marketplace: ['marketplace'], illegal_marketplace: ['marketplace ilegal'], event_reminders: ['evenimente', 'remindere'],
+    actions_organization: ['actiuni organizatie', 'actiuni'], marketplace: ['marketplace'], illegal_marketplace: ['marketplace ilegal'], event_reminders: ['evenimente', 'remindere'],
     stash_requests: ['cereri stash'], stash_donations: ['donatii stash'], stash: ['stash'], status_live: ['status live', 'status servicii', 'status api'],
   };
   const routes: Record<string, any> = { ...(currentRoutes || {}) }; const matched: Record<string, string> = {}; const unmatched: string[] = [];

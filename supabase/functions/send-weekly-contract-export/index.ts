@@ -225,7 +225,7 @@ Deno.serve(async (request) => {
         await finishRun(db, runId, 'sent', failures.length ? failures.join(' | ') : null);
         results.push({ organization_id: organization.id, status: failures.length ? 'sent_partial' : 'sent', row_count: exportItems.length });
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Eroare necunoscută.';
+        const message = error instanceof Error ? error.message : String(error?.message || error?.details || error?.hint || (typeof error === 'string' ? error : JSON.stringify(error)) || 'Eroare necunoscută.');
         await finishRun(db, runId, 'failed', message);
         results.push({ organization_id: organization.id, status: 'failed', error: message });
       }
