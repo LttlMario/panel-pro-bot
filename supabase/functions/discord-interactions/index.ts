@@ -1345,7 +1345,7 @@ async function resolveMarketplaceContext(db: any, interaction: any, kind: 'legal
   const channelId = String(interaction.channel_id || '').trim();
   const user = interaction.member?.user || interaction.user || {};
   const discordId = String(user.id || '').trim();
-  const routeKey = kind === 'illegal' ? 'illegal_marketplace' : 'discovery_marketplace_legal';
+  const routeKey = kind === 'illegal' ? 'illegal_marketplace' : 'marketplace';
   if (!/^\d{15,22}$/.test(guildId) || !/^\d{15,22}$/.test(channelId) || !/^\d{15,22}$/.test(discordId)) throw new Error('Interacțiunea Discord nu conține date valide.');
   const { data: guild, error: guildError } = await db.from('discovery_guilds').select('organization_id,guild_id,kind,enabled').eq('guild_id', guildId).eq('enabled', true).maybeSingle();
   if (guildError) throw guildError;
