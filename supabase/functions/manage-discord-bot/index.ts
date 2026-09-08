@@ -489,9 +489,15 @@ async function autoConfigureGuild(db: any, guildId: string, organizationId: stri
       if (syncBody?.message_ids && Object.keys(syncBody.message_ids).length) published++;
       continue;
     }
-    const delivery = await run(`publicarea embedului „${definitions[key]?.label || key}”`, () => deliverDiscordRoute(db, { discord_channel_routes: routes }, key, JSON.stringify(payload(key, false, definitions)), { postOnly: true }));
-    if ((delivery.results || []).some((item: any) => item.id)) published++;
+    const existingMessageId = String(routes[key]?.primary?.message_id || '');
+    const delivery = await run(`actualizarea embedului „${definitions[key]?.label || key}”`, () => deliverDiscordRoute(db, { discord_channel_routes: routes }, key, JSON.stringify(payload(key, false, definitions)), { messageIds: { primary: existingMessageId }, postOnly: false }));
+    const delivered = delivery.results?.find((item: any) => item.target === 'primary' && item.id);
+    if (delivered?.id) {
+      routes[key] = { ...(routes[key] || {}), primary: { ...(routes[key]?.primary || {}), message_id: String(delivered.id) } };
+      published++;
+    }
   }
+  await db.from('discovery_settings').update({ discord_channel_routes: routes, updated_at: new Date().toISOString() }).eq('organization_id', organizationId);
   return { category: categoryName, created_channels: created, skipped_deletes: skippedDeletes, modules: eligible.map(([key, definition]) => ({ key, label: definition.label, log_channel: logChannels[key]?.name || null })), published };
 }
 
