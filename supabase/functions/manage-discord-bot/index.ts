@@ -479,7 +479,19 @@ async function autoConfigureGuild(db: any, guildId: string, organizationId: stri
   }
   const { error: saveError } = await run('salvarea rutelor canalelor', () => db.from('discovery_settings').update({ discord_channel_routes: routes, updated_at: new Date().toISOString() }).eq('organization_id', organizationId)); if (saveError) throw saveError;
   let published = 0;
-  for (const [key] of eligible) { const delivery = await run(`publicarea embedului „${definitions[key]?.label || key}”`, () => deliverDiscordRoute(db, { discord_channel_routes: routes }, key, JSON.stringify(payload(key, false, definitions)), { postOnly: true })); if ((delivery.results || []).some((item: any) => item.id)) published++; }
+  for (const [key] of eligible) {
+    if (key === 'status_live') {
+      const cronSecret = await getPlatformSecret(db, 'status_live_cron_secret');
+      if (!cronSecret) throw new Error('Canalul Status Live a fost creat, dar secretul de sincronizare lipsește din Supabase.');
+      const syncResponse = await run('publicarea Status Live real', () => fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/status-live-sync`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-cron-secret': cronSecret }, body: JSON.stringify({ organization_id: organizationId, guild_id: guildId, force: true }) }));
+      const syncBody = await syncResponse.json().catch(() => ({}));
+      if (!syncResponse.ok) throw new Error(String(syncBody?.error || `Status Live HTTP ${syncResponse.status}`));
+      if (syncBody?.message_ids && Object.keys(syncBody.message_ids).length) published++;
+      continue;
+    }
+    const delivery = await run(`publicarea embedului „${definitions[key]?.label || key}”`, () => deliverDiscordRoute(db, { discord_channel_routes: routes }, key, JSON.stringify(payload(key, false, definitions)), { postOnly: true }));
+    if ((delivery.results || []).some((item: any) => item.id)) published++;
+  }
   return { category: categoryName, created_channels: created, skipped_deletes: skippedDeletes, modules: eligible.map(([key, definition]) => ({ key, label: definition.label, log_channel: logChannels[key]?.name || null })), published };
 }
 
