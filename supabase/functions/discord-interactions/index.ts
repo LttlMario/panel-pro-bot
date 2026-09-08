@@ -3194,20 +3194,32 @@ Deno.serve(async (request) => {
         const kind = parts[5] === 'sanction' ? 'sanction' : parts[5] === 'warning' ? 'warning' : null;
         const recordId = String(interaction?.data?.values?.[0] || '').trim();
         if (!kind || !/^[0-9a-f-]{36}$/i.test(recordId)) return reply(interactionMessage('Înregistrarea selectată nu este validă.'));
-        const context = await resolveManagementContext(db, interaction, audience, 'write', audience === 'organization' ? 'organization' : 'departments', audience === 'organization' ? 'discipline_organization' : 'discipline_departments', 'discipline_permissions', `${audience}.write`);
-        const table = kind === 'warning' ? 'discovery_disciplinary_warnings' : 'discovery_disciplinary_sanctions';
-        const { data, error } = await db.from(table).select('*').eq('organization_id', context.organization.id).eq('id', recordId).maybeSingle();
-        if (error) throw error;
-        if (!data) return reply(interactionMessage('Înregistrarea nu mai există.'));
-        return reply(disciplineHistoryActions(audience, kind, recordId, data));
+        const deferred = await deferInteraction(interaction, false);
+        try {
+          const context = await resolveManagementContext(db, interaction, audience, 'write', audience === 'organization' ? 'organization' : 'departments', audience === 'organization' ? 'discipline_organization' : 'discipline_departments', 'discipline_permissions', `${audience}.write`);
+          const table = kind === 'warning' ? 'discovery_disciplinary_warnings' : 'discovery_disciplinary_sanctions';
+          const { data, error } = await db.from(table).select('*').eq('organization_id', context.organization.id).eq('id', recordId).maybeSingle();
+          if (error) throw error;
+          const result = data ? disciplineHistoryActions(audience, kind, recordId, data) : interactionMessage('Înregistrarea nu mai există.');
+          await editDeferredResponse(deferred.applicationId, deferred.interactionToken, result);
+        } catch (error) {
+          await editDeferredResponse(deferred.applicationId, deferred.interactionToken, interactionMessage(error instanceof Error ? error.message : 'Înregistrarea nu a putut fi încărcată.'));
+        }
+        return new Response(null, { status: 204 });
       }
       const kind = parts[3] === 'sanction' ? 'sanction' : parts[3] === 'warning' ? 'warning' : null;
       const targetId = String(interaction?.data?.values?.[0] || '').trim();
       if (!audience || !kind || !/^\d{15,22}$/.test(targetId)) return reply(interactionMessage('Membrul selectat nu este valid.'));
       const permission = kind === 'sanction' ? 'sanction' : 'write';
-       await resolveManagementContext(db, interaction, audience, permission as 'write' | 'sanction', audience === 'organization' ? 'organization' : 'departments', audience === 'organization' ? 'discipline_organization' : 'discipline_departments', 'discipline_permissions', `${audience}.${permission}`);
-       const selectedMember = await discordMemberRoleLabel(targetId, String(interaction.guild_id || ''), db);
-       return reply(disciplineModal(audience, kind, targetId, `${selectedMember.name} · ${selectedMember.role_label}`));
+      const deferred = await deferInteraction(interaction, false);
+      try {
+        await resolveManagementContext(db, interaction, audience, permission as 'write' | 'sanction', audience === 'organization' ? 'organization' : 'departments', audience === 'organization' ? 'discipline_organization' : 'discipline_departments', 'discipline_permissions', `${audience}.${permission}`);
+        const selectedMember = await discordMemberRoleLabel(targetId, String(interaction.guild_id || ''), db);
+        await editDeferredResponse(deferred.applicationId, deferred.interactionToken, disciplineModal(audience, kind, targetId, `${selectedMember.name} · ${selectedMember.role_label}`));
+      } catch (error) {
+        await editDeferredResponse(deferred.applicationId, deferred.interactionToken, interactionMessage(error instanceof Error ? error.message : 'Membrul nu a putut fi încărcat.'));
+      }
+      return new Response(null, { status: 204 });
     }
     if (isDiscipline && isModalSubmit) {
       const parts = customId.split(':');
