@@ -210,7 +210,7 @@ const controlPayload = async (db: any, routeKey: string, trialText = '', include
     pontaj: { title: '🕒 Pontaj · Panel Pro', description: 'Alege tura și folosește butoanele pentru Start, Pauză și Stop.', color: 0x22c55e, buttons: [{ label: 'Tura de zi', style: 1, id: 'panel:pontaj:shift_day' }, { label: 'Tura de noapte', style: 1, id: 'panel:pontaj:shift_night' }, { label: 'Start', style: 3, id: 'panel:pontaj:start' }, { label: 'Pauză', style: 2, id: 'panel:pontaj:pause' }, { label: 'Stop', style: 4, id: 'panel:pontaj:stop' }, { label: 'Pontajul meu', style: 1, id: 'panel:pontaj:my_stats' }] },
     requests_organization: { title: '📝 Învoiri · Organizație', description: 'Trimite și consultă învoirile organizației.', color: 0xf59e0b, buttons: [{ label: 'Trimite învoire', style: 1, id: 'panel:requests:organization:new' }, { label: 'Învoirile mele', style: 2, id: 'panel:requests:organization:mine' }] },
     requests_departments: { title: '📝 Învoiri · Angajați', description: 'Trimite și consultă învoirile angajaților.', color: 0xf59e0b, buttons: [{ label: 'Trimite învoire', style: 1, id: 'panel:requests:departments:new' }, { label: 'Învoirile mele', style: 2, id: 'panel:requests:departments:mine' }] },
-    contracts: { title: '📄 Contracte · Panel Pro', description: 'Generează și trimite contracte folosind șablonul organizației.', color: 0x14b8a6, buttons: [{ label: 'Creează contract', style: 1, id: 'panel:contracts:create' }, { label: 'Setează contractul', style: 2, id: 'panel:contracts:settings' }] },
+    contracts: { title: '📄 Contracte · Panel Pro', description: 'Generează și trimite contracte folosind șablonul organizației.', color: 0x14b8a6, buttons: [{ label: 'Creează contract', style: 1, id: 'panel:contracts:create' }, { label: 'Informații necesare', style: 2, id: 'panel:contracts:info' }, { label: 'Setează contractul', style: 2, id: 'panel:contracts:settings' }] },
       status_live: { title: '📡 Status live · Panel Pro', description: 'Acest embed este actualizat automat la fiecare minut cu pontajele și pauzele active. Configurează canalul Status live, apoi pornește sincronizarea din pagina Status live.', color: 0x06b6d4, buttons: [] },
     stash: { title: '📦 Stash · Administrare', description: 'Gestionează articolele Stash. Cererile și donațiile se gestionează din embedurile lor separate.', color: 0x22c55e, buttons: [{ label: 'Adaugă în Stash', style: 3, id: 'panel:stash:create' }, { label: 'Gestionează articole', style: 2, id: 'panel:stash:manage_items' }] },
     stash_requests: { title: '📨 Cereri Stash', description: 'Solicită articole și urmărește cererile trimise pentru aprobare.', color: 0x3b82f6, buttons: [{ label: 'Solicită articol', style: 1, id: 'panel:stash:request' }, { label: 'Cereri în așteptare', style: 2, id: 'panel:stash:pending_requests' }] },
@@ -811,6 +811,7 @@ function contractSettingsModal() {
     { type: 1, components: [input('position', 'Funcție implicită', 1, false, 'Ex: Angajat', 100)] },
     { type: 1, components: [input('salary', 'Salariu implicit', 1, false, 'Ex: 100 lei/lună', 120)] },
     { type: 1, components: [input('schedule', 'Program implicit', 1, false, 'Ex: 20:00-23:00', 120)] },
+    { type: 1, components: [input('address', 'Adresă companie', 1, false, 'Ex: Str. Exemplu nr. 10, București', 250)] },
     { type: 1, components: [input('template', 'Șablon contract · variabile', 2, true, 'Folosește {{COMPANY}}, {{ADDRESS}}, {{MANAGER}}, {{POSITION}}, {{SALARY}}, {{PROGRAM}}, {{START_DATE}}, {{CONTRACT_NUMBER}} pentru date automate. La generare se cer doar {{EMPLOYEE_NAME}}, {{CNP}} și {{PHONE}}.', 4000)] },
   ] } };
 }
@@ -834,11 +835,12 @@ async function handleContractSettingsSubmit(db: any, context: any, interaction: 
   const position = contractValue(values.position, 'Angajat');
   const salary = contractValue(values.salary, '');
   const schedule = contractValue(values.schedule, '20:00-23:00');
+  const address = contractValue(values.address, '');
   if (title.length < 2) return interactionMessage('Numele contractului este obligatoriu.');
   if (template.length < 20) return interactionMessage('Șablonul contractului este prea scurt.');
   const unknown = [...template.matchAll(/{{[A-Z0-9_]+}}/g)].map((match) => match[0]).filter((value) => !contractTemplateVariables().has(value));
   if (unknown.length) return interactionMessage(`Variabile necunoscute în șablon: ${[...new Set(unknown)].join(', ')}`);
-  const { error } = await db.from('discovery_app_settings').upsert({ organization_id: context.organization.id, key: 'contract_template', value: { title, template, defaults: { position, salary: salary || null, schedule } }, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,key' });
+  const { error } = await db.from('discovery_app_settings').upsert({ organization_id: context.organization.id, key: 'contract_template', value: { title, template, defaults: { position, salary: salary || null, schedule, address: address || null } }, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,key' });
   if (error) throw error;
   return interactionMessage(`Șablonul **${title}** a fost salvat. La generare se completează automat organizația, managerul, funcția, salariul, programul, data și numărul contractului; angajatul completează numele, CNP-ul și telefonul.`);
 }
