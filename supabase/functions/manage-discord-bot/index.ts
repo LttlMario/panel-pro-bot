@@ -800,7 +800,8 @@ Deno.serve(async (request) => {
           }
         }
       }
-      if ((permissionValue & 8n) === 8n) permissionValue = (1n << 53n) - 1n;
+      const hasAdministrator = (permissionValue & 8n) === 8n;
+      if (hasAdministrator) permissionValue = (1n << 53n) - 1n;
       const requiredPermissions = [{ key: 'view_channel', label: 'View Channel', bit: 1024n }, { key: 'send_messages', label: 'Send Messages', bit: 2048n }, { key: 'embed_links', label: 'Embed Links', bit: 16384n }];
       const missingPermissions = requiredPermissions.filter((item) => (permissionValue & item.bit) !== item.bit).map((item) => item.label);
       let channelList: any[] = [];
@@ -833,7 +834,7 @@ Deno.serve(async (request) => {
         if (repairError) throw repairError;
       }
       const activity = [...(activityResult.data || []), ...(auditResult.data || []).map((item: any) => ({ id: item.id, module_key: item.target_id || '', subject: item.action || item.target_type || 'Activitate', status: 'system', created_at: item.created_at, updated_at: item.created_at }))].sort((a: any, b: any) => Date.parse(String(b.created_at)) - Date.parse(String(a.created_at))).slice(0, 15);
-      return reply(request, { ok: true, repaired: action === 'repair_guild', bot: { online: botOnline, missing_permissions: missingPermissions, permission_status: botMemberResponse ? (missingPermissions.length ? 'missing' : 'ok') : 'unknown' }, channels: { total: channelList.length, error: channelError || null }, modules, subscription: { plan: selectedGuild.plan, trial_ends_at: selectedGuild.trial_ends_at || null, premium_ends_at: selectedGuild.premium_ends_at || null, includes: selectedGuild.plan === 'free' ? ['Pontaj', 'Învoiri angajați'] : ['Toate modulele Panel Pro'] }, activity, routes });
+      return reply(request, { ok: true, repaired: action === 'repair_guild', bot: { online: botOnline, administrator: hasAdministrator, missing_permissions: missingPermissions, permission_status: botMemberResponse ? (missingPermissions.length ? 'missing' : 'ok') : 'unknown' }, channels: { total: channelList.length, error: channelError || null }, modules, subscription: { plan: selectedGuild.plan, trial_ends_at: selectedGuild.trial_ends_at || null, premium_ends_at: selectedGuild.premium_ends_at || null, includes: selectedGuild.plan === 'free' ? ['Pontaj', 'Învoiri angajați'] : ['Toate modulele Panel Pro'] }, activity, routes });
     }
     if (action === 'test_custom_module') {
       if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate testa module personalizate.' }, 403);
