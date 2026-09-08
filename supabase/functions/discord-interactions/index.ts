@@ -2493,7 +2493,7 @@ Deno.serve(async (request) => {
     if (announcementType === 'warning' || announcementType === 'sanction') return reply(disciplineTargetPicker(announcementAudience, announcementType));
     if (['announcement', 'question', 'poll'].includes(announcementType)) return reply(announcementModal(announcementAudience, announcementType as 'announcement' | 'question' | 'poll'));
   }
-  if (isDiscipline && isButton && customId.split(':')[3] === 'history') return reply(disciplineHistoryTypePicker(customId.split(':')[2] === 'departments' ? 'departments' : 'organization'));
+  if (isDiscipline && isButton && customId.split(':')[3] === 'history' && customId.split(':').length === 4) return reply(disciplineHistoryTypePicker(customId.split(':')[2] === 'departments' ? 'departments' : 'organization'));
   // Confirmă imediat interacțiunile ticket; verificările DB/Discord pot dura peste limita de 3 secunde.
   let ticketDeferred: any = null;
   if (isTicket && !(isButton && customId === 'panel:ticket:open')) ticketDeferred = await deferInteraction(interaction, false);
