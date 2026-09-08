@@ -2558,7 +2558,8 @@ Deno.serve(async (request) => {
         const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-weekly-contract-export`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-cron-secret': cronSecret }, body: JSON.stringify({ force: true, organization_id: guild.organization_id }) });
         const result = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(result.error || 'Raportul săptămânal nu a putut fi generat.');
-        return interactionMessage(result.results?.[0]?.status === 'sent' ? 'Raportul săptămânal a fost generat și trimis în canalul configurat.' : `Raportul săptămânal nu a fost trimis: ${result.results?.[0]?.status || 'verifică configurația.'}`);
+        const reportResult = result.results?.[0] || {};
+        return interactionMessage(reportResult.status === 'sent' ? 'Raportul săptămânal a fost generat și trimis în canalul configurat.' : `Raportul săptămânal nu a fost trimis: ${reportResult.error || reportResult.status || 'verifică configurația.'}`);
       }, 'Raportul săptămânal nu a putut fi generat.');
     }
     if (isModalSubmit && customId === 'panel:discovery:reminder_submit') {
