@@ -405,6 +405,40 @@ async function announceExistingCommunity(db: any, guildId: string) {
   return { channel_id: String(welcome.id), members: members ? Number(members) : null };
 }
 
+async function autoConfigureGuild(db: any, guildId: string, organizationId: string, plan: string) {
+  const token = await getPlatformSecret(db, 'discord_bot_token');
+  const headers = { ...botHeaders(token), 'Content-Type': 'application/json' };
+  const base = `${DISCORD_API}/guilds/${guildId}`;
+  const api = async (path: string, options: RequestInit = {}) => { const response = await fetch(base + path, { ...options, headers: { ...headers, ...(options.headers || {}) } }); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(`Discord API ${path} HTTP ${response.status}: ${String(body?.message || 'Missing Permissions')}`); return body; };
+  const existing = await api('/channels');
+  const botResponse = await fetch(`${DISCORD_API}/users/@me`, { headers }); const bot = await botResponse.json().catch(() => ({}));
+  const botId = String(bot?.id || '');
+  const categoryName = '🧩 PANEL PRO';
+  const category = (Array.isArray(existing) ? existing : []).find((channel: any) => Number(channel.type) === 4 && String(channel.name) === categoryName) || await api('/channels', { method: 'POST', body: JSON.stringify({ name: categoryName, type: 4 }) });
+  const definitions = { ...mergeModuleDefinitions(MODULES, await readGlobalModules(db)), ...sanitizeCustomModules((await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle()).data?.custom_modules || {}) } as Record<string, any>;
+  const eligible = Object.entries(definitions).filter(([, definition]: [string, any]) => plan !== 'free' || definition.premium !== true);
+  const routes = { ...((await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', organizationId).maybeSingle()).data?.discord_channel_routes || {}) } as Record<string, any>;
+  const created: string[] = []; const channelIds: Record<string, string> = {};
+  const slug = (value: string) => String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'modul';
+  const overwrite = (readOnly = false) => { const rows: any[] = [{ id: guildId, type: 0, allow: '1024', deny: readOnly ? '2048' : '0' }]; if (botId) rows.push({ id: botId, type: 1, allow: '68608' }); return rows; };
+  for (const [key, definition] of eligible) {
+    const name = `📌・${slug(definition.label || key)}`;
+    const found = (Array.isArray(existing) ? existing : []).find((channel: any) => Number(channel.type) === 0 && String(channel.parent_id || '') === String(category.id) && String(channel.name) === name);
+    const channel = found || await api('/channels', { method: 'POST', body: JSON.stringify({ name, type: 0, parent_id: String(category.id), permission_overwrites: overwrite(false) }) });
+    channelIds[key] = String(channel.id); if (!found) created.push(name);
+    routes[key] = { ...(routes[key] || {}), primary: { ...(routes[key]?.primary || {}), channel_id: String(channel.id), guild_id: guildId, enabled: true } };
+  }
+  const logName = '📋・loguri-panel-pro';
+  const logFound = (Array.isArray(existing) ? existing : []).find((channel: any) => Number(channel.type) === 0 && String(channel.name) === logName);
+  const logChannel = logFound || await api('/channels', { method: 'POST', body: JSON.stringify({ name: logName, type: 0, parent_id: String(category.id), permission_overwrites: overwrite(true) }) });
+  if (!logFound) created.push(logName);
+  for (const [key, definition] of eligible) if (definition.log_key) routes[definition.log_key] = { ...(routes[definition.log_key] || {}), primary: { ...(routes[definition.log_key]?.primary || {}), channel_id: String(logChannel.id), guild_id: guildId, enabled: true } };
+  const { error: saveError } = await db.from('discovery_settings').update({ discord_channel_routes: routes, updated_at: new Date().toISOString() }).eq('organization_id', organizationId); if (saveError) throw saveError;
+  let published = 0;
+  for (const [key] of eligible) { const delivery = await deliverDiscordRoute(db, { discord_channel_routes: routes }, key, JSON.stringify(payload(key, false, definitions)), { postOnly: true }); if ((delivery.results || []).some((item: any) => item.id)) published++; }
+  return { category: categoryName, created_channels: created, modules: eligible.map(([key, definition]) => ({ key, label: definition.label })), published, log_channel: logName };
+}
+
 async function provisionDemoCategory(db: any, guildId: string) {
   const token = await getPlatformSecret(db, 'discord_bot_token');
   const headers = { ...botHeaders(token), 'Content-Type': 'application/json' };
@@ -622,11 +656,13 @@ Deno.serve(async (request) => {
     }
     const { data: settings, error: settingsError } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', selectedGuild.organization_id).maybeSingle();
     if (settingsError) throw settingsError;
-    if (action === 'dashboard_overview' || action === 'repair_guild' || action === 'auto_configure_routes' || action === 'set_module_enabled') {
+    if (action === 'dashboard_overview' || action === 'repair_guild' || action === 'auto_configure_routes' || action === 'auto_configure_guild' || action === 'set_module_enabled') {
       const customSetting = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
       if (customSetting.error) throw customSetting.error;
       const definitions = { ...mergeModuleDefinitions(MODULES, await readGlobalModules(db)), ...sanitizeCustomModules(customSetting.data?.custom_modules || {}) } as Record<string, any>;
       const routes = { ...(settings?.discord_channel_routes || {}) } as Record<string, any>;
+      const allowedPremium = selectedGuild.plan !== 'free';
+      if (action === 'auto_configure_guild') return reply(request, { ok: true, guild_id: guildId, plan: selectedGuild.plan, result: await autoConfigureGuild(db, guildId, selectedGuild.organization_id, selectedGuild.plan) });
       if (action === 'set_module_enabled') {
         const moduleKey = clean(body.module_key, 50);
         if (!definitions[moduleKey]) return reply(request, { error: 'Modulul selectat nu există.' }, 404);
@@ -663,8 +699,10 @@ Deno.serve(async (request) => {
       let channelError = '';
       try { channelList = await channels(db, guildId); } catch (error) { channelError = error instanceof Error ? error.message : 'Canalele Discord nu au putut fi verificate.'; }
       if ((action === 'dashboard_overview' || action === 'auto_configure_routes' || action === 'repair_guild') && !channelError) {
-        const automatic = autoRouteChannels(channelList, guildId, routes, definitions);
+        const routableDefinitions = Object.fromEntries(Object.entries(definitions).filter(([, definition]: [string, any]) => allowedPremium || definition.premium !== true));
+        const automatic = autoRouteChannels(channelList, guildId, routes, routableDefinitions);
         Object.assign(routes, automatic.routes);
+        if (!allowedPremium) Object.keys(definitions).filter((key) => definitions[key].premium === true).forEach((key) => { delete routes[key]; });
         const { error: routeError } = await db.from('discovery_settings').update({ discord_channel_routes: routes, updated_at: new Date().toISOString(), updated_by_discord_id: String(discord.id) }).eq('organization_id', selectedGuild.organization_id);
         if (routeError) throw routeError;
         if (action === 'auto_configure_routes') return reply(request, { ok: true, configured: true, matched: automatic.matched, unmatched: automatic.unmatched, channels: { total: channelList.length }, routes });
@@ -677,7 +715,7 @@ Deno.serve(async (request) => {
       ]);
       // Activitatea este suplimentară; un tabel de istoric indisponibil nu trebuie să blocheze dashboardul.
       if (action === 'repair_guild') {
-        for (const item of modules.filter((module) => module.active && module.embed_configured)) {
+        for (const item of modules.filter((module) => module.active && module.embed_configured && (allowedPremium || !module.premium))) {
           const route = routes[item.key]?.primary || {};
           const delivery = await deliverDiscordRoute(db, { discord_channel_routes: routes }, item.key, JSON.stringify(payload(item.key, false, definitions)), { messageIds: { primary: String(route.message_id || '') }, postOnly: false });
           const result = delivery.results?.find((entry: any) => entry.target === 'primary');
