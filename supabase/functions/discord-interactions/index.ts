@@ -856,6 +856,16 @@ function disciplineModal(audience: 'organization' | 'departments', kind: 'warnin
   return { type: 9, data: { custom_id: `panel:discipline:${audience}:submit:${kind}:${targetId}`, title: `${kind === 'warning' ? 'Avertisment' : 'Sancțiune'} · ${String(targetLabel || label).slice(0, 25)}`, components } };
 }
 
+async function editDeferredResponse(applicationId: string, interactionToken: string, data: any) {
+  const response = await fetch(`${DISCORD_API}/webhooks/${applicationId}/${encodeURIComponent(interactionToken)}/messages/@original`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...(data?.data || {}), flags: SILENT_EPHEMERAL_FLAGS }),
+  });
+  if (!response.ok) console.error('[discord-interactions] deferred edit failed', response.status, await response.text().catch(() => ''));
+  return response.ok;
+}
+
 async function disciplineMemberPicker(db: any, guildId: string, audience: 'organization' | 'departments', kind: 'warning' | 'sanction', roleId = '', page = 0) {
   const token = await getPlatformSecret(db, 'discord_bot_token');
   const headers = { Authorization: `Bot ${token}` };
@@ -3039,14 +3049,14 @@ Deno.serve(async (request) => {
         try {
           const picker = await disciplineMemberPicker(db, String(interaction.guild_id || ''), audience, kind, roleId);
           if (disciplineRoleDeferred) {
-            await sendFollowup(disciplineRoleDeferred.applicationId, disciplineRoleDeferred.interactionToken, picker);
+            await editDeferredResponse(disciplineRoleDeferred.applicationId, disciplineRoleDeferred.interactionToken, picker);
             return new Response(null, { status: 204 });
           }
           return reply(picker);
         } catch (error) {
           const result = interactionMessage(error instanceof Error ? error.message : 'Membrii rolului nu au putut fi încărcați.');
           if (disciplineRoleDeferred) {
-            await sendFollowup(disciplineRoleDeferred.applicationId, disciplineRoleDeferred.interactionToken, result);
+            await editDeferredResponse(disciplineRoleDeferred.applicationId, disciplineRoleDeferred.interactionToken, result);
             return new Response(null, { status: 204 });
           }
           return reply(result);
