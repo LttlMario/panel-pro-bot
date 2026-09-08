@@ -1701,7 +1701,7 @@ async function handleRequestSubmit(db: any, context: any, interaction: any, valu
   const proofUrl = String(values.proof_url || '').trim().slice(0, 500) || null;
   if (proofUrl) { try { const parsed = new URL(proofUrl); if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('invalid'); } catch { return interactionMessage('Dovada trebuie să fie un link HTTP sau HTTPS valid.'); } }
   const now = new Date().toISOString();
-  const absence = { organization_id: context.organization.id, discord_id: context.discordId, request_audience: context.audience, colleague_name: `${context.displayName} [${context.role}]`, notice_type: noticeType, reason, start_date: startDate, days, notes: reason, start_at: start.toISOString(), end_at: end.toISOString(), proof_url: proofUrl, created_at: now };
+  const absence = { organization_id: context.organization.id, discord_id: context.discordId, request_audience: context.audience, colleague_name: `${context.displayName} [${context.role}]`, notice_type: noticeType, reason, start_date: startDate, end_date: endDate, notes: reason, start_at: start.toISOString(), end_at: end.toISOString(), proof_url: proofUrl, status: 'pending', created_at: now, updated_at: now };
   const { data: created, error } = await db.from('discovery_absences').insert(absence).select('*').single();
   if (error) throw error;
   const logResult = await sendAbsenceLog(db, context, created, 'Învoire nouă');
