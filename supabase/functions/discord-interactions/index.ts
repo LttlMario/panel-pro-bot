@@ -1187,7 +1187,7 @@ async function handleContractSubmit(db: any, context: any, values: Record<string
     if (contractError.code === '23505') return interactionMessage('Numărul contractului există deja. Încearcă din nou.');
     throw contractError;
   }
-  return interactionMessage(`Contractul **${contract.contract_number}** a fost generat și salvat. Apasă **Copiază contractul** pentru a vedea și copia textul complet, apoi apasă **Trimite contractul**.`, { embeds: [contractEmbed(contract, context.organization, 'Contract generat', '', true)], components: contractComponents(String(saved.id)) });
+  return interactionMessage(`Contractul **${contract.contract_number}** a fost generat și salvat. Apasă **Copiază contractul** pentru a vedea și copia textul complet, apoi apasă **Trimite contractul**.`, { embeds: [contractEmbed(contract, context.organization, 'Contract generat', '', false)], components: contractComponents(String(saved.id)) });
 }
 
 async function handleContractPublish(db: any, context: any, contractId: string) {
@@ -2555,10 +2555,19 @@ Deno.serve(async (request) => {
     }
     if (contractAction === 'address') return reply(contractAddressModal());
     if (contractAction === 'copy') {
-      const embed = interaction.message?.embeds?.[0] || {};
-      const text = String(embed.description || '').trim();
-      if (text && !text.startsWith('Contractul a fost generat din șablonul')) {
-        return reply(contractCopyModal({ id: customId.split(':')[3], contract_number: String(embed.title || '').slice(-40), contract_text: text }));
+      const contractId = String(customId.split(':')[3] || '').trim();
+      if (!/^[0-9a-f-]{36}$/i.test(contractId)) return reply(interactionMessage('Contractul selectat nu este valid.'));
+      try {
+        const key = serviceKey();
+        if (!key) throw new Error('Cheia secretă Supabase lipsește.');
+        const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
+        await ensureDiscordOnlyOrganization(db, interaction);
+        const context = await resolveContractActionContext(db, interaction);
+        const contract = await loadSavedContract(db, context, contractId);
+        if (!contract) return reply(interactionMessage('Contractul nu mai există în istoricul organizației.'));
+        return reply(contractCopyModal(contract));
+      } catch (error) {
+        return reply(interactionMessage(readableError(error, 'Contractul nu a putut fi încărcat.')));
       }
     }
     if (contractAction === 'create') return reply(contractModal());
@@ -2578,7 +2587,7 @@ Deno.serve(async (request) => {
   // Confirmă imediat trimiterea/publicarea contractului. Contextul și
   // numerotarea contractului pot necesita mai multe citiri din Supabase.
   let contractDeferred: any = null;
-  if (isContracts && (isModalSubmit || (isButton && ['publish', 'copy'].includes(String(customId.split(':')[2] || ''))))) contractDeferred = await deferInteraction(interaction, false);
+  if (isContracts && (isModalSubmit || (isButton && ['publish'].includes(String(customId.split(':')[2] || ''))))) contractDeferred = await deferInteraction(interaction, false);
   let announcementDeferred: any = null;
   if (isAnnouncements && isModalSubmit) announcementDeferred = await deferInteraction(interaction, false);
   let disciplinePickerDeferred: any = null;
