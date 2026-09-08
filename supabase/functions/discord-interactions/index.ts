@@ -2546,6 +2546,8 @@ Deno.serve(async (request) => {
   if (isAnnouncements && isModalSubmit) announcementDeferred = await deferInteraction(interaction, false);
   let disciplinePickerDeferred: any = null;
   if (isAnnouncements && isButton && customId.split(':')[3] === 'create' && ['warning', 'sanction'].includes(String(customId.split(':')[4] || ''))) disciplinePickerDeferred = await deferInteraction(interaction, false);
+  let disciplineHistoryDeferred: any = null;
+  if (isDiscipline && isButton && customId.split(':')[3] === 'history' && customId.split(':')[4] === 'type') disciplineHistoryDeferred = await deferInteraction(interaction, false);
   try {
     const key = serviceKey();
     if (!key) throw new Error('Cheia secretă Supabase lipsește.');
@@ -2974,7 +2976,12 @@ Deno.serve(async (request) => {
         const historyColumns = kind === 'warning' ? 'id,status,reason,target_name,created_at' : 'id,status,reason,amount,currency,target_name,created_at';
         const { data, error } = await db.from(table).select(historyColumns).eq('organization_id', context.organization.id).eq('target_scope', audience).in('status', kind === 'warning' ? ['active'] : ['active', 'issued']).order('created_at', { ascending: false }).limit(25);
         if (error) throw error;
-        return reply(disciplineHistoryRecordPicker(audience, kind, data || []));
+        const historyResult = disciplineHistoryRecordPicker(audience, kind, data || []);
+        if (disciplineHistoryDeferred) {
+          await sendFollowup(disciplineHistoryDeferred.applicationId, disciplineHistoryDeferred.interactionToken, historyResult);
+          return new Response(null, { status: 204 });
+        }
+        return reply(historyResult);
       }
       if (action === 'role_members') {
         const kind = parts[4] === 'sanction' ? 'sanction' : parts[4] === 'warning' ? 'warning' : null;
