@@ -3157,8 +3157,10 @@ Deno.serve(async (request) => {
       const kind = parts[4] === 'sanction' ? 'sanction' : 'warning';
       const permission = kind === 'sanction' ? 'sanction' : 'write';
       const routeKey = audience === 'departments' ? 'departments' : 'organization';
-      const context = await resolveManagementContext(db, interaction, audience, permission as 'write' | 'sanction', routeKey, audience === 'organization' ? 'discipline_organization' : 'discipline_departments', 'discipline_permissions', `${audience}.${permission}`);
+      // A database lookup can take longer than Discord's three-second
+      // interaction window. Acknowledge the button before resolving context.
       const deferred = await deferInteraction(interaction, false);
+      const context = await resolveManagementContext(db, interaction, audience, permission as 'write' | 'sanction', routeKey, audience === 'organization' ? 'discipline_organization' : 'discipline_departments', 'discipline_permissions', `${audience}.${permission}`);
       let result;
       try { result = await handleDisciplineAction(db, interaction, context, parts); } catch (error) { console.error('[discord-interactions]', error); result = interactionMessage(error instanceof Error ? error.message : 'Acțiunea disciplinară nu a putut fi executată.'); }
       const followupId = await sendFollowup(deferred.applicationId, deferred.interactionToken, result);
