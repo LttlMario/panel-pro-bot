@@ -2461,6 +2461,18 @@ Deno.serve(async (request) => {
   // Modalul trebuie returnat imediat; orice acces la DB înainte de răspuns poate depăși limita Discord de 3 secunde.
   if (isTicket && isButton && customId === 'panel:ticket:open') return reply(ticketModal());
   if (isTicket && isButton && customId.startsWith('panel:ticket:add_member:')) { const id = customId.slice('panel:ticket:add_member:'.length); if (!/^[0-9a-f-]{20,40}$/i.test(id)) return reply(interactionMessage('Ticketul nu este valid.')); return reply(interactionMessage('Alege membrul care trebuie adăugat în ticket.', { components: [{ type: 1, components: [{ type: 5, custom_id: `panel:ticket:add_member_select:${id}`, placeholder: 'Selectează un membru', min_values: 1, max_values: 1 }] }] })); }
+  // Contractele trebuie să deschidă formularul înainte de orice citire din
+  // Supabase. Altfel, validarea organizației poate consuma limita de 3 secunde
+  // a Discord și utilizatorul vede „Panel Pro didn't respond in time”.
+  if (isContracts && isButton) {
+    const contractAction = String(customId.split(':')[2] || '');
+    if (contractAction === 'info') return reply(contractInfoMessage());
+    if (contractAction === 'settings') {
+      if (!isDiscordManager(interaction)) return reply(interactionMessage('Doar ownerul serverului sau un administrator cu Manage Server poate seta contractul.'));
+      return reply(contractSettingsModal());
+    }
+    if (contractAction === 'create') return reply(contractModal());
+  }
   // Confirmă imediat interacțiunile ticket; verificările DB/Discord pot dura peste limita de 3 secunde.
   let ticketDeferred: any = null;
   if (isTicket && !(isButton && customId === 'panel:ticket:open')) ticketDeferred = await deferInteraction(interaction, false);
