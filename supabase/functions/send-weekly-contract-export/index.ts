@@ -200,7 +200,7 @@ Deno.serve(async (request) => {
         const activePrevious = uniqueEmployees.filter((employee: any) => employee.active !== false && previouslyReported.has(String(employee.id)));
         const inactive = uniqueEmployees.filter((employee: any) => employee.active === false);
 
-        const exportItems = [...unique.values()].map((employee: any) => ({ employee_id: employee.id, full_name: employee.full_name, cnp: employee.cnp }));
+        const exportItems = [...unique.values()].map((employee: any) => ({ employee_id: employee.id, employee_name: employee.full_name, full_name: employee.full_name, cnp: employee.cnp }));
         const { data: batch, error: batchError } = await db.from('discovery_contract_export_batches').insert({ organization_id: organization.id, export_type: 'weekly_discord', status: 'processing', period_start: period.start, period_end: period.end }).select('id').maybeSingle();
         if (batchError && !isMissingRelation(batchError)) throw batchError;
         if (batch?.id) {
