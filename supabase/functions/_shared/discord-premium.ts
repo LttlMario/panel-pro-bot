@@ -56,7 +56,8 @@ export function discordPremiumMessage(skuId = [...DISCORD_PREMIUM_SKU_IDS()][0] 
     type: 4,
     data: {
       content: 'Acest server nu are un abonament Panel Pro Premium activ. Activează abonamentul pentru a folosi funcțiile botului Discord.',
-      flags: 64,
+      // Keep the entitlement prompt visible but silent in Discord clients.
+      flags: 64 | 4096,
       components: discordPremiumButton(skuId),
     },
   };
