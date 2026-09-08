@@ -35,6 +35,11 @@ const LOG_LABELS: Record<string, string> = {
   log_requests_organization: 'Log învoiri organizație', log_requests_departments: 'Log învoiri angajați', log_contracts: 'Log contracte',
   log_actions_organization: 'Log acțiuni organizație', log_marketplace: 'Log Marketplace legal', log_illegal_marketplace: 'Log Marketplace ilegal', log_contract_identity_weekly: 'Log raport săptămânal contracte', log_stash: 'Log Stash', log_stash_requests: 'Log cereri Stash', log_stash_donations: 'Log donații Stash', log_event_reminders: 'Log evenimente și remindere'
 };
+const MODULE_EMOJIS: Record<string, string> = {
+  pontaj: '🕒', requests_organization: '📝', requests_departments: '📝', organization: '📢', departments: '📢',
+  contracts: '📄', marketplace: '🛒', illegal_marketplace: '🚨', event_reminders: '🗓️', contract_identity_weekly: '📋',
+  actions_organization: '🎯', stash: '📦', stash_requests: '📨', stash_donations: '🎁', status_live: '📡',
+};
 const headersFor = (request: Request) => {
   const origin = String(request.headers.get('origin') || '');
   const allowed = /^https?:\/\/(?:[a-z0-9-]+\.)*localhost(:\d+)?$/i.test(origin) || /^https?:\/\/127\.0\.0\.1(:\d+)?$/.test(origin) || origin === 'https://panel-pro.ro' || origin === 'https://bot.panel-pro.ro' ? origin : 'https://bot.panel-pro.ro';
@@ -422,21 +427,26 @@ async function autoConfigureGuild(db: any, guildId: string, organizationId: stri
   const slug = (value: string) => String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'modul';
   const overwrite = (readOnly = false) => { const rows: any[] = [{ id: guildId, type: 0, allow: '1024', deny: readOnly ? '2048' : '0' }]; if (botId) rows.push({ id: botId, type: 1, allow: '68608' }); return rows; };
   for (const [key, definition] of eligible) {
-    const name = `📌・${slug(definition.label || key)}`;
+    const name = `${MODULE_EMOJIS[key] || '🧩'}・${slug(definition.label || key)}`;
     const found = (Array.isArray(existing) ? existing : []).find((channel: any) => Number(channel.type) === 0 && String(channel.parent_id || '') === String(category.id) && String(channel.name) === name);
     const channel = found || await api('/channels', { method: 'POST', body: JSON.stringify({ name, type: 0, parent_id: String(category.id), permission_overwrites: overwrite(false) }) });
     channelIds[key] = String(channel.id); if (!found) created.push(name);
     routes[key] = { ...(routes[key] || {}), primary: { ...(routes[key]?.primary || {}), channel_id: String(channel.id), guild_id: guildId, enabled: true } };
   }
-  const logName = '📋・loguri-panel-pro';
-  const logFound = (Array.isArray(existing) ? existing : []).find((channel: any) => Number(channel.type) === 0 && String(channel.name) === logName);
-  const logChannel = logFound || await api('/channels', { method: 'POST', body: JSON.stringify({ name: logName, type: 0, parent_id: String(category.id), permission_overwrites: overwrite(true) }) });
-  if (!logFound) created.push(logName);
-  for (const [key, definition] of eligible) if (definition.log_key) routes[definition.log_key] = { ...(routes[definition.log_key] || {}), primary: { ...(routes[definition.log_key]?.primary || {}), channel_id: String(logChannel.id), guild_id: guildId, enabled: true } };
+  const logChannels: Record<string, any> = {};
+  for (const [key, definition] of eligible) {
+    if (!definition.log_key) continue;
+    const logName = `${MODULE_EMOJIS[key] || '🧩'}・log-${slug(definition.label || key)}`;
+    const logFound = (Array.isArray(existing) ? existing : []).find((channel: any) => Number(channel.type) === 0 && String(channel.parent_id || '') === String(category.id) && String(channel.name) === logName);
+    const logChannel = logFound || await api('/channels', { method: 'POST', body: JSON.stringify({ name: logName, type: 0, parent_id: String(category.id), permission_overwrites: overwrite(true) }) });
+    logChannels[key] = logChannel;
+    if (!logFound) created.push(logName);
+    routes[definition.log_key] = { ...(routes[definition.log_key] || {}), primary: { ...(routes[definition.log_key]?.primary || {}), channel_id: String(logChannel.id), guild_id: guildId, enabled: true } };
+  }
   const { error: saveError } = await db.from('discovery_settings').update({ discord_channel_routes: routes, updated_at: new Date().toISOString() }).eq('organization_id', organizationId); if (saveError) throw saveError;
   let published = 0;
   for (const [key] of eligible) { const delivery = await deliverDiscordRoute(db, { discord_channel_routes: routes }, key, JSON.stringify(payload(key, false, definitions)), { postOnly: true }); if ((delivery.results || []).some((item: any) => item.id)) published++; }
-  return { category: categoryName, created_channels: created, modules: eligible.map(([key, definition]) => ({ key, label: definition.label })), published, log_channel: logName };
+  return { category: categoryName, created_channels: created, modules: eligible.map(([key, definition]) => ({ key, label: definition.label, log_channel: logChannels[key]?.name || null })), published };
 }
 
 async function provisionDemoCategory(db: any, guildId: string) {
