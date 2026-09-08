@@ -11,7 +11,10 @@ const DISCORD_API = 'https://discord.com/api/v10';
 const OFFICIAL_GUILD_ID = '1544703486384537603';
 const serviceKey = () => Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') || '{}').default;
 const reply = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
-const interactionMessage = (content: string, extra: Record<string, unknown> = {}) => ({ type: 4, data: { content, flags: 64, ...extra } });
+// Ephemeral + Suppress Notifications: feedbackul rămâne vizibil utilizatorului,
+// dar Discord nu mai redă sunet pentru răspunsul interacțiunii.
+const SILENT_EPHEMERAL_FLAGS = 64 | 4096;
+const interactionMessage = (content: string, extra: Record<string, unknown> = {}) => ({ type: 4, data: { content, flags: SILENT_EPHEMERAL_FLAGS, ...extra } });
 const demoModal = (action: string) => ({ type: 9, data: { custom_id: `panel:demo:submit:${action.slice(0, 40)}`, title: '🧪 Demo Panel Pro', components: [
   { type: 1, components: [{ type: 4, custom_id: 'demo_subject', label: 'Subiect / nume', style: 1, required: true, max_length: 120, placeholder: 'Exemplu de date pentru demonstrație' }] },
   { type: 1, components: [{ type: 4, custom_id: 'demo_details', label: 'Detalii', style: 2, required: false, max_length: 1000, placeholder: 'Aceste date nu vor fi salvate' }] },
@@ -281,7 +284,7 @@ async function deferInteraction(interaction: any, updateOnly = false) {
   const response = await fetch(`${DISCORD_API}/interactions/${interactionId}/${encodeURIComponent(interactionToken)}/callback`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updateOnly ? { type: 6 } : { type: 5, data: { flags: 64 } }),
+    body: JSON.stringify(updateOnly ? { type: 6 } : { type: 5, data: { flags: SILENT_EPHEMERAL_FLAGS } }),
   });
   if (!response.ok && response.status !== 204) throw new Error(`Discord nu a confirmat interacțiunea (HTTP ${response.status}).`);
   return { applicationId, interactionToken };
@@ -291,7 +294,7 @@ async function sendFollowup(applicationId: string, interactionToken: string, dat
   const response = await fetch(`${DISCORD_API}/webhooks/${applicationId}/${encodeURIComponent(interactionToken)}?wait=true`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...(data?.data || {}), flags: 64 }),
+    body: JSON.stringify({ ...(data?.data || {}), flags: SILENT_EPHEMERAL_FLAGS }),
   });
   if (!response.ok) {
     console.error('[discord-interactions] follow-up failed', response.status, await response.text().catch(() => ''));
@@ -788,7 +791,7 @@ async function sendAnnouncementLog(db: any, context: any, post: any, action: str
 
 function disciplineTargetPicker(audience: 'organization' | 'departments', kind: 'warning' | 'sanction') {
   const label = audience === 'organization' ? 'Organizație' : 'Angajați';
-  return { type: 4, data: { content: `Selectează utilizatorul Discord vizat pentru ${kind === 'warning' ? 'avertisment' : 'sancțiune'} · ${label}.`, flags: 64, components: [{ type: 1, components: [{ type: 5, custom_id: `panel:discipline:${audience}:${kind}:target`, placeholder: 'Selectează utilizatorul de pe server', min_values: 1, max_values: 1 }]}] } };
+  return { type: 4, data: { content: `Selectează utilizatorul Discord vizat pentru ${kind === 'warning' ? 'avertisment' : 'sancțiune'} · ${label}.`, flags: SILENT_EPHEMERAL_FLAGS, components: [{ type: 1, components: [{ type: 5, custom_id: `panel:discipline:${audience}:${kind}:target`, placeholder: 'Selectează utilizatorul de pe server', min_values: 1, max_values: 1 }]}] } };
 }
 
 function contractModal() {
@@ -2149,7 +2152,7 @@ async function handleCustomModuleSubmit(db: any, interaction: any, module: any) 
     }
   }
   const responseText = module.responses?.success || `Am înregistrat ${module.handler === 'approval' ? 'solicitarea pentru aprobare' : 'formularul'} pentru **${module.label}**.`;
-  return interactionMessage(`${responseText}${logWarning}`, { flags: module.responses?.visibility === 'public' ? 0 : 64 });
+  return interactionMessage(`${responseText}${logWarning}`, { flags: module.responses?.visibility === 'public' ? 0 : SILENT_EPHEMERAL_FLAGS });
 }
 
 async function ticketDiscordApi(db: any, path: string, init: RequestInit = {}) {
