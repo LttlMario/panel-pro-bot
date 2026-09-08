@@ -452,6 +452,7 @@ async function autoConfigureGuild(db: any, guildId: string, organizationId: stri
 }
 
 async function provisionDemoCategory(db: any, guildId: string) {
+  if (guildId !== OFFICIAL_GUILD_ID) throw new Error('Demo este disponibil doar pe serverul oficial Panel Pro.');
   const token = await getPlatformSecret(db, 'discord_bot_token');
   const headers = { ...botHeaders(token), 'Content-Type': 'application/json' };
   const base = `${DISCORD_API}/guilds/${guildId}`;
