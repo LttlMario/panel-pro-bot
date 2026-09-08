@@ -145,9 +145,9 @@ async function createDiscoveryReminder(db: any, interaction: any) {
   if (settingsError) throw settingsError;
   const displayName = String(interaction.member?.nick || interaction.member?.user?.global_name || interaction.member?.user?.username || interaction.user?.global_name || interaction.user?.username || discordId).trim().slice(0, 120);
   const logPayload = { allowed_mentions: { parse: [] }, embeds: [{ title: `🗓️ Eveniment nou · ${title}`, description: details || 'Evenimentul a fost înregistrat din botul Discord.', color: 0xf59e0b, fields: [{ name: 'Data evenimentului', value: discoveryDisplayDate(eventDateKey), inline: true }, { name: 'Durata reminderelor', value: `${days} zile`, inline: true }, { name: 'Publicat de', value: displayName, inline: true }], footer: { text: 'Panel Pro · log evenimente și remindere' }, timestamp: new Date().toISOString() }] };
-  const delivery = await deliverDiscordRoute(db, settings, 'event_reminders', JSON.stringify(logPayload), { postOnly: true });
-  if (!delivery.results.length) throw new Error(delivery.failures.join(' | ') || 'Evenimentul a fost salvat, dar nu există un canal de log configurat pentru evenimente.');
-  return interactionMessage(`Evenimentul **${title}** a fost salvat și trimis în canalul de log. Reminderul va rula automat timp de **${days} zile**.`);
+  const delivery = await deliverDiscordRoute(db, settings, 'log_event_reminders', JSON.stringify(logPayload), { postOnly: true });
+  if (!delivery.results.length) throw new Error(delivery.failures.join(' | ') || 'Evenimentul a fost salvat, dar canalul „Log evenimente și remindere” nu este configurat.');
+  return interactionMessage(`Evenimentul **${title}** a fost salvat și trimis în canalul „Log evenimente și remindere”. Reminderul va rula automat timp de **${days} zile**.`);
 }
 
 async function ensureDiscordOnlyOrganization(db: any, interaction: any) {

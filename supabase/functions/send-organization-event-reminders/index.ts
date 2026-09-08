@@ -41,16 +41,11 @@ async function send(db: any, settings: any, event: any, daysRemaining: number, m
   const eventType = EVENT_TYPES[String(event.event_type || 'other')] || EVENT_TYPES.other;
   const ending = daysRemaining === 0 ? `Perioada de ${maxDays} zile se încheie astăzi.` : `Mai sunt **${daysRemaining} ${daysRemaining === 1 ? 'zi' : 'zile'}** până la împlinirea celor ${maxDays} zile.`;
   const payload = { allowed_mentions: { parse: [] }, embeds: [{ title: `🗓️ ${eventType} · ${event.title}`, description: `Evenimentul a fost înregistrat la data de **${displayDate(event.event_date)}**.\n\n${ending}${event.details ? `\n\n**Detalii:**\n${String(event.details).slice(0, 1800)}` : ''}`, color: daysRemaining <= 1 ? 15158332 : 16753920, fields: [{ name: 'Tip eveniment', value: eventType, inline: true }, { name: 'Progres', value: `${maxDays - daysRemaining} / ${maxDays} zile trecute`, inline: true }, ...(event.evidence_url ? [{ name: 'Dovadă', value: `[Deschide linkul](${event.evidence_url})`, inline: true }] : [])], footer: { text: 'Panel Pro · reminder automat zilnic' }, timestamp: new Date().toISOString() }] };
-  const candidates = routeCandidates(settings, 'event_reminders');
-  if (!candidates.some((item) => item.candidates.length)) throw new Error('Nu există nicio destinație Discord configurată.');
-  const result = await deliverDiscordRoute(db, settings, 'event_reminders', JSON.stringify(payload), { postOnly: true });
   const logCandidates = routeCandidates(settings, 'log_event_reminders');
-  const logResult = logCandidates.some((item) => item.candidates.length)
-    ? await deliverDiscordRoute(db, settings, 'log_event_reminders', JSON.stringify(payload), { postOnly: true })
-    : { results: [], failures: [] };
-  const failures = [...(result.failures || []), ...(logResult.failures || [])];
-  if (!result.results.length) throw new Error(failures.join(' | ') || 'Discord nu a acceptat notificarea.');
-  return { ...result, results: [...result.results, ...(logResult.results || [])], failures };
+  if (!logCandidates.some((item) => item.candidates.length)) throw new Error('Canalul „Log evenimente și remindere” nu este configurat.');
+  const result = await deliverDiscordRoute(db, settings, 'log_event_reminders', JSON.stringify(payload), { postOnly: true });
+  if (!result.results.length) throw new Error((result.failures || []).join(' | ') || 'Discord nu a acceptat notificarea.');
+  return result;
 }
 
 Deno.serve(async (request) => {
