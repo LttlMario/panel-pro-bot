@@ -842,7 +842,11 @@ async function handleContractSettingsSubmit(db: any, context: any, interaction: 
   if (template.length < 20) return interactionMessage('Șablonul contractului este prea scurt.');
   const unknown = [...template.matchAll(/{{[A-Z0-9_]+}}/g)].map((match) => match[0]).filter((value) => !contractTemplateVariables().has(value));
   if (unknown.length) return interactionMessage(`Variabile necunoscute în șablon: ${[...new Set(unknown)].join(', ')}`);
-  const { error } = await db.from('discovery_app_settings').upsert({ organization_id: context.organization.id, key: 'contract_template', value: { title, template, defaults: { position, salary: salary || null, schedule } }, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,key' });
+  const { data: current, error: currentError } = await db.from('discovery_app_settings').select('value').eq('organization_id', context.organization.id).eq('key', 'contract_template').maybeSingle();
+  if (currentError) throw currentError;
+  const currentValue = current?.value && typeof current.value === 'object' ? current.value : {};
+  const currentDefaults = currentValue.defaults && typeof currentValue.defaults === 'object' ? currentValue.defaults : {};
+  const { error } = await db.from('discovery_app_settings').upsert({ organization_id: context.organization.id, key: 'contract_template', value: { title, template, defaults: { ...currentDefaults, position, salary: salary || null, schedule } }, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,key' });
   if (error) throw error;
   return interactionMessage(`Șablonul **${title}** a fost salvat. La generare se completează automat organizația, managerul, funcția, salariul, programul, data și numărul contractului; angajatul completează numele, CNP-ul și telefonul.`);
 }
