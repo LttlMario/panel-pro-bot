@@ -1389,6 +1389,20 @@ function marketplaceEmbed(kind: 'legal' | 'illegal', values: Record<string, any>
   return { allowed_mentions: { parse: [] }, embeds: [{ title: illegal ? '🚨 Anunț nou · Marketplace ilegal' : '🛒 Anunț nou · Marketplace', description: `Publicat de **${String(context.displayName || context.discordId)}**.`, color: illegal ? 0xef4444 : 0x2563eb, fields, footer: { text: 'Panel Pro · fără imagini sau linkuri externe' }, timestamp: new Date().toISOString() }], components: [] };
 }
 
+function marketplaceMinePicker(kind: 'legal' | 'illegal', rows: any[]) {
+  const options = rows.slice(0, 25).map((row: any) => ({ label: String(row.nume || 'Anunț').slice(0, 100), value: String(row.id), description: `${String(row.tip_actiune || 'Vânzare')} · ${String(row.pret || 'Negociabil')}`.slice(0, 100) }));
+  return interactionMessage('', { embeds: [{ title: kind === 'illegal' ? '🚨 Anunțurile mele · Marketplace ilegal' : '🛒 Anunțurile mele · Marketplace', description: options.length ? 'Selectează anunțul pe care vrei să îl editezi sau ștergi.' : 'Nu ai încă anunțuri publicate.', color: kind === 'illegal' ? 0xef4444 : 0x2563eb }], components: options.length ? [{ type: 1, components: [{ type: 3, custom_id: `panel:marketplace:${kind}:select_mine`, placeholder: 'Selectează un anunț', min_values: 1, max_values: 1, options }] }] : [] });
+}
+
+function marketplaceManageView(kind: 'legal' | 'illegal', row: any) {
+  return interactionMessage('', { embeds: [{ title: kind === 'illegal' ? `🚨 ${String(row.nume || 'Anunț')} · Marketplace ilegal` : `🛒 ${String(row.nume || 'Anunț')} · Marketplace`, description: String(row.produse || '—').slice(0, 4000), color: kind === 'illegal' ? 0xef4444 : 0x2563eb, fields: [{ name: 'Telefon', value: String(row.telefon || '—'), inline: true }, { name: 'Tip acțiune', value: String(row.tip_actiune || '—'), inline: true }, { name: 'Preț', value: String(row.pret || 'Negociabil'), inline: true }] }], components: [{ type: 1, components: [{ type: 2, style: 1, label: 'Editează', custom_id: `panel:marketplace:${kind}:edit:${row.id}` }, { type: 2, style: 4, label: 'Șterge', custom_id: `panel:marketplace:${kind}:delete:${row.id}` }] }] });
+}
+
+function marketplaceEditModal(kind: 'legal' | 'illegal', row: any) {
+  const input = (id: string, label: string, style: number, required: boolean, max: number, value: string) => ({ type: 4, custom_id: id, label, style, required, max_length: max, ...(value ? { value: value.slice(0, max) } : {}) });
+  return { type: 9, data: { custom_id: `panel:marketplace:${kind}:edit_submit:${row.id}`, title: 'Editează anunț Marketplace', components: [{ type: 1, components: [input('name', 'Nume afișat', 1, true, 120, row.nume || '')] }, { type: 1, components: [input('phone', 'Număr de telefon', 1, true, 40, row.telefon || '')] }, { type: 1, components: [input('action', 'Tip acțiune', 1, true, 20, row.tip_actiune || '')] }, { type: 1, components: [input('products', 'Produse / descriere', 2, true, 1400, row.produse || '')] }, { type: 1, components: [input('price', 'Preț', 1, false, 80, row.pret || '')] }] } };
+}
+
 async function handleMarketplaceSubmit(db: any, context: any, kind: 'legal' | 'illegal', values: Record<string, any>) {
   const table = kind === 'illegal' ? 'discovery_marketplace_illegal' : 'discovery_marketplace';
   const name = String(values.name || '').trim();
@@ -2733,22 +2747,53 @@ Deno.serve(async (request) => {
       const context = await resolveMarketplaceContext(db, interaction, kind);
       if (parts[3] === 'mine') {
         const table = kind === 'illegal' ? 'discovery_marketplace_illegal' : 'discovery_marketplace';
-        let query = db.from(table).select('nume,tip_actiune,categorie,produse,pret,created_at').eq('created_by_discord_id', context.discordId).order('created_at', { ascending: false }).limit(10);
-        query = query.eq('organization_id', context.organization.id);
+        let query = db.from(table).select('id,nume,telefon,tip_actiune,categorie,produse,pret,created_at').eq('created_by_discord_id', context.discordId).eq('organization_id', context.organization.id).order('created_at', { ascending: false }).limit(25);
         const { data, error } = await query;
         if (error) throw error;
-        const lines = (data || []).map((item: any) => `• **${String(item.nume || 'Anunț').slice(0, 80)}** · ${String(item.tip_actiune || '—')} · ${String(item.pret || 'Negociabil')}`).join('\n') || 'Nu ai încă anunțuri publicate.';
-        return reply(interactionMessage('', { embeds: [{ title: kind === 'illegal' ? '🚨 Anunțurile mele · Black Market' : '🛒 Anunțurile mele · Marketplace', description: lines.slice(0, 4000), color: kind === 'illegal' ? 0xef4444 : 0x2563eb }] }));
+        return reply(marketplaceMinePicker(kind, data || []));
+      }
+      if (parts[3] === 'edit' || parts[3] === 'delete') {
+        const id = String(parts[4] || '').trim();
+        if (!/^[0-9a-f-]{36}$/i.test(id)) return reply(interactionMessage('Anunțul selectat nu este valid.'));
+        const table = kind === 'illegal' ? 'discovery_marketplace_illegal' : 'discovery_marketplace';
+        const { data: row, error } = await db.from(table).select('*').eq('id', id).eq('organization_id', context.organization.id).eq('created_by_discord_id', context.discordId).maybeSingle();
+        if (error) throw error;
+        if (!row) return reply(interactionMessage('Anunțul nu mai există sau nu îți aparține.'));
+        if (parts[3] === 'edit') return reply(marketplaceEditModal(kind, row));
+        const { error: deleteError } = await db.from(table).delete().eq('id', id).eq('organization_id', context.organization.id).eq('created_by_discord_id', context.discordId);
+        if (deleteError) throw deleteError;
+        return reply(interactionMessage('Anunțul a fost șters din Marketplace.'));
       }
       return reply(interactionMessage('Acțiunea Marketplace nu este disponibilă.'));
+    }
+    if (isMarketplace && isSelect) {
+      const parts = customId.split(':');
+      if (parts[2] !== 'legal' && parts[2] !== 'illegal' || parts[3] !== 'select_mine') return reply(interactionMessage('Selecția Marketplace nu este validă.'));
+      const kind = parts[2] as 'legal' | 'illegal';
+      const context = await resolveMarketplaceContext(db, interaction, kind);
+      const id = String(interaction.data?.values?.[0] || '').trim();
+      const table = kind === 'illegal' ? 'discovery_marketplace_illegal' : 'discovery_marketplace';
+      const { data: row, error } = await db.from(table).select('*').eq('id', id).eq('organization_id', context.organization.id).eq('created_by_discord_id', context.discordId).maybeSingle();
+      if (error) throw error;
+      return reply(row ? marketplaceManageView(kind, row) : interactionMessage('Anunțul nu mai există sau nu îți aparține.'));
     }
     if (isMarketplace && isModalSubmit) {
       const parts = customId.split(':');
       const kind = parts[2] === 'illegal' ? 'illegal' : parts[2] === 'legal' ? 'legal' : null;
-      if (!kind || parts[3] !== 'submit') return reply(interactionMessage('Formularul Marketplace nu este valid.'));
+      if (!kind || !['submit', 'edit_submit'].includes(parts[3])) return reply(interactionMessage('Formularul Marketplace nu este valid.'));
       const deferred = await deferInteraction(interaction, false);
       let result;
-      try { result = await handleMarketplaceSubmit(db, await resolveMarketplaceContext(db, interaction, kind), kind, modalValues(interaction)); }
+      try {
+        const context = await resolveMarketplaceContext(db, interaction, kind);
+        const values = modalValues(interaction);
+        if (parts[3] === 'edit_submit') {
+          const id = String(parts[4] || '').trim();
+          const table = kind === 'illegal' ? 'discovery_marketplace_illegal' : 'discovery_marketplace';
+          const { error } = await db.from(table).update({ nume: String(values.name || '').trim().slice(0, 120), telefon: String(values.phone || '').trim().slice(0, 40), tip_actiune: String(values.action || 'Vânzare').trim().slice(0, 30), produse: String(values.products || '').trim().slice(0, 4000), pret: String(values.price || 'Negociabil').trim().slice(0, 80) || 'Negociabil', updated_at: new Date().toISOString() }).eq('id', id).eq('organization_id', context.organization.id).eq('created_by_discord_id', context.discordId);
+          if (error) throw error;
+          result = interactionMessage('Anunțul a fost editat. Logul Discord existent rămâne neschimbat.');
+        } else result = await handleMarketplaceSubmit(db, context, kind, values);
+      }
       catch (error) { console.error('[discord-interactions]', error); result = interactionMessage(readableError(error, 'Anunțul Marketplace nu a putut fi publicat.')); }
       const followupId = await sendFollowup(deferred.applicationId, deferred.interactionToken, result);
       if (followupId) { await new Promise((resolve) => setTimeout(resolve, 5000)); await deleteFollowup(deferred.applicationId, deferred.interactionToken, followupId); }
