@@ -2889,11 +2889,17 @@ Deno.serve(async (request) => {
       if (parts[2] === 'copy') {
         const contractId = String(parts[3] || '').trim();
         if (!/^[0-9a-f-]{36}$/i.test(contractId)) return reply(interactionMessage('Contractul selectat nu este valid.'));
-        const context = await resolveContractActionContext(db, interaction);
-        const { data: contract, error } = await db.from('discovery_contracts').select('id,contract_number,contract_text').eq('organization_id', context.organization.id).eq('id', contractId).maybeSingle();
-        if (error) throw error;
-        if (!contract) return reply(interactionMessage('Contractul nu mai există în istoricul organizației.'));
-        return reply(contractCopyModal(contract));
+        const deferred = await deferInteraction(interaction, false);
+        let result;
+        try {
+          const context = await resolveContractActionContext(db, interaction);
+          const { data: contract, error } = await db.from('discovery_contracts').select('id,contract_number,contract_text').eq('organization_id', context.organization.id).eq('id', contractId).maybeSingle();
+          if (error) throw error;
+          result = contract ? interactionMessage(`**Contract ${contract.contract_number}**\n\n\`\`\`text\n${String(contract.contract_text || '').slice(0, 3900)}\n\`\`\``) : interactionMessage('Contractul nu mai există în istoricul organizației.');
+        } catch (error) { result = interactionMessage(readableError(error, 'Contractul nu a putut fi încărcat.')); }
+        const followupId = await sendFollowup(deferred.applicationId, deferred.interactionToken, result);
+        if (followupId) { await new Promise((resolve) => setTimeout(resolve, 15000)); await deleteFollowup(deferred.applicationId, deferred.interactionToken, followupId); }
+        return new Response(null, { status: 204 });
       }
       if (parts[2] === 'publish') {
         const contractId = String(parts[3] || '').trim();
