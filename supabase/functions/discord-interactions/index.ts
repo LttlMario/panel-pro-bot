@@ -923,7 +923,7 @@ function disciplineHistoryTypePicker(audience: 'organization' | 'departments') {
 
 function disciplineHistoryRecordPicker(audience: 'organization' | 'departments', kind: 'warning' | 'sanction', records: any[]) {
   const options = records.slice(0, 25).map((record: any) => ({ label: `${String(record.target_name || 'Membru')} · ${String(record.reason || 'Fără motiv').slice(0, 70)}`.slice(0, 100), value: String(record.id), description: kind === 'sanction' ? `${record.amount || 0} ${record.currency || ''} · activă`.trim().slice(0, 100) : 'Avertisment activ' }));
-  if (!options.length) return interactionMessage('Nu există înregistrări pentru acest membru.');
+  if (!options.length) return interactionMessage(`Nu există ${kind === 'warning' ? 'avertismente active' : 'sancțiuni active'} pentru această categorie.`);
   return interactionMessage(`Selectează ${kind === 'warning' ? 'avertismentul activ' : 'sancțiunea activă'} pe care vrei să o gestionezi.`, { components: [{ type: 1, components: [{ type: 3, custom_id: `panel:discipline:${audience}:history:record:${kind}`, placeholder: 'Selectează înregistrarea', min_values: 1, max_values: 1, options }] }] });
 }
 
