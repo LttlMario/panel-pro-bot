@@ -880,23 +880,18 @@ function disciplineComponents(audience: 'organization' | 'departments', kind: 'w
   return [];
 }
 
-function disciplineHistoryTargetPicker(audience: 'organization' | 'departments') {
-  const label = audience === 'organization' ? 'Organizație' : 'Angajați';
-  return { type: 4, data: { content: `Selectează membrul pentru istoricul de avertismente și sancțiuni · ${label}.`, flags: SILENT_EPHEMERAL_FLAGS, components: [{ type: 1, components: [{ type: 5, custom_id: `panel:discipline:${audience}:history:target`, placeholder: 'Selectează membrul de pe server', min_values: 1, max_values: 1 }] }] } };
-}
-
-function disciplineHistoryTypePicker(audience: 'organization' | 'departments', targetId: string) {
+function disciplineHistoryTypePicker(audience: 'organization' | 'departments') {
   const prefix = `panel:discipline:${audience}:history:type`;
-  return interactionMessage('Alege tipul de înregistrare pe care vrei să îl gestionezi.', { components: [{ type: 1, components: [
-    { type: 2, style: 2, label: 'Avertismente', custom_id: `${prefix}:warning:${targetId}` },
-    { type: 2, style: 4, label: 'Sancțiuni', custom_id: `${prefix}:sanction:${targetId}` },
+  return interactionMessage('Alege tipul de înregistrare activă pe care vrei să îl gestionezi.', { components: [{ type: 1, components: [
+    { type: 2, style: 2, label: 'Avertismente active', custom_id: `${prefix}:warning` },
+    { type: 2, style: 4, label: 'Sancțiuni active', custom_id: `${prefix}:sanction` },
   ] }] });
 }
 
-function disciplineHistoryRecordPicker(audience: 'organization' | 'departments', kind: 'warning' | 'sanction', targetId: string, records: any[]) {
-  const options = records.slice(0, 25).map((record: any) => ({ label: `${record.status || 'activ'} · ${String(record.reason || 'Fără motiv').slice(0, 85)}`, value: String(record.id), description: kind === 'sanction' ? `${record.amount || 0} ${record.currency || ''}`.trim().slice(0, 100) : 'Avertisment disciplinar' }));
+function disciplineHistoryRecordPicker(audience: 'organization' | 'departments', kind: 'warning' | 'sanction', records: any[]) {
+  const options = records.slice(0, 25).map((record: any) => ({ label: `${String(record.target_name || 'Membru')} · ${String(record.reason || 'Fără motiv').slice(0, 70)}`.slice(0, 100), value: String(record.id), description: kind === 'sanction' ? `${record.amount || 0} ${record.currency || ''} · activă`.trim().slice(0, 100) : 'Avertisment activ' }));
   if (!options.length) return interactionMessage('Nu există înregistrări pentru acest membru.');
-  return interactionMessage(`Selectează ${kind === 'warning' ? 'avertismentul' : 'sancțiunea'} pe care vrei să o gestionezi.`, { components: [{ type: 1, components: [{ type: 3, custom_id: `panel:discipline:${audience}:history:record:${kind}:${targetId}`, placeholder: 'Selectează înregistrarea', min_values: 1, max_values: 1, options }] }] });
+  return interactionMessage(`Selectează ${kind === 'warning' ? 'avertismentul activ' : 'sancțiunea activă'} pe care vrei să o gestionezi.`, { components: [{ type: 1, components: [{ type: 3, custom_id: `panel:discipline:${audience}:history:record:${kind}`, placeholder: 'Selectează înregistrarea', min_values: 1, max_values: 1, options }] }] });
 }
 
 function disciplineHistoryActions(audience: 'organization' | 'departments', kind: 'warning' | 'sanction', id: string, record: any) {
@@ -2911,15 +2906,14 @@ Deno.serve(async (request) => {
       const action = parts[3] || '';
       if (!audience) return reply(interactionMessage('Categoria disciplinară nu este validă.'));
       if (action === 'history') {
-        if (parts[4] !== 'type') return reply(disciplineHistoryTargetPicker(audience));
+        if (parts[4] !== 'type') return reply(disciplineHistoryTypePicker(audience));
         const kind = parts[5] === 'sanction' ? 'sanction' : parts[5] === 'warning' ? 'warning' : null;
-        const targetId = String(parts[6] || '').trim();
-        if (!kind || !/^\d{15,22}$/.test(targetId)) return reply(interactionMessage('Membrul selectat nu este valid.'));
+        if (!kind) return reply(interactionMessage('Tipul de înregistrare nu este valid.'));
         const context = await resolveManagementContext(db, interaction, audience, 'write', audience === 'organization' ? 'organization' : 'departments', audience === 'organization' ? 'discipline_organization' : 'discipline_departments', 'discipline_permissions', `${audience}.write`);
         const table = kind === 'warning' ? 'discovery_disciplinary_warnings' : 'discovery_disciplinary_sanctions';
-        const { data, error } = await db.from(table).select('id,status,reason,amount,currency,target_name,created_at').eq('organization_id', context.organization.id).eq('target_scope', audience).eq('target_discord_id', targetId).order('created_at', { ascending: false }).limit(25);
+        const { data, error } = await db.from(table).select('id,status,reason,amount,currency,target_name,created_at').eq('organization_id', context.organization.id).eq('target_scope', audience).in('status', kind === 'warning' ? ['active'] : ['active', 'issued']).order('created_at', { ascending: false }).limit(25);
         if (error) throw error;
-        return reply(disciplineHistoryRecordPicker(audience, kind, targetId, data || []));
+        return reply(disciplineHistoryRecordPicker(audience, kind, data || []));
       }
       if (action === 'warning' || action === 'sanction') {
          const permission = action === 'sanction' ? 'sanction' : 'write';
@@ -2940,11 +2934,6 @@ Deno.serve(async (request) => {
     if (isDiscipline && isSelect) {
       const parts = customId.split(':');
        const audience = parts[2] === 'departments' ? 'departments' : parts[2] === 'organization' ? 'organization' : null;
-      if (audience && parts[3] === 'history' && parts[4] === 'target') {
-        const targetId = String(interaction?.data?.values?.[0] || '').trim();
-        if (!/^\d{15,22}$/.test(targetId)) return reply(interactionMessage('Membrul selectat nu este valid.'));
-        return reply(disciplineHistoryTypePicker(audience, targetId));
-      }
       if (audience && parts[3] === 'history' && parts[4] === 'record') {
         const kind = parts[5] === 'sanction' ? 'sanction' : parts[5] === 'warning' ? 'warning' : null;
         const recordId = String(interaction?.data?.values?.[0] || '').trim();
