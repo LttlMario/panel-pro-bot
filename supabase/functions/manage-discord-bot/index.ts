@@ -425,10 +425,11 @@ async function autoConfigureGuild(db: any, guildId: string, organizationId: stri
   const routes = { ...((await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', organizationId).maybeSingle()).data?.discord_channel_routes || {}) } as Record<string, any>;
   const created: string[] = []; const channelIds: Record<string, string> = {};
   const slug = (value: string) => String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'modul';
+  const botChannelPrefixes = new Set(['📌・', ...Object.values(MODULE_EMOJIS).map((emoji) => `${emoji}・`)]);
   const overwrite = (readOnly = false) => { const rows: any[] = [{ id: guildId, type: 0, allow: '1024', deny: readOnly ? '2048' : '0' }]; if (botId) rows.push({ id: botId, type: 1, allow: '68608' }); return rows; };
   for (const [key, definition] of eligible) {
     const name = `${MODULE_EMOJIS[key] || '🧩'}・${slug(definition.label || key)}`;
-    const found = (Array.isArray(existing) ? existing : []).find((channel: any) => Number(channel.type) === 0 && String(channel.parent_id || '') === String(category.id) && slug(String(channel.name || '')) === slug(name));
+    const found = (Array.isArray(existing) ? existing : []).find((channel: any) => Number(channel.type) === 0 && String(channel.parent_id || '') === String(category.id) && slug(String(channel.name || '')) === slug(name) && (String(channel.name) === name || [...botChannelPrefixes].some((prefix) => String(channel.name || '').startsWith(prefix))));
     const channel = found || await api('/channels', { method: 'POST', body: JSON.stringify({ name, type: 0, parent_id: String(category.id), permission_overwrites: overwrite(false) }) });
     if (found && String(found.name) !== name) await api(`/channels/${found.id}`, { method: 'PATCH', body: JSON.stringify({ name, permission_overwrites: overwrite(false) }) });
     channelIds[key] = String(channel.id); if (!found) created.push(name);
