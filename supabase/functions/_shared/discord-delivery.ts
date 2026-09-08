@@ -69,7 +69,18 @@ export async function requestDiscordTarget(
     if (options.messageId) url += `/${encodeURIComponent(String(options.messageId))}`;
     headers = { Authorization: `Bot ${botToken}`, ...headers };
   }
-  return fetch(url, { method, headers: jsonHeaders(body, headers), body: method === 'DELETE' ? undefined : body });
+  let requestBody = body;
+  if (method !== 'DELETE' && typeof body === 'string') {
+    try {
+      const payload = JSON.parse(body);
+      if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+        // Keep bot messages visible but prevent Discord notification sounds.
+        payload.flags = (Number(payload.flags) || 0) | 4096;
+        requestBody = JSON.stringify(payload);
+      }
+    } catch (_) {}
+  }
+  return fetch(url, { method, headers: jsonHeaders(requestBody, headers), body: method === 'DELETE' ? undefined : requestBody });
 }
 
 export async function deliverDiscordRoute(
