@@ -300,6 +300,7 @@ create table if not exists public.discovery_marketplace (
 
 create table if not exists public.discovery_marketplace_illegal (
   id uuid primary key default gen_random_uuid(),
+  organization_id uuid references public.discovery_organizations(id) on delete cascade,
   nume text not null,
   tip_actiune text not null default 'Vânzare',
   categorie text not null default 'General',
