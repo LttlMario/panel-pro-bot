@@ -2069,7 +2069,7 @@ async function notifyCustomModuleSubmitter(db: any, discordId: string, content: 
   if (!channelResponse.ok) throw new Error(`Discord nu a permis deschiderea mesajului privat (HTTP ${channelResponse.status}).`);
   const channel = await channelResponse.json().catch(() => ({}));
   if (!/^\d{15,22}$/.test(String(channel.id || ''))) throw new Error('Discord nu a returnat un canal privat valid.');
-  const messageResponse = await fetch(`${DISCORD_API}/channels/${encodeURIComponent(String(channel.id || ''))}/messages`, { method: 'POST', headers, body: JSON.stringify({ allowed_mentions: { parse: [] }, content: content.slice(0, 2000) }) });
+  const messageResponse = await fetch(`${DISCORD_API}/channels/${encodeURIComponent(String(channel.id || ''))}/messages`, { method: 'POST', headers, body: JSON.stringify({ allowed_mentions: { parse: [] }, content: content.slice(0, 2000), flags: 4096 }) });
   if (!messageResponse.ok) throw new Error(`Discord nu a permis trimiterea notificării private (HTTP ${messageResponse.status}).`);
 }
 
@@ -2159,7 +2159,18 @@ async function ticketDiscordApi(db: any, path: string, init: RequestInit = {}) {
   const token = await getPlatformSecret(db, 'discord_bot_token');
   if (!token) throw new Error('Tokenul botului Discord nu este configurat.');
   const headers = new Headers(init.headers || {}); headers.set('Authorization', `Bot ${token}`); headers.set('Content-Type', 'application/json');
-  const response = await fetch(`${DISCORD_API}${path}`, { ...init, headers });
+  // Messages caused by a button interaction must remain visible without
+  // generating a client notification sound. Discord's 4096 flag suppresses
+  // notifications while leaving the message in the channel.
+  let requestInit = { ...init, headers };
+  if (String(init.method || 'GET').toUpperCase() === 'POST' && /\/messages(?:$|\?)/.test(path) && typeof init.body === 'string') {
+    try {
+      const payload = JSON.parse(init.body);
+      payload.flags = (Number(payload.flags) || 0) | 4096;
+      requestInit = { ...requestInit, body: JSON.stringify(payload) };
+    } catch (_) { /* preserve the original body when it is not JSON */ }
+  }
+  const response = await fetch(`${DISCORD_API}${path}`, requestInit);
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     if (response.status === 403 && (String(body?.message || '').toLowerCase().includes('missing access') || Number(body?.code) === 50001)) throw new Error('Botul nu are acces la server sau la categoria de ticket. Acordă-i View Channel și Manage Channels pe server și pe categoria Suport.');
