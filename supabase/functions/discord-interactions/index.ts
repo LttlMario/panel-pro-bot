@@ -205,8 +205,8 @@ async function ensureDiscordOnlyOrganization(db: any, interaction: any) {
 }
 const controlPayload = async (db: any, routeKey: string, trialText = '', includeDonation = true, includePremium = true, includeTrial = false) => {
   const definitions: Record<string, { title: string; description: string; color: number; buttons: any[] }> = {
-    organization: { title: '📢 Anunțuri · Organizație', description: 'Publică anunțuri, întrebări, sondaje, avertismente și sancțiuni pentru organizație.', color: 0x8b5cf6, buttons: [{ label: 'Publică anunț', style: 1, id: 'panel:announcements:organization:create:announcement' }, { label: 'Pune întrebare', style: 2, id: 'panel:announcements:organization:create:question' }, { label: 'Creează sondaj', style: 3, id: 'panel:announcements:organization:create:poll' }, { label: 'Avertisment', style: 4, id: 'panel:announcements:organization:create:warning' }, { label: 'Sancțiune', style: 4, id: 'panel:announcements:organization:create:sanction' }] },
-    departments: { title: '📢 Anunțuri · Angajați', description: 'Publică anunțuri, întrebări, sondaje, avertismente și sancțiuni pentru angajați.', color: 0x8b5cf6, buttons: [{ label: 'Publică anunț', style: 1, id: 'panel:announcements:departments:create:announcement' }, { label: 'Pune întrebare', style: 2, id: 'panel:announcements:departments:create:question' }, { label: 'Creează sondaj', style: 3, id: 'panel:announcements:departments:create:poll' }, { label: 'Avertisment', style: 4, id: 'panel:announcements:departments:create:warning' }, { label: 'Sancțiune', style: 4, id: 'panel:announcements:departments:create:sanction' }] },
+    organization: { title: '📢 Anunțuri · Organizație', description: 'Publică anunțuri, întrebări, sondaje, avertismente și sancțiuni pentru organizație.', color: 0x8b5cf6, buttons: [{ label: 'Publică anunț', style: 1, id: 'panel:announcements:organization:create:announcement' }, { label: 'Pune întrebare', style: 2, id: 'panel:announcements:organization:create:question' }, { label: 'Creează sondaj', style: 3, id: 'panel:announcements:organization:create:poll' }, { label: 'Avertisment', style: 4, id: 'panel:announcements:organization:create:warning' }, { label: 'Sancțiune', style: 4, id: 'panel:announcements:organization:create:sanction' }, { label: 'Istoric avertismente / sancțiuni', style: 2, id: 'panel:discipline:organization:history' }] },
+    departments: { title: '📢 Anunțuri · Angajați', description: 'Publică anunțuri, întrebări, sondaje, avertismente și sancțiuni pentru angajați.', color: 0x8b5cf6, buttons: [{ label: 'Publică anunț', style: 1, id: 'panel:announcements:departments:create:announcement' }, { label: 'Pune întrebare', style: 2, id: 'panel:announcements:departments:create:question' }, { label: 'Creează sondaj', style: 3, id: 'panel:announcements:departments:create:poll' }, { label: 'Avertisment', style: 4, id: 'panel:announcements:departments:create:warning' }, { label: 'Sancțiune', style: 4, id: 'panel:announcements:departments:create:sanction' }, { label: 'Istoric avertismente / sancțiuni', style: 2, id: 'panel:discipline:departments:history' }] },
     pontaj: { title: '🕒 Pontaj · Panel Pro', description: 'Alege tura și folosește butoanele pentru Start, Pauză și Stop.', color: 0x22c55e, buttons: [{ label: 'Tura de zi', style: 1, id: 'panel:pontaj:shift_day' }, { label: 'Tura de noapte', style: 1, id: 'panel:pontaj:shift_night' }, { label: 'Start', style: 3, id: 'panel:pontaj:start' }, { label: 'Pauză', style: 2, id: 'panel:pontaj:pause' }, { label: 'Stop', style: 4, id: 'panel:pontaj:stop' }, { label: 'Pontajul meu', style: 1, id: 'panel:pontaj:my_stats' }] },
     requests_organization: { title: '📝 Învoiri · Organizație', description: 'Trimite și consultă învoirile organizației.', color: 0xf59e0b, buttons: [{ label: 'Trimite învoire', style: 1, id: 'panel:requests:organization:new' }, { label: 'Învoirile mele', style: 2, id: 'panel:requests:organization:mine' }] },
     requests_departments: { title: '📝 Învoiri · Angajați', description: 'Trimite și consultă învoirile angajaților.', color: 0xf59e0b, buttons: [{ label: 'Trimite învoire', style: 1, id: 'panel:requests:departments:new' }, { label: 'Învoirile mele', style: 2, id: 'panel:requests:departments:mine' }] },
@@ -876,15 +876,34 @@ function actionParticipantPicker(draftId: string) {
 }
 
 function disciplineComponents(audience: 'organization' | 'departments', kind: 'warning' | 'sanction', id: string) {
+  // Logurile sunt publice și rămân fără acțiuni administrative.
+  return [];
+}
+
+function disciplineHistoryTargetPicker(audience: 'organization' | 'departments') {
+  const label = audience === 'organization' ? 'Organizație' : 'Angajați';
+  return { type: 4, data: { content: `Selectează membrul pentru istoricul de avertismente și sancțiuni · ${label}.`, flags: SILENT_EPHEMERAL_FLAGS, components: [{ type: 1, components: [{ type: 5, custom_id: `panel:discipline:${audience}:history:target`, placeholder: 'Selectează membrul de pe server', min_values: 1, max_values: 1 }] }] } };
+}
+
+function disciplineHistoryTypePicker(audience: 'organization' | 'departments', targetId: string) {
+  const prefix = `panel:discipline:${audience}:history:type`;
+  return interactionMessage('Alege tipul de înregistrare pe care vrei să îl gestionezi.', { components: [{ type: 1, components: [
+    { type: 2, style: 2, label: 'Avertismente', custom_id: `${prefix}:warning:${targetId}` },
+    { type: 2, style: 4, label: 'Sancțiuni', custom_id: `${prefix}:sanction:${targetId}` },
+  ] }] });
+}
+
+function disciplineHistoryRecordPicker(audience: 'organization' | 'departments', kind: 'warning' | 'sanction', targetId: string, records: any[]) {
+  const options = records.slice(0, 25).map((record: any) => ({ label: `${record.status || 'activ'} · ${String(record.reason || 'Fără motiv').slice(0, 85)}`, value: String(record.id), description: kind === 'sanction' ? `${record.amount || 0} ${record.currency || ''}`.trim().slice(0, 100) : 'Avertisment disciplinar' }));
+  if (!options.length) return interactionMessage('Nu există înregistrări pentru acest membru.');
+  return interactionMessage(`Selectează ${kind === 'warning' ? 'avertismentul' : 'sancțiunea'} pe care vrei să o gestionezi.`, { components: [{ type: 1, components: [{ type: 3, custom_id: `panel:discipline:${audience}:history:record:${kind}:${targetId}`, placeholder: 'Selectează înregistrarea', min_values: 1, max_values: 1, options }] }] });
+}
+
+function disciplineHistoryActions(audience: 'organization' | 'departments', kind: 'warning' | 'sanction', id: string, record: any) {
+  const resolved = kind === 'warning' ? ['resolved', 'revoked'].includes(String(record.status)) : ['paid', 'waived', 'cancelled'].includes(String(record.status));
   const prefix = `panel:discipline:${audience}`;
-  return [{ type: 1, components: kind === 'warning' ? [
-    { type: 2, style: 3, label: 'Marchează rezolvat', custom_id: `${prefix}:resolve:warning:${id}` },
-    { type: 2, style: 4, label: 'Șterge', custom_id: `${prefix}:delete:warning:${id}` },
-  ] : [
-    { type: 2, style: 3, label: 'Marchează achitată', custom_id: `${prefix}:resolve:sanction:${id}` },
-    { type: 2, style: 2, label: 'Anulează', custom_id: `${prefix}:cancel:sanction:${id}` },
-    { type: 2, style: 4, label: 'Șterge', custom_id: `${prefix}:delete:sanction:${id}` },
-  ] }];
+  const actions = resolved ? [{ type: 2, style: 4, label: 'Șterge înregistrarea', custom_id: `${prefix}:delete:${kind}:${id}` }] : kind === 'warning' ? [{ type: 2, style: 3, label: 'Marchează rezolvat', custom_id: `${prefix}:resolve:${kind}:${id}` }, { type: 2, style: 4, label: 'Șterge înregistrarea', custom_id: `${prefix}:delete:${kind}:${id}` }] : [{ type: 2, style: 3, label: 'Marchează achitată', custom_id: `${prefix}:resolve:${kind}:${id}` }, { type: 2, style: 2, label: 'Anulează', custom_id: `${prefix}:cancel:${kind}:${id}` }, { type: 2, style: 4, label: 'Șterge înregistrarea', custom_id: `${prefix}:delete:${kind}:${id}` }];
+  return interactionMessage(`**${kind === 'warning' ? 'Avertisment' : 'Sancțiune'}** pentru **${String(record.target_name || 'membru')}**\n${String(record.reason || 'Fără motiv')}`, { components: [{ type: 1, components: actions }] });
 }
 
 function disciplineEmbed(record: any, kind: 'warning' | 'sanction', context: any, action = 'nou') {
@@ -1821,14 +1840,11 @@ async function handleDisciplineAction(db: any, interaction: any, context: any, p
   if (action === 'delete') {
     const { error } = await db.from(table).delete().eq('organization_id', context.organization.id).eq('id', id);
     if (error) throw error;
-    await requestDiscordTarget(db, { target: context.target, transport: 'bot', channel_id: context.channelId }, null, { method: 'DELETE', messageId: String(interaction.message?.id || record.discord_message_id || '') }).catch(() => null);
     return interactionMessage('Înregistrarea disciplinară a fost ștearsă.');
   }
   const nextStatus = kind === 'warning' ? (action === 'revoke' ? 'revoked' : 'resolved') : (action === 'cancel' ? 'cancelled' : 'paid');
   const { data: updated, error } = await db.from(table).update({ status: nextStatus, resolved_at: new Date().toISOString(), resolved_by_discord_id: context.discordId, resolution_note: action === 'cancel' ? 'Anulată din Discord.' : 'Actualizată din Discord.', updated_at: new Date().toISOString() }).eq('organization_id', context.organization.id).eq('id', id).select('*').single();
   if (error) throw error;
-  const routeKey = context.logRouteKey || announcementRoutes(context.audience).log;
-  await requestDiscordTarget(db, { target: context.target, transport: 'bot', channel_id: context.channelId }, JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [disciplineEmbed(updated, kind, context, nextStatus === 'paid' ? 'achitată' : nextStatus === 'cancelled' ? 'anulată' : 'rezolvat(ă)')], components: disciplineComponents(context.audience, kind, id) }), { method: 'PATCH', messageId: String(interaction.message?.id || record.discord_message_id || '') }).catch((error) => console.error(`[discord-interactions] ${routeKey} update failed`, error));
   return interactionMessage(`Înregistrarea a fost ${kind === 'sanction' ? (nextStatus === 'paid' ? 'marcată ca achitată' : 'anulată') : 'marcată ca rezolvată'}.`);
 }
 
@@ -2894,7 +2910,18 @@ Deno.serve(async (request) => {
       const audience = parts[2] === 'departments' ? 'departments' : parts[2] === 'organization' ? 'organization' : null;
       const action = parts[3] || '';
       if (!audience) return reply(interactionMessage('Categoria disciplinară nu este validă.'));
-       if (action === 'warning' || action === 'sanction') {
+      if (action === 'history') {
+        if (parts[4] !== 'type') return reply(disciplineHistoryTargetPicker(audience));
+        const kind = parts[5] === 'sanction' ? 'sanction' : parts[5] === 'warning' ? 'warning' : null;
+        const targetId = String(parts[6] || '').trim();
+        if (!kind || !/^\d{15,22}$/.test(targetId)) return reply(interactionMessage('Membrul selectat nu este valid.'));
+        const context = await resolveManagementContext(db, interaction, audience, 'write', audience === 'organization' ? 'organization' : 'departments', audience === 'organization' ? 'discipline_organization' : 'discipline_departments', 'discipline_permissions', `${audience}.write`);
+        const table = kind === 'warning' ? 'discovery_disciplinary_warnings' : 'discovery_disciplinary_sanctions';
+        const { data, error } = await db.from(table).select('id,status,reason,amount,currency,target_name,created_at').eq('organization_id', context.organization.id).eq('target_scope', audience).eq('target_discord_id', targetId).order('created_at', { ascending: false }).limit(25);
+        if (error) throw error;
+        return reply(disciplineHistoryRecordPicker(audience, kind, targetId, data || []));
+      }
+      if (action === 'warning' || action === 'sanction') {
          const permission = action === 'sanction' ? 'sanction' : 'write';
          const context = await resolveManagementContext(db, interaction, audience, permission as 'write' | 'sanction', audience === 'organization' ? 'organization' : 'departments', audience === 'organization' ? 'discipline_organization' : 'discipline_departments', 'discipline_permissions', `${audience}.${permission}`);
          return reply(disciplineTargetPicker(audience, action));
@@ -2913,6 +2940,22 @@ Deno.serve(async (request) => {
     if (isDiscipline && isSelect) {
       const parts = customId.split(':');
        const audience = parts[2] === 'departments' ? 'departments' : parts[2] === 'organization' ? 'organization' : null;
+      if (audience && parts[3] === 'history' && parts[4] === 'target') {
+        const targetId = String(interaction?.data?.values?.[0] || '').trim();
+        if (!/^\d{15,22}$/.test(targetId)) return reply(interactionMessage('Membrul selectat nu este valid.'));
+        return reply(disciplineHistoryTypePicker(audience, targetId));
+      }
+      if (audience && parts[3] === 'history' && parts[4] === 'record') {
+        const kind = parts[5] === 'sanction' ? 'sanction' : parts[5] === 'warning' ? 'warning' : null;
+        const recordId = String(interaction?.data?.values?.[0] || '').trim();
+        if (!kind || !/^[0-9a-f-]{36}$/i.test(recordId)) return reply(interactionMessage('Înregistrarea selectată nu este validă.'));
+        const context = await resolveManagementContext(db, interaction, audience, 'write', audience === 'organization' ? 'organization' : 'departments', audience === 'organization' ? 'discipline_organization' : 'discipline_departments', 'discipline_permissions', `${audience}.write`);
+        const table = kind === 'warning' ? 'discovery_disciplinary_warnings' : 'discovery_disciplinary_sanctions';
+        const { data, error } = await db.from(table).select('*').eq('organization_id', context.organization.id).eq('id', recordId).maybeSingle();
+        if (error) throw error;
+        if (!data) return reply(interactionMessage('Înregistrarea nu mai există.'));
+        return reply(disciplineHistoryActions(audience, kind, recordId, data));
+      }
       const kind = parts[3] === 'sanction' ? 'sanction' : parts[3] === 'warning' ? 'warning' : null;
       const targetId = String(interaction?.data?.values?.[0] || '').trim();
       if (!audience || !kind || !/^\d{15,22}$/.test(targetId)) return reply(interactionMessage('Membrul selectat nu este valid.'));
