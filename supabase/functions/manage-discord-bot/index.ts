@@ -460,6 +460,20 @@ async function autoConfigureGuild(db: any, guildId: string, organizationId: stri
     if (deletion?.skipped) skippedDeletes.push(String(channel.name));
   }
   if (oldManaged.length) existing = existing.filter((channel: any) => !oldManaged.some((old: any) => String(old.id) === String(channel.id)));
+  // Remove duplicate managed channels with the same generated name, keeping
+  // the first channel so existing permissions and history remain intact.
+  const duplicateChannels = new Map<string, any[]>();
+  for (const channel of Array.isArray(existing) ? existing : []) {
+    if (Number(channel.type) !== 0 || String(channel.parent_id || '') !== String(category.id) || !desiredNames.has(String(channel.name || ''))) continue;
+    const list = duplicateChannels.get(String(channel.name)) || []; list.push(channel); duplicateChannels.set(String(channel.name), list);
+  }
+  for (const list of duplicateChannels.values()) {
+    for (const duplicate of list.slice(1)) {
+      const deletion = await run(`ștergerea canalului duplicat „${duplicate.name}”`, () => api(`/channels/${duplicate.id}`, { method: 'DELETE' }));
+      if (deletion?.skipped) skippedDeletes.push(String(duplicate.name));
+      existing = existing.filter((channel: any) => String(channel.id) !== String(duplicate.id));
+    }
+  }
   for (const [key, definition] of eligible) {
     const name = `${MODULE_EMOJIS[key] || '🧩'}・${slug(definition.label || key)}`;
     const found = (Array.isArray(existing) ? existing : []).find((channel: any) => Number(channel.type) === 0 && String(channel.parent_id || '') === String(category.id) && String(channel.name) === name);
@@ -481,6 +495,15 @@ async function autoConfigureGuild(db: any, guildId: string, organizationId: stri
   let published = 0;
   for (const [key] of eligible) {
     if (key === 'status_live') {
+      const statusChannelId = String(routes[key]?.primary?.channel_id || '');
+      const statusTitle = String(definitions[key]?.title || '');
+      if (statusChannelId && statusTitle) {
+        const messagesResponse = await fetch(`${DISCORD_API}/channels/${statusChannelId}/messages?limit=100`, { headers });
+        const messages = await messagesResponse.json().catch(() => []);
+        const duplicates = (Array.isArray(messages) ? messages : []).filter((message: any) => (message.embeds || []).some((embed: any) => String(embed.title || '') === statusTitle));
+        for (const duplicate of duplicates.slice(1)) await fetch(`${DISCORD_API}/channels/${statusChannelId}/messages/${duplicate.id}`, { method: 'DELETE', headers }).catch(() => null);
+        if (duplicates[0]?.id) routes[key].primary.message_id = String(duplicates[0].id);
+      }
       const cronSecret = await getPlatformSecret(db, 'status_live_cron_secret');
       if (!cronSecret) throw new Error('Canalul Status Live a fost creat, dar secretul de sincronizare lipsește din Supabase.');
       const syncResponse = await run('publicarea Status Live real', () => fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/status-live-sync`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-cron-secret': cronSecret }, body: JSON.stringify({ organization_id: organizationId, guild_id: guildId, force: true }) }));
@@ -488,6 +511,19 @@ async function autoConfigureGuild(db: any, guildId: string, organizationId: stri
       if (!syncResponse.ok) throw new Error(String(syncBody?.error || `Status Live HTTP ${syncResponse.status}`));
       if (syncBody?.message_ids && Object.keys(syncBody.message_ids).length) published++;
       continue;
+    }
+    const routeChannelId = String(routes[key]?.primary?.channel_id || '');
+    const expectedTitle = String(definitions[key]?.title || '');
+    if (routeChannelId && expectedTitle) {
+      const messagesResponse = await fetch(`${DISCORD_API}/channels/${routeChannelId}/messages?limit=100`, { headers });
+      const messages = await messagesResponse.json().catch(() => []);
+      const duplicates = (Array.isArray(messages) ? messages : []).filter((message: any) => (message.embeds || []).some((embed: any) => String(embed.title || '') === expectedTitle));
+      // Discord returns newest first. Keep the newest message and remove older
+      // copies before editing it, preventing setup from creating visible spam.
+      for (const duplicate of duplicates.slice(1)) {
+        await fetch(`${DISCORD_API}/channels/${routeChannelId}/messages/${duplicate.id}`, { method: 'DELETE', headers }).catch(() => null);
+      }
+      if (duplicates[0]?.id && !routes[key]?.primary?.message_id) routes[key].primary.message_id = String(duplicates[0].id);
     }
     const existingMessageId = String(routes[key]?.primary?.message_id || '');
     const delivery = await run(`actualizarea embedului „${definitions[key]?.label || key}”`, () => deliverDiscordRoute(db, { discord_channel_routes: routes }, key, JSON.stringify(payload(key, false, definitions)), { messageIds: { primary: existingMessageId }, postOnly: false }));
