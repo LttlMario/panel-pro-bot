@@ -198,7 +198,6 @@ Deno.serve(async (request) => {
         const uniqueEmployees = [...unique.values()];
         const activeNew = uniqueEmployees.filter((employee: any) => employee.active !== false && !previouslyReported.has(String(employee.id)));
         const activePrevious = uniqueEmployees.filter((employee: any) => employee.active !== false && previouslyReported.has(String(employee.id)));
-        const inactive = uniqueEmployees.filter((employee: any) => employee.active === false);
 
         const exportItems = [...unique.values()].map((employee: any) => ({ employee_id: employee.id, employee_name: employee.full_name, full_name: employee.full_name, cnp: employee.cnp }));
         const { data: batch, error: batchError } = await db.from('discovery_contract_export_batches').insert({ organization_id: organization.id, export_type: 'weekly_discord', status: 'processing', period_start: period.start, period_end: period.end }).select('id').maybeSingle();
@@ -212,13 +211,8 @@ Deno.serve(async (request) => {
           contractEmbedBlock('🆕 Activi · fără raport anterior', activeNew),
           contractEmbedBlock('🔁 Activi · raportați anterior', activePrevious),
         ].filter(Boolean).join('\n\n');
-        const inactiveDescription = [
-          organization.name ? `Organizație: **${organization.name}**` : '',
-          contractEmbedBlock('🔴 Plecați / demisionați', inactive, 3300),
-        ].filter(Boolean).join('\n\n');
         const embeds = [
           { title: `📋 Export săptămânal · Angajați activi · ${displayDate(period.start)} – ${displayDate(period.end)}`, description: activeDescription, color: 5763719, timestamp: now.toISOString() },
-          { title: `📋 Export săptămânal · Plecați / demisionați · ${displayDate(period.start)} – ${displayDate(period.end)}`, description: inactiveDescription, color: 15548997, timestamp: now.toISOString() },
         ];
         const delivery = await deliverDiscordRoute(db, settings, reportRoute, JSON.stringify({ allowed_mentions: { parse: [] }, embeds }));
         const failures: string[] = delivery.failures || [];
