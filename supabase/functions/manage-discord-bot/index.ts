@@ -420,7 +420,7 @@ async function autoConfigureGuild(db: any, guildId: string, organizationId: stri
   const botId = String(bot?.id || '');
   const categoryName = '🧩 PANEL PRO';
   const category = (Array.isArray(existing) ? existing : []).find((channel: any) => Number(channel.type) === 4 && String(channel.name) === categoryName) || await api('/channels', { method: 'POST', body: JSON.stringify({ name: categoryName, type: 4 }) });
-  const definitions = { ...mergeModuleDefinitions(MODULES, await readGlobalModules(db)), ...sanitizeCustomModules((await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle()).data?.custom_modules || {}) } as Record<string, any>;
+  const definitions = { ...Object.fromEntries(Object.entries(mergeModuleDefinitions(MODULES, await readGlobalModules(db))).map(([key, definition]) => [key, { ...definition, log_key: LOG_ROUTES[key] || '' }])), ...sanitizeCustomModules((await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle()).data?.custom_modules || {}) } as Record<string, any>;
   const eligible = Object.entries(definitions).filter(([, definition]: [string, any]) => plan !== 'free' || definition.premium !== true);
   const routes = { ...((await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', organizationId).maybeSingle()).data?.discord_channel_routes || {}) } as Record<string, any>;
   const created: string[] = []; const channelIds: Record<string, string> = {};
