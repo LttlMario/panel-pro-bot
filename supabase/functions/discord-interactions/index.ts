@@ -61,7 +61,7 @@ const commandOption = (interaction: any, name: string) => commandOptions(interac
 const PANEL_ROUTE_LABELS: Record<string, string> = {
   organization: 'Anunțuri organizație', departments: 'Anunțuri angajați', pontaj: 'Pontaj', log_pontaj: 'Log pontaj',
   requests_organization: 'Învoiri organizație', requests_departments: 'Învoiri angajați', log_requests_organization: 'Log învoiri organizație', log_requests_departments: 'Log învoiri angajați',
-  contracts: 'Contracte', log_contracts: 'Log contracte', marketplace: 'Marketplace', log_marketplace: 'Log Marketplace', illegal_marketplace: 'Marketplace ilegal', log_illegal_marketplace: 'Log Marketplace ilegal', actions_organization: 'Acțiuni organizație', log_actions_organization: 'Log acțiuni organizație', actions_organization_weekly: 'Log acțiuni', status_live: 'Status live',
+  contracts: 'Contracte', log_contracts: 'Log contracte', marketplace: 'Marketplace', log_marketplace: 'Log Marketplace', illegal_marketplace: 'Marketplace ilegal', log_illegal_marketplace: 'Log Marketplace ilegal', actions_organization: 'Acțiuni organizație', log_actions_organization: 'Log acțiuni organizație', actions_organization_weekly: 'Log acțiuni', weekly_reports: 'Raport săptămânal pontaj', status_live: 'Status live',
   stash: 'Stash', log_stash: 'Log Stash', stash_requests: 'Cereri Stash', log_stash_requests: 'Log cereri Stash', stash_donations: 'Donații Stash', log_stash_donations: 'Log donații Stash', event_reminders: 'Evenimente și remindere', contract_identity_weekly: 'Raport săptămânal contracte', log_contract_identity_weekly: 'Log raport săptămânal contracte',
 };
 const panelRouteKeys = Object.keys(PANEL_ROUTE_LABELS);
@@ -2729,6 +2729,21 @@ Deno.serve(async (request) => {
         const reportResult = result.results?.[0] || {};
         return interactionMessage(reportResult.status === 'sent' ? 'Raportul săptămânal a fost generat și trimis în canalul configurat.' : `Raportul săptămânal nu a fost trimis: ${reportResult.error || reportResult.status || 'verifică configurația.'}`);
       }, 'Raportul săptămânal nu a putut fi generat.');
+    }
+    if (isButton && customId === 'panel:discovery:weekly_shift_report') {
+      return runDeferredCommand(interaction, async () => {
+        const guildId = String(interaction.guild_id || '');
+        const { data: guild, error: guildError } = await db.from('discovery_guilds').select('organization_id').eq('guild_id', guildId).eq('enabled', true).maybeSingle();
+        if (guildError) throw guildError;
+        if (!guild?.organization_id) throw new Error('Serverul Discord nu este asociat unei organizații Panel Pro.');
+        const cronSecret = await getPlatformSecret(db, 'cron_secret');
+        if (!cronSecret) throw new Error('Secretul pentru raportul săptămânal nu este configurat.');
+        const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-weekly-shift-report`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-cron-secret': cronSecret }, body: JSON.stringify({ force: true, organization_id: guild.organization_id }) });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || 'Raportul săptămânal de pontaj nu a putut fi generat.');
+        const reportResult = result.results?.find((item: any) => String(item.organization_id) === String(guild.organization_id)) || result.results?.[0] || {};
+        return interactionMessage(reportResult.status === 'sent' ? 'Raportul săptămânal de pontaj a fost generat și trimis.' : `Raportul săptămânal de pontaj nu a fost trimis: ${reportResult.error || reportResult.status || 'verifică configurația.'}`);
+      }, 'Raportul săptămânal de pontaj nu a putut fi generat.');
     }
     if (isModalSubmit && customId === 'panel:discovery:reminder_submit') {
       const deferred = await deferInteraction(interaction, false);
