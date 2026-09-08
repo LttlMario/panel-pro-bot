@@ -412,14 +412,31 @@ async function announceExistingCommunity(db: any, guildId: string) {
 
 async function autoConfigureGuild(db: any, guildId: string, organizationId: string, plan: string) {
   const token = await getPlatformSecret(db, 'discord_bot_token');
+  if (!token) throw new Error('Configurarea nu poate porni: tokenul botului Discord lipsește din Supabase.');
   const headers = { ...botHeaders(token), 'Content-Type': 'application/json' };
   const base = `${DISCORD_API}/guilds/${guildId}`;
-  const api = async (path: string, options: RequestInit = {}) => { const response = await fetch(base + path, { ...options, headers: { ...headers, ...(options.headers || {}) } }); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(`Discord API ${path} HTTP ${response.status}: ${String(body?.message || 'Missing Permissions')}`); return body; };
-  let existing = await api('/channels');
+  const api = async (path: string, options: RequestInit = {}) => {
+    const maxAttempts = options.method === 'GET' || !options.method ? 2 : 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const response = await fetch(base + path, { ...options, headers: { ...headers, ...(options.headers || {}) } });
+      const body = await response.json().catch(() => ({}));
+      if (response.ok) return body;
+      if (response.status === 429 && attempt < maxAttempts) {
+        const retryAfter = Number(body?.retry_after || response.headers.get('retry-after') || 0);
+        await new Promise((resolve) => setTimeout(resolve, Math.min(3000, Math.max(250, Math.round(retryAfter * 1000)))));
+        continue;
+      }
+      throw new Error(`Discord API ${path} HTTP ${response.status}: ${String(body?.message || 'Botul nu are permisiunile necesare.')}`);
+    }
+    throw new Error(`Discord API ${path}: răspuns nereușit.`);
+  };
+  const run = async <T>(name: string, action: () => Promise<T>) => { try { return await action(); } catch (error) { const message = error instanceof Error ? error.message : String(error); throw new Error(`Configurarea s-a oprit la „${name}”: ${message}`); } };
+  let existing = await run('citirea canalelor existente', () => api('/channels'));
   const botResponse = await fetch(`${DISCORD_API}/users/@me`, { headers }); const bot = await botResponse.json().catch(() => ({}));
+  if (!botResponse.ok || !bot?.id) throw new Error(`Configurarea s-a oprit la „verificarea botului”: Discord HTTP ${botResponse.status}.`);
   const botId = String(bot?.id || '');
   const categoryName = '🧩 PANEL PRO';
-  const category = (Array.isArray(existing) ? existing : []).find((channel: any) => Number(channel.type) === 4 && String(channel.name) === categoryName) || await api('/channels', { method: 'POST', body: JSON.stringify({ name: categoryName, type: 4 }) });
+  const category = (Array.isArray(existing) ? existing : []).find((channel: any) => Number(channel.type) === 4 && String(channel.name) === categoryName) || await run('crearea categoriei Panel Pro', () => api('/channels', { method: 'POST', body: JSON.stringify({ name: categoryName, type: 4 }) }));
   const definitions = { ...Object.fromEntries(Object.entries(mergeModuleDefinitions(MODULES, await readGlobalModules(db))).map(([key, definition]) => [key, { ...definition, log_key: LOG_ROUTES[key] || '' }])), ...sanitizeCustomModules((await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle()).data?.custom_modules || {}) } as Record<string, any>;
   const eligible = Object.entries(definitions).filter(([, definition]: [string, any]) => plan !== 'free' || definition.premium !== true);
   const routes = { ...((await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', organizationId).maybeSingle()).data?.discord_channel_routes || {}) } as Record<string, any>;
@@ -430,12 +447,12 @@ async function autoConfigureGuild(db: any, guildId: string, organizationId: stri
   const desiredNames = new Set(eligible.map(([key, definition]) => `${MODULE_EMOJIS[key] || '🧩'}・${slug(definition.label || key)}`));
   for (const [key, definition] of eligible) if (definition.log_key) desiredNames.add(`${MODULE_EMOJIS[key] || '🧩'}・log-${slug(definition.label || key)}`);
   const oldManaged = (Array.isArray(existing) ? existing : []).filter((channel: any) => Number(channel.type) === 0 && String(channel.parent_id || '') === String(category.id) && !desiredNames.has(String(channel.name || '')) && (String(channel.name || '') === '📋・loguri-panel-pro' || [...botChannelPrefixes].some((prefix) => String(channel.name || '').startsWith(prefix))));
-  for (const channel of oldManaged) await api(`/channels/${channel.id}`, { method: 'DELETE' });
+  for (const channel of oldManaged) await run(`ștergerea canalului vechi „${channel.name}”`, () => api(`/channels/${channel.id}`, { method: 'DELETE' }));
   if (oldManaged.length) existing = existing.filter((channel: any) => !oldManaged.some((old: any) => String(old.id) === String(channel.id)));
   for (const [key, definition] of eligible) {
     const name = `${MODULE_EMOJIS[key] || '🧩'}・${slug(definition.label || key)}`;
     const found = (Array.isArray(existing) ? existing : []).find((channel: any) => Number(channel.type) === 0 && String(channel.parent_id || '') === String(category.id) && String(channel.name) === name);
-    const channel = found || await api('/channels', { method: 'POST', body: JSON.stringify({ name, type: 0, parent_id: String(category.id), topic: 'Panel Pro Bot · canal gestionat automat', permission_overwrites: overwrite(false) }) });
+    const channel = found || await run(`crearea canalului „${name}”`, () => api('/channels', { method: 'POST', body: JSON.stringify({ name, type: 0, parent_id: String(category.id), topic: 'Panel Pro Bot · canal gestionat automat', permission_overwrites: overwrite(false) }) }));
     channelIds[key] = String(channel.id); if (!found) created.push(name);
     routes[key] = { ...(routes[key] || {}), primary: { ...(routes[key]?.primary || {}), channel_id: String(channel.id), guild_id: guildId, enabled: true } };
   }
@@ -444,14 +461,14 @@ async function autoConfigureGuild(db: any, guildId: string, organizationId: stri
     if (!definition.log_key) continue;
     const logName = `${MODULE_EMOJIS[key] || '🧩'}・log-${slug(definition.label || key)}`;
     const logFound = (Array.isArray(existing) ? existing : []).find((channel: any) => Number(channel.type) === 0 && String(channel.parent_id || '') === String(category.id) && String(channel.name) === logName);
-    const logChannel = logFound || await api('/channels', { method: 'POST', body: JSON.stringify({ name: logName, type: 0, parent_id: String(category.id), topic: 'Panel Pro Bot · log gestionat automat', permission_overwrites: overwrite(true) }) });
+    const logChannel = logFound || await run(`crearea canalului de log „${logName}”`, () => api('/channels', { method: 'POST', body: JSON.stringify({ name: logName, type: 0, parent_id: String(category.id), topic: 'Panel Pro Bot · log gestionat automat', permission_overwrites: overwrite(true) }) }));
     logChannels[key] = logChannel;
     if (!logFound) created.push(logName);
     routes[definition.log_key] = { ...(routes[definition.log_key] || {}), primary: { ...(routes[definition.log_key]?.primary || {}), channel_id: String(logChannel.id), guild_id: guildId, enabled: true } };
   }
-  const { error: saveError } = await db.from('discovery_settings').update({ discord_channel_routes: routes, updated_at: new Date().toISOString() }).eq('organization_id', organizationId); if (saveError) throw saveError;
+  const { error: saveError } = await run('salvarea rutelor canalelor', () => db.from('discovery_settings').update({ discord_channel_routes: routes, updated_at: new Date().toISOString() }).eq('organization_id', organizationId)); if (saveError) throw saveError;
   let published = 0;
-  for (const [key] of eligible) { const delivery = await deliverDiscordRoute(db, { discord_channel_routes: routes }, key, JSON.stringify(payload(key, false, definitions)), { postOnly: true }); if ((delivery.results || []).some((item: any) => item.id)) published++; }
+  for (const [key] of eligible) { const delivery = await run(`publicarea embedului „${definitions[key]?.label || key}”`, () => deliverDiscordRoute(db, { discord_channel_routes: routes }, key, JSON.stringify(payload(key, false, definitions)), { postOnly: true })); if ((delivery.results || []).some((item: any) => item.id)) published++; }
   return { category: categoryName, created_channels: created, modules: eligible.map(([key, definition]) => ({ key, label: definition.label, log_channel: logChannels[key]?.name || null })), published };
 }
 
