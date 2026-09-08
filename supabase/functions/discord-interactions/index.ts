@@ -2911,7 +2911,8 @@ Deno.serve(async (request) => {
         if (!kind) return reply(interactionMessage('Tipul de înregistrare nu este valid.'));
         const context = await resolveManagementContext(db, interaction, audience, 'write', audience === 'organization' ? 'organization' : 'departments', audience === 'organization' ? 'discipline_organization' : 'discipline_departments', 'discipline_permissions', `${audience}.write`);
         const table = kind === 'warning' ? 'discovery_disciplinary_warnings' : 'discovery_disciplinary_sanctions';
-        const { data, error } = await db.from(table).select('id,status,reason,amount,currency,target_name,created_at').eq('organization_id', context.organization.id).eq('target_scope', audience).in('status', kind === 'warning' ? ['active'] : ['active', 'issued']).order('created_at', { ascending: false }).limit(25);
+        const historyColumns = kind === 'warning' ? 'id,status,reason,target_name,created_at' : 'id,status,reason,amount,currency,target_name,created_at';
+        const { data, error } = await db.from(table).select(historyColumns).eq('organization_id', context.organization.id).eq('target_scope', audience).in('status', kind === 'warning' ? ['active'] : ['active', 'issued']).order('created_at', { ascending: false }).limit(25);
         if (error) throw error;
         return reply(disciplineHistoryRecordPicker(audience, kind, data || []));
       }
