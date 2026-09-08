@@ -426,6 +426,9 @@ async function autoConfigureGuild(db: any, guildId: string, organizationId: stri
         await new Promise((resolve) => setTimeout(resolve, Math.min(3000, Math.max(250, Math.round(retryAfter * 1000)))));
         continue;
       }
+      // A legacy channel can disappear between the list and delete calls. Treat
+      // that as already cleaned up so one stale channel cannot abort setup.
+      if (options.method === 'DELETE' && [403, 404].includes(response.status)) return { skipped: true, status: response.status };
       throw new Error(`Discord API ${path} HTTP ${response.status}: ${String(body?.message || 'Botul nu are permisiunile necesare.')}`);
     }
     throw new Error(`Discord API ${path}: răspuns nereușit.`);
@@ -447,7 +450,11 @@ async function autoConfigureGuild(db: any, guildId: string, organizationId: stri
   const desiredNames = new Set(eligible.map(([key, definition]) => `${MODULE_EMOJIS[key] || '🧩'}・${slug(definition.label || key)}`));
   for (const [key, definition] of eligible) if (definition.log_key) desiredNames.add(`${MODULE_EMOJIS[key] || '🧩'}・log-${slug(definition.label || key)}`);
   const oldManaged = (Array.isArray(existing) ? existing : []).filter((channel: any) => Number(channel.type) === 0 && String(channel.parent_id || '') === String(category.id) && !desiredNames.has(String(channel.name || '')) && (String(channel.name || '') === '📋・loguri-panel-pro' || [...botChannelPrefixes].some((prefix) => String(channel.name || '').startsWith(prefix))));
-  for (const channel of oldManaged) await run(`ștergerea canalului vechi „${channel.name}”`, () => api(`/channels/${channel.id}`, { method: 'DELETE' }));
+  const skippedDeletes: string[] = [];
+  for (const channel of oldManaged) {
+    const deletion = await run(`ștergerea canalului vechi „${channel.name}”`, () => api(`/channels/${channel.id}`, { method: 'DELETE' }));
+    if (deletion?.skipped) skippedDeletes.push(String(channel.name));
+  }
   if (oldManaged.length) existing = existing.filter((channel: any) => !oldManaged.some((old: any) => String(old.id) === String(channel.id)));
   for (const [key, definition] of eligible) {
     const name = `${MODULE_EMOJIS[key] || '🧩'}・${slug(definition.label || key)}`;
@@ -469,7 +476,7 @@ async function autoConfigureGuild(db: any, guildId: string, organizationId: stri
   const { error: saveError } = await run('salvarea rutelor canalelor', () => db.from('discovery_settings').update({ discord_channel_routes: routes, updated_at: new Date().toISOString() }).eq('organization_id', organizationId)); if (saveError) throw saveError;
   let published = 0;
   for (const [key] of eligible) { const delivery = await run(`publicarea embedului „${definitions[key]?.label || key}”`, () => deliverDiscordRoute(db, { discord_channel_routes: routes }, key, JSON.stringify(payload(key, false, definitions)), { postOnly: true })); if ((delivery.results || []).some((item: any) => item.id)) published++; }
-  return { category: categoryName, created_channels: created, modules: eligible.map(([key, definition]) => ({ key, label: definition.label, log_channel: logChannels[key]?.name || null })), published };
+  return { category: categoryName, created_channels: created, skipped_deletes: skippedDeletes, modules: eligible.map(([key, definition]) => ({ key, label: definition.label, log_channel: logChannels[key]?.name || null })), published };
 }
 
 async function provisionDemoCategory(db: any, guildId: string) {
