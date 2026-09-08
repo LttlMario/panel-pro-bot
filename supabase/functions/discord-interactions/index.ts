@@ -2571,7 +2571,7 @@ Deno.serve(async (request) => {
   // Confirmă imediat trimiterea/publicarea contractului. Contextul și
   // numerotarea contractului pot necesita mai multe citiri din Supabase.
   let contractDeferred: any = null;
-  if (isContracts && (isModalSubmit || (isButton && ['publish'].includes(String(customId.split(':')[2] || ''))))) contractDeferred = await deferInteraction(interaction, false);
+  if (isContracts && (isModalSubmit || (isButton && ['publish', 'copy'].includes(String(customId.split(':')[2] || ''))))) contractDeferred = await deferInteraction(interaction, false);
   let announcementDeferred: any = null;
   if (isAnnouncements && isModalSubmit) announcementDeferred = await deferInteraction(interaction, false);
   let disciplinePickerDeferred: any = null;
@@ -2889,7 +2889,7 @@ Deno.serve(async (request) => {
       if (parts[2] === 'copy') {
         const contractId = String(parts[3] || '').trim();
         if (!/^[0-9a-f-]{36}$/i.test(contractId)) return reply(interactionMessage('Contractul selectat nu este valid.'));
-        const deferred = await deferInteraction(interaction, false);
+        const deferred = contractDeferred || await deferInteraction(interaction, false);
         let result;
         try {
           const context = await resolveContractActionContext(db, interaction);
