@@ -2476,6 +2476,10 @@ Deno.serve(async (request) => {
   // Confirmă imediat interacțiunile ticket; verificările DB/Discord pot dura peste limita de 3 secunde.
   let ticketDeferred: any = null;
   if (isTicket && !(isButton && customId === 'panel:ticket:open')) ticketDeferred = await deferInteraction(interaction, false);
+  // Confirmă imediat trimiterea/publicarea contractului. Contextul și
+  // numerotarea contractului pot necesita mai multe citiri din Supabase.
+  let contractDeferred: any = null;
+  if (isContracts && (isModalSubmit || (isButton && ['publish'].includes(String(customId.split(':')[2] || ''))))) contractDeferred = await deferInteraction(interaction, false);
   try {
     const key = serviceKey();
     if (!key) throw new Error('Cheia secretă Supabase lipsește.');
@@ -2794,7 +2798,7 @@ Deno.serve(async (request) => {
       if (parts[2] === 'publish') {
         const contractId = String(parts[3] || '').trim();
         if (!/^[0-9a-f-]{36}$/i.test(contractId)) return reply(interactionMessage('Contractul selectat nu este valid.'));
-        const deferred = await deferInteraction(interaction, false);
+        const deferred = contractDeferred || await deferInteraction(interaction, false);
         let result;
         try {
           const context = await resolveContractContext(db, interaction);
@@ -2813,7 +2817,7 @@ Deno.serve(async (request) => {
     if (isContracts && isModalSubmit) {
       const parts = customId.split(':');
       if (parts[2] === 'settings_submit') {
-        const deferred = await deferInteraction(interaction, false);
+        const deferred = contractDeferred || await deferInteraction(interaction, false);
         let result;
         try {
           const context = await resolveContractContext(db, interaction);
@@ -2825,7 +2829,7 @@ Deno.serve(async (request) => {
       }
       if (parts[2] === 'copy' && parts[3] === 'modal') return reply(interactionMessage('Contractul este afișat mai sus. Selectează textul cu Ctrl+A și copiază-l cu Ctrl+C.'));
       if (parts[2] !== 'submit') return reply(interactionMessage('Formularul Contracte nu este valid.'));
-      const deferred = await deferInteraction(interaction, false);
+      const deferred = contractDeferred || await deferInteraction(interaction, false);
       let result;
       try {
         const context = await resolveContractContext(db, interaction);
