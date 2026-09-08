@@ -519,10 +519,12 @@ async function autoConfigureGuild(db: any, guildId: string, organizationId: stri
     }
     const routeChannelId = String(routes[key]?.primary?.channel_id || '');
     const expectedTitle = String(definitions[key]?.title || '');
+    const titleNeedle = slug(definitions[key]?.label || key).split('-')[0] || key;
     if (routeChannelId && expectedTitle) {
       const messagesResponse = await fetch(`${DISCORD_API}/channels/${routeChannelId}/messages?limit=100`, { headers });
       const messages = await messagesResponse.json().catch(() => []);
-      const duplicates = (Array.isArray(messages) ? messages : []).filter((message: any) => (message.embeds || []).some((embed: any) => String(embed.title || '') === expectedTitle));
+      const normalizeTitle = (value: unknown) => String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+      const duplicates = (Array.isArray(messages) ? messages : []).filter((message: any) => (message.embeds || []).some((embed: any) => normalizeTitle(embed.title).includes(titleNeedle)));
       // Discord returns newest first. Keep the newest message and remove older
       // copies before editing it, preventing setup from creating visible spam.
       for (const duplicate of duplicates.slice(1)) {
