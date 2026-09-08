@@ -843,7 +843,7 @@ async function handleContractSettingsSubmit(db: any, context: any, interaction: 
   return interactionMessage(`Șablonul **${title}** a fost salvat. La generare se completează automat organizația, managerul, funcția, salariul, programul, data și numărul contractului; angajatul completează numele, CNP-ul și telefonul.`);
 }
 
-function disciplineModal(audience: 'organization' | 'departments', kind: 'warning' | 'sanction', targetId = '') {
+function disciplineModal(audience: 'organization' | 'departments', kind: 'warning' | 'sanction', targetId = '', targetLabel = '') {
   const label = audience === 'organization' ? 'Organizație' : 'Angajați';
   const input = (custom_id: string, labelText: string, style: number, required: boolean, placeholder: string, max_length: number) => ({ type: 4, custom_id, label: labelText, style, required, placeholder, max_length });
   const components: any[] = [{ type: 1, components: [input('reason', 'Motiv', 2, true, 'Explică motivul...', 4000)] }, { type: 1, components: [input('notes', 'Note (opțional)', 2, false, 'Detalii suplimentare...', 4000)] }];
@@ -853,7 +853,27 @@ function disciplineModal(audience: 'organization' | 'departments', kind: 'warnin
     { type: 1, components: [input('due_at', 'Scadență (opțional)', 1, false, 'zz.ll.aaaa', 10)] },
     { type: 1, components: [input('evidence_url', 'Dovadă (opțional)', 1, false, 'https://...', 500)] },
   );
-  return { type: 9, data: { custom_id: `panel:discipline:${audience}:submit:${kind}:${targetId}`, title: `${kind === 'warning' ? 'Avertisment' : 'Sancțiune'} · ${label}`, components } };
+  return { type: 9, data: { custom_id: `panel:discipline:${audience}:submit:${kind}:${targetId}`, title: `${kind === 'warning' ? 'Avertisment' : 'Sancțiune'} · ${String(targetLabel || label).slice(0, 25)}`, components } };
+}
+
+async function disciplineMemberPicker(db: any, guildId: string, audience: 'organization' | 'departments', kind: 'warning' | 'sanction') {
+  const token = await getPlatformSecret(db, 'discord_bot_token');
+  const headers = { Authorization: `Bot ${token}` };
+  const [membersResponse, rolesResponse] = await Promise.all([
+    fetch(`${DISCORD_API}/guilds/${guildId}/members?limit=1000`, { headers }),
+    fetch(`${DISCORD_API}/guilds/${guildId}/roles`, { headers }),
+  ]);
+  const members = membersResponse.ok ? await membersResponse.json().catch(() => []) : [];
+  const roles = rolesResponse.ok ? await rolesResponse.json().catch(() => []) : [];
+  const roleMap = new Map((Array.isArray(roles) ? roles : []).map((role: any) => [String(role.id), String(role.name || '')]));
+  const options = (Array.isArray(members) ? members : []).filter((member: any) => member?.user?.id).map((member: any) => {
+    const name = String(member.nick || member.user.global_name || member.user.username || member.user.id).trim();
+    const memberRoles = (Array.isArray(member.roles) ? member.roles : []).map((id: any) => roleMap.get(String(id))).filter((name: any) => name && name !== '@everyone');
+    const roleText = memberRoles.length ? memberRoles.join(', ') : 'fără rol suplimentar';
+    return { label: `${name} · ${roleText}`.slice(0, 100), value: String(member.user.id), description: `Rol: ${roleText}`.slice(0, 100) };
+  }).slice(0, 25);
+  if (!options.length) return disciplineTargetPicker(audience, kind);
+  return interactionMessage(`Selectează membrul pentru ${kind === 'warning' ? 'avertisment' : 'sancțiune'}; rolul este afișat lângă nume.`, { components: [{ type: 1, components: [{ type: 3, custom_id: `panel:discipline:${audience}:${kind}:target`, placeholder: 'Membru · rol', min_values: 1, max_values: 1, options }] }] });
 }
 
 function actionModal() {
@@ -967,6 +987,15 @@ async function loadDiscordMember(discordId: string, guildId: string, db: any) {
   const member = await response.json();
   const user = member?.user || {};
   return { discord_id: String(user.id || discordId), name: String(member?.nick || user.global_name || user.username || discordId).trim(), username: String(user.username || '').trim(), role_ids: Array.isArray(member?.roles) ? member.roles.map((id: any) => String(id)) : [] };
+}
+
+async function discordMemberRoleLabel(discordId: string, guildId: string, db: any) {
+  const member = await loadDiscordMember(discordId, guildId, db);
+  const token = await getPlatformSecret(db, 'discord_bot_token');
+  const response = await fetch(`${DISCORD_API}/guilds/${guildId}/roles`, { headers: { Authorization: `Bot ${token}` } });
+  const roles = response.ok ? await response.json().catch(() => []) : [];
+  const names = (Array.isArray(roles) ? roles : []).filter((role: any) => member.role_ids.includes(String(role.id))).map((role: any) => String(role.name || '').trim()).filter(Boolean).filter((name: string) => name !== '@everyone');
+  return { ...member, role_label: names.length ? names.join(', ') : 'fără rol suplimentar' };
 }
 
 function contractTemplateFallback() {
@@ -2490,7 +2519,6 @@ Deno.serve(async (request) => {
     const announcementParts = customId.split(':');
     const announcementAudience = announcementParts[2] === 'departments' ? 'departments' : 'organization';
     const announcementType = announcementParts[4] || '';
-    if (announcementType === 'warning' || announcementType === 'sanction') return reply(disciplineTargetPicker(announcementAudience, announcementType));
     if (['announcement', 'question', 'poll'].includes(announcementType)) return reply(announcementModal(announcementAudience, announcementType as 'announcement' | 'question' | 'poll'));
   }
   if (isDiscipline && isButton && customId.split(':')[3] === 'history' && customId.split(':').length === 4) return reply(disciplineHistoryTypePicker(customId.split(':')[2] === 'departments' ? 'departments' : 'organization'));
@@ -2503,6 +2531,8 @@ Deno.serve(async (request) => {
   if (isContracts && (isModalSubmit || (isButton && ['publish'].includes(String(customId.split(':')[2] || ''))))) contractDeferred = await deferInteraction(interaction, false);
   let announcementDeferred: any = null;
   if (isAnnouncements && isModalSubmit) announcementDeferred = await deferInteraction(interaction, false);
+  let disciplinePickerDeferred: any = null;
+  if (isAnnouncements && isButton && customId.split(':')[3] === 'create' && ['warning', 'sanction'].includes(String(customId.split(':')[4] || ''))) disciplinePickerDeferred = await deferInteraction(interaction, false);
   try {
     const key = serviceKey();
     if (!key) throw new Error('Cheia secretă Supabase lipsește.');
@@ -2872,6 +2902,11 @@ Deno.serve(async (request) => {
         const kind = parts[4] as 'warning' | 'sanction';
         const permission = kind === 'sanction' ? 'sanction' : 'write';
         await resolveManagementContext(db, interaction, audience, permission as 'write' | 'sanction', audience === 'organization' ? 'organization' : 'departments', audience === 'organization' ? 'discipline_organization' : 'discipline_departments', 'discipline_permissions', `${audience}.${permission}`);
+        if (disciplinePickerDeferred) {
+          const picker = await disciplineMemberPicker(db, String(interaction.guild_id || ''), audience, kind);
+          await sendFollowup(disciplinePickerDeferred.applicationId, disciplinePickerDeferred.interactionToken, picker);
+          return new Response(null, { status: 204 });
+        }
         return reply(disciplineTargetPicker(audience, kind));
       }
       if (action === 'create' && postType) return reply(announcementModal(audience, postType));
@@ -2963,7 +2998,8 @@ Deno.serve(async (request) => {
       if (!audience || !kind || !/^\d{15,22}$/.test(targetId)) return reply(interactionMessage('Membrul selectat nu este valid.'));
       const permission = kind === 'sanction' ? 'sanction' : 'write';
        await resolveManagementContext(db, interaction, audience, permission as 'write' | 'sanction', audience === 'organization' ? 'organization' : 'departments', audience === 'organization' ? 'discipline_organization' : 'discipline_departments', 'discipline_permissions', `${audience}.${permission}`);
-       return reply(disciplineModal(audience, kind, targetId));
+       const selectedMember = await discordMemberRoleLabel(targetId, String(interaction.guild_id || ''), db);
+       return reply(disciplineModal(audience, kind, targetId, `${selectedMember.name} · ${selectedMember.role_label}`));
     }
     if (isDiscipline && isModalSubmit) {
       const parts = customId.split(':');
