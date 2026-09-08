@@ -428,8 +428,9 @@ async function autoConfigureGuild(db: any, guildId: string, organizationId: stri
   const overwrite = (readOnly = false) => { const rows: any[] = [{ id: guildId, type: 0, allow: '1024', deny: readOnly ? '2048' : '0' }]; if (botId) rows.push({ id: botId, type: 1, allow: '68608' }); return rows; };
   for (const [key, definition] of eligible) {
     const name = `${MODULE_EMOJIS[key] || '🧩'}・${slug(definition.label || key)}`;
-    const found = (Array.isArray(existing) ? existing : []).find((channel: any) => Number(channel.type) === 0 && String(channel.parent_id || '') === String(category.id) && String(channel.name) === name);
+    const found = (Array.isArray(existing) ? existing : []).find((channel: any) => Number(channel.type) === 0 && String(channel.parent_id || '') === String(category.id) && slug(String(channel.name || '')) === slug(name));
     const channel = found || await api('/channels', { method: 'POST', body: JSON.stringify({ name, type: 0, parent_id: String(category.id), permission_overwrites: overwrite(false) }) });
+    if (found && String(found.name) !== name) await api(`/channels/${found.id}`, { method: 'PATCH', body: JSON.stringify({ name, permission_overwrites: overwrite(false) }) });
     channelIds[key] = String(channel.id); if (!found) created.push(name);
     routes[key] = { ...(routes[key] || {}), primary: { ...(routes[key]?.primary || {}), channel_id: String(channel.id), guild_id: guildId, enabled: true } };
   }
