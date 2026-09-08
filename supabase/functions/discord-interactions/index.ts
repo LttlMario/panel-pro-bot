@@ -411,8 +411,26 @@ async function resolveContext(db: any, interaction: any) {
   const { data: settings, error: settingsError } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', guild.organization_id).maybeSingle();
   if (settingsError) throw settingsError;
   const target = String(guild.kind || '') === 'secondary' ? 'secondary' : 'primary';
-  const configuredChannel = settings?.discord_channel_routes?.pontaj?.[target];
-  if (configuredChannel?.enabled === false || String(configuredChannel?.channel_id || '') !== channelId) throw new Error('Acest canal nu este configurat pentru panoul Pontaj al organizației.');
+  let configuredChannel = settings?.discord_channel_routes?.pontaj?.[target];
+  // Recover routes for channels created by the automatic dashboard setup. This
+  // keeps a newly-created Pontaj channel usable if the route write was delayed
+  // or the message was moved during reconciliation.
+  if (String(configuredChannel?.channel_id || '') !== channelId) {
+    const token = await getPlatformSecret(db, 'discord_bot_token');
+    if (token) {
+      const response = await fetch(`${DISCORD_API}/guilds/${guildId}/channels`, { headers: { Authorization: `Bot ${token}` } });
+      const channels = await response.json().catch(() => []);
+      const normalized = (value: string) => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      const managedPontaj = Array.isArray(channels) && channels.find((channel: any) => Number(channel.type) === 0 && String(channel.id) === channelId && (String(channel.name || '') === `🕒・${normalized('Pontaj și ture')}` || String(channel.name || '').startsWith('🕒・pontaj')));
+      if (managedPontaj) {
+        const routes = { ...(settings?.discord_channel_routes || {}) };
+        routes.pontaj = { ...(routes.pontaj || {}), [target]: { ...(routes.pontaj?.[target] || {}), channel_id: channelId, guild_id: guildId, enabled: true } };
+        await db.from('discovery_settings').update({ discord_channel_routes: routes, updated_at: new Date().toISOString() }).eq('organization_id', guild.organization_id);
+        configuredChannel = routes.pontaj[target];
+      }
+    }
+  }
+  if (configuredChannel?.enabled === false || String(configuredChannel?.channel_id || '') !== channelId) throw new Error('Acest canal nu este configurat pentru panoul Pontaj al organizației. Rulează configurarea automată din Dashboard și folosește canalul 🕒・pontaj-si-ture.');
 
   const memberRoles = new Set((interaction.member?.roles || []).map((role: unknown) => String(role)));
   const { data: mappings, error: mappingsError } = await db.from('discovery_role_mappings').select('discord_role_id,panel_role,permission_level,priority').eq('organization_id', guild.organization_id).eq('guild_id', guildId).eq('enabled', true);
