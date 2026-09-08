@@ -856,7 +856,7 @@ function disciplineModal(audience: 'organization' | 'departments', kind: 'warnin
   return { type: 9, data: { custom_id: `panel:discipline:${audience}:submit:${kind}:${targetId}`, title: `${kind === 'warning' ? 'Avertisment' : 'Sancțiune'} · ${String(targetLabel || label).slice(0, 25)}`, components } };
 }
 
-async function disciplineMemberPicker(db: any, guildId: string, audience: 'organization' | 'departments', kind: 'warning' | 'sanction', roleId = '') {
+async function disciplineMemberPicker(db: any, guildId: string, audience: 'organization' | 'departments', kind: 'warning' | 'sanction', roleId = '', page = 0) {
   const token = await getPlatformSecret(db, 'discord_bot_token');
   const headers = { Authorization: `Bot ${token}` };
   const [membersResponse, rolesResponse] = await Promise.all([
@@ -866,14 +866,18 @@ async function disciplineMemberPicker(db: any, guildId: string, audience: 'organ
   const members = membersResponse.ok ? await membersResponse.json().catch(() => []) : [];
   const roles = rolesResponse.ok ? await rolesResponse.json().catch(() => []) : [];
   const roleMap = new Map((Array.isArray(roles) ? roles : []).map((role: any) => [String(role.id), String(role.name || '')]));
-  const options = (Array.isArray(members) ? members : []).filter((member: any) => member?.user?.id && (!roleId || (Array.isArray(member.roles) && member.roles.map(String).includes(String(roleId))))).map((member: any) => {
+  const filteredMembers = (Array.isArray(members) ? members : []).filter((member: any) => member?.user?.id && (!roleId || (Array.isArray(member.roles) && member.roles.map(String).includes(String(roleId)))));
+  const totalPages = Math.max(1, Math.ceil(filteredMembers.length / 25));
+  const safePage = Math.max(0, Math.min(Number(page) || 0, totalPages - 1));
+  const options = filteredMembers.slice(safePage * 25, safePage * 25 + 25).map((member: any) => {
     const name = String(member.nick || member.user.global_name || member.user.username || member.user.id).trim();
     const memberRoles = (Array.isArray(member.roles) ? member.roles : []).map((id: any) => roleMap.get(String(id))).filter((name: any) => name && name !== '@everyone');
     const roleText = memberRoles.length ? memberRoles.join(', ') : 'fără rol suplimentar';
     return { label: `${name} · ${roleText}`.slice(0, 100), value: String(member.user.id), description: `Rol: ${roleText}`.slice(0, 100) };
   }).slice(0, 25);
-  if (!options.length) return disciplineTargetPicker(audience, kind);
-  return interactionMessage(`Selectează membrul pentru ${kind === 'warning' ? 'avertisment' : 'sancțiune'}; rolul este afișat lângă nume.`, { components: [{ type: 1, components: [{ type: 3, custom_id: `panel:discipline:${audience}:${kind}:target`, placeholder: 'Membru · rol', min_values: 1, max_values: 1, options }] }] });
+  if (!options.length) return interactionMessage('Nu există membri cu rolul selectat. Alege alt rol.');
+  const navigation = totalPages > 1 ? [{ type: 2, style: 2, label: '‹ Anterior', custom_id: `panel:discipline:${audience}:role_members:${kind}:${roleId}:${safePage - 1}`, disabled: safePage <= 0 }, { type: 2, style: 1, label: `Pagina ${safePage + 1}/${totalPages}`, custom_id: `panel:discipline:${audience}:role_members:${kind}:${roleId}:${safePage}`, disabled: true }, { type: 2, style: 2, label: 'Următorii 25 ›', custom_id: `panel:discipline:${audience}:role_members:${kind}:${roleId}:${safePage + 1}`, disabled: safePage >= totalPages - 1 }] : [];
+  return interactionMessage(`Selectează membrul pentru ${kind === 'warning' ? 'avertisment' : 'sancțiune'}; rolul este afișat lângă nume. ${totalPages > 1 ? `Pagina ${safePage + 1} din ${totalPages}.` : ''}`, { components: [{ type: 1, components: [{ type: 3, custom_id: `panel:discipline:${audience}:${kind}:target`, placeholder: 'Membru · rol', min_values: 1, max_values: 1, options }] }, ...(navigation.length ? [{ type: 1, components: navigation }] : [])] });
 }
 
 async function disciplineRolePicker(db: any, guildId: string, audience: 'organization' | 'departments', kind: 'warning' | 'sanction') {
@@ -2971,6 +2975,13 @@ Deno.serve(async (request) => {
         const { data, error } = await db.from(table).select(historyColumns).eq('organization_id', context.organization.id).eq('target_scope', audience).in('status', kind === 'warning' ? ['active'] : ['active', 'issued']).order('created_at', { ascending: false }).limit(25);
         if (error) throw error;
         return reply(disciplineHistoryRecordPicker(audience, kind, data || []));
+      }
+      if (action === 'role_members') {
+        const kind = parts[4] === 'sanction' ? 'sanction' : parts[4] === 'warning' ? 'warning' : null;
+        const roleId = String(parts[5] || '').trim();
+        const page = Number(parts[6] || 0);
+        if (!kind || !/^\d{15,22}$/.test(roleId) || !Number.isFinite(page)) return reply(interactionMessage('Pagina membrilor nu este validă.'));
+        return reply(await disciplineMemberPicker(db, String(interaction.guild_id || ''), audience, kind, roleId, page));
       }
       if (action === 'warning' || action === 'sanction') {
          const permission = action === 'sanction' ? 'sanction' : 'write';
