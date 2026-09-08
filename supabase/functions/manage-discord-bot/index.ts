@@ -495,21 +495,26 @@ async function autoConfigureGuild(db: any, guildId: string, organizationId: stri
   let published = 0;
   for (const [key] of eligible) {
     if (key === 'status_live') {
-      const statusChannelId = String(routes[key]?.primary?.channel_id || '');
-      const statusTitle = String(definitions[key]?.title || '');
-      if (statusChannelId && statusTitle) {
-        const messagesResponse = await fetch(`${DISCORD_API}/channels/${statusChannelId}/messages?limit=100`, { headers });
-        const messages = await messagesResponse.json().catch(() => []);
-        const duplicates = (Array.isArray(messages) ? messages : []).filter((message: any) => (message.embeds || []).some((embed: any) => String(embed.title || '') === statusTitle));
-        for (const duplicate of duplicates.slice(1)) await fetch(`${DISCORD_API}/channels/${statusChannelId}/messages/${duplicate.id}`, { method: 'DELETE', headers }).catch(() => null);
-        if (duplicates[0]?.id) routes[key].primary.message_id = String(duplicates[0].id);
+      const [{ data: shifts }, { data: members }] = await Promise.all([
+        db.from('discovery_shifts').select('discord_id,colleague_name,status,started_at,duration_ms,paused_seconds').eq('organization_id', organizationId).in('status', ['active', 'paused']).is('end_time', null),
+        db.from('discovery_members').select('discord_id,panel_role').eq('organization_id', organizationId),
+      ]);
+      const now = Date.now(); const names = new Map((members || []).map((item: any) => [String(item.discord_id), item.panel_role || item.discord_id]));
+      const elapsed = (shift: any) => { const started = Date.parse(String(shift.started_at || '')); const seconds = shift.status === 'paused' ? Math.floor((Number(shift.duration_ms) || 0) / 1000) : Math.max(0, Math.floor((now - started) / 1000) - (Number(shift.paused_seconds) || 0)); return `${String(Math.floor(seconds / 3600)).padStart(2, '0')}:${String(Math.floor((seconds % 3600) / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`; };
+      const active = (shifts || []).filter((item: any) => item.status !== 'paused'); const paused = (shifts || []).filter((item: any) => item.status === 'paused');
+      const line = (item: any, icon: string) => `${icon} **${item.colleague_name || names.get(String(item.discord_id)) || 'Utilizator'}** — ${elapsed(item)}`;
+      const section = (title: string, items: any[], icon: string) => `${title} (${items.length})\n${items.length ? items.map((item: any) => line(item, icon)).join('\n') : '_Nimeni_'}`;
+      const livePayload = { embeds: [{ title: `📡 STATUS LIVE · ${organizationId}`, description: `${section('🟢 În pontaj', active, '🟢')}\n\n${section('☕ În pauză', paused, '☕')}\n\n📊 **Total:** ${(shifts || []).length}\n⏱️ **Actualizat:** <t:${Math.floor(now / 1000)}:R>`, color: 0x2f9e44, timestamp: new Date(now).toISOString(), footer: { text: 'Panel Pro · actualizare live' } }] };
+      const existingMessageId = String(routes[key]?.primary?.message_id || '');
+      if (!existingMessageId && routes[key]?.primary?.channel_id) {
+        const response = await fetch(`${DISCORD_API}/channels/${routes[key].primary.channel_id}/messages?limit=100`, { headers });
+        const messages = await response.json().catch(() => []); const liveMessages = (Array.isArray(messages) ? messages : []).filter((message: any) => (message.embeds || []).some((embed: any) => String(embed.title || '').toLowerCase().startsWith('📡 status live')));
+        for (const duplicate of liveMessages.slice(1)) await fetch(`${DISCORD_API}/channels/${routes[key].primary.channel_id}/messages/${duplicate.id}`, { method: 'DELETE', headers }).catch(() => null);
+        if (liveMessages[0]?.id) routes[key].primary.message_id = String(liveMessages[0].id);
       }
-      const cronSecret = await getPlatformSecret(db, 'status_live_cron_secret');
-      if (!cronSecret) throw new Error('Canalul Status Live a fost creat, dar secretul de sincronizare lipsește din Supabase.');
-      const syncResponse = await run('publicarea Status Live real', () => fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/status-live-sync`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-cron-secret': cronSecret }, body: JSON.stringify({ organization_id: organizationId, guild_id: guildId, force: true }) }));
-      const syncBody = await syncResponse.json().catch(() => ({}));
-      if (!syncResponse.ok) throw new Error(String(syncBody?.error || `Status Live HTTP ${syncResponse.status}`));
-      if (syncBody?.message_ids && Object.keys(syncBody.message_ids).length) published++;
+      const targetMessageId = String(routes[key]?.primary?.message_id || '');
+      const delivery = await run('publicarea Status Live real', () => deliverDiscordRoute(db, { discord_channel_routes: routes }, key, JSON.stringify(livePayload), { messageIds: { primary: targetMessageId }, postOnly: false }));
+      const delivered = delivery.results?.find((item: any) => item.target === 'primary' && item.id); if (delivered?.id) { routes[key].primary.message_id = String(delivered.id); published++; }
       continue;
     }
     const routeChannelId = String(routes[key]?.primary?.channel_id || '');
