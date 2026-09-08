@@ -504,7 +504,7 @@ async function autoConfigureGuild(db: any, guildId: string, organizationId: stri
       const active = (shifts || []).filter((item: any) => item.status !== 'paused'); const paused = (shifts || []).filter((item: any) => item.status === 'paused');
       const line = (item: any, icon: string) => `${icon} **${item.colleague_name || names.get(String(item.discord_id)) || 'Utilizator'}** — ${elapsed(item)}`;
       const section = (title: string, items: any[], icon: string) => `${title} (${items.length})\n${items.length ? items.map((item: any) => line(item, icon)).join('\n') : '_Nimeni_'}`;
-      const livePayload = { embeds: [{ title: `📡 STATUS LIVE · ${organizationId}`, description: `${section('🟢 În pontaj', active, '🟢')}\n\n${section('☕ În pauză', paused, '☕')}\n\n📊 **Total:** ${(shifts || []).length}\n⏱️ **Actualizat:** <t:${Math.floor(now / 1000)}:R>`, color: 0x2f9e44, timestamp: new Date(now).toISOString(), footer: { text: 'Panel Pro · actualizare live' } }] };
+      const livePayload = { embeds: [{ title: '📡 STATUS LIVE', description: `${section('🟢 În pontaj', active, '🟢')}\n\n${section('☕ În pauză', paused, '☕')}\n\n📊 **Total:** ${(shifts || []).length}\n⏱️ **Actualizat:** <t:${Math.floor(now / 1000)}:R>`, color: 0x2f9e44, timestamp: new Date(now).toISOString(), footer: { text: 'Panel Pro · actualizare live' } }] };
       const existingMessageId = String(routes[key]?.primary?.message_id || '');
       if (!existingMessageId && routes[key]?.primary?.channel_id) {
         const response = await fetch(`${DISCORD_API}/channels/${routes[key].primary.channel_id}/messages?limit=100`, { headers });
