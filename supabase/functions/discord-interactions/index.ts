@@ -3210,16 +3210,10 @@ Deno.serve(async (request) => {
       const kind = parts[3] === 'sanction' ? 'sanction' : parts[3] === 'warning' ? 'warning' : null;
       const targetId = String(interaction?.data?.values?.[0] || '').trim();
       if (!audience || !kind || !/^\d{15,22}$/.test(targetId)) return reply(interactionMessage('Membrul selectat nu este valid.'));
-      const permission = kind === 'sanction' ? 'sanction' : 'write';
-      const deferred = await deferInteraction(interaction, false);
-      try {
-        await resolveManagementContext(db, interaction, audience, permission as 'write' | 'sanction', audience === 'organization' ? 'organization' : 'departments', audience === 'organization' ? 'discipline_organization' : 'discipline_departments', 'discipline_permissions', `${audience}.${permission}`);
-        const selectedMember = await discordMemberRoleLabel(targetId, String(interaction.guild_id || ''), db);
-        await editDeferredResponse(deferred.applicationId, deferred.interactionToken, disciplineModal(audience, kind, targetId, `${selectedMember.name} · ${selectedMember.role_label}`));
-      } catch (error) {
-        await editDeferredResponse(deferred.applicationId, deferred.interactionToken, interactionMessage(error instanceof Error ? error.message : 'Membrul nu a putut fi încărcat.'));
-      }
-      return new Response(null, { status: 204 });
+      // Discord only accepts a modal as the immediate interaction response;
+      // a deferred "thinking" response cannot later be replaced by a modal.
+      // The permission and member validation run again on submit.
+      return reply(disciplineModal(audience, kind, targetId, 'Membru selectat · rolul apare în lista anterioară'));
     }
     if (isDiscipline && isModalSubmit) {
       const parts = customId.split(':');
