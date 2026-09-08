@@ -1386,7 +1386,7 @@ function marketplaceEmbed(kind: 'legal' | 'illegal', values: Record<string, any>
     { name: 'Produse / descriere', value: String(values.products || '—').slice(0, 1024), inline: false },
     { name: 'Preț', value: String(values.price || 'Negociabil').slice(0, 1024), inline: true },
   ];
-  return { allowed_mentions: { parse: [] }, embeds: [{ title: illegal ? '🚨 Anunț nou · Marketplace ilegal' : '🛒 Anunț nou · Marketplace', description: `Publicat de **${String(context.displayName || context.discordId)}**.`, color: illegal ? 0xef4444 : 0x2563eb, fields, footer: { text: 'Panel Pro · fără imagini în versiunea Discord' }, timestamp: new Date().toISOString() }], components: id ? [{ type: 1, components: [{ type: 2, style: 5, label: 'Deschide în panel', url: `https://panel-pro.ro/${illegal ? 'marketplace-ilegal.html' : 'marketplace.html'}?anunt=${encodeURIComponent(id)}` }] }] : [] };
+  return { allowed_mentions: { parse: [] }, embeds: [{ title: illegal ? '🚨 Anunț nou · Marketplace ilegal' : '🛒 Anunț nou · Marketplace', description: `Publicat de **${String(context.displayName || context.discordId)}**.`, color: illegal ? 0xef4444 : 0x2563eb, fields, footer: { text: 'Panel Pro · fără imagini sau linkuri externe' }, timestamp: new Date().toISOString() }], components: [] };
 }
 
 async function handleMarketplaceSubmit(db: any, context: any, kind: 'legal' | 'illegal', values: Record<string, any>) {
