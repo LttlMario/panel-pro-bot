@@ -2484,6 +2484,16 @@ Deno.serve(async (request) => {
     }
     if (contractAction === 'create') return reply(contractModal());
   }
+  // Formularele Anunțuri și meniul disciplinar se deschid imediat; validarea
+  // drepturilor se repetă la trimitere, după ce Discord a primit răspunsul.
+  if (isAnnouncements && isButton && customId.split(':')[3] === 'create') {
+    const announcementParts = customId.split(':');
+    const announcementAudience = announcementParts[2] === 'departments' ? 'departments' : 'organization';
+    const announcementType = announcementParts[4] || '';
+    if (announcementType === 'warning' || announcementType === 'sanction') return reply(disciplineTargetPicker(announcementAudience, announcementType));
+    if (['announcement', 'question', 'poll'].includes(announcementType)) return reply(announcementModal(announcementAudience, announcementType as 'announcement' | 'question' | 'poll'));
+  }
+  if (isDiscipline && isButton && customId.split(':')[3] === 'history') return reply(disciplineHistoryTypePicker(customId.split(':')[2] === 'departments' ? 'departments' : 'organization'));
   // Confirmă imediat interacțiunile ticket; verificările DB/Discord pot dura peste limita de 3 secunde.
   let ticketDeferred: any = null;
   if (isTicket && !(isButton && customId === 'panel:ticket:open')) ticketDeferred = await deferInteraction(interaction, false);
@@ -2491,6 +2501,8 @@ Deno.serve(async (request) => {
   // numerotarea contractului pot necesita mai multe citiri din Supabase.
   let contractDeferred: any = null;
   if (isContracts && (isModalSubmit || (isButton && ['publish'].includes(String(customId.split(':')[2] || ''))))) contractDeferred = await deferInteraction(interaction, false);
+  let announcementDeferred: any = null;
+  if (isAnnouncements && isModalSubmit) announcementDeferred = await deferInteraction(interaction, false);
   try {
     const key = serviceKey();
     if (!key) throw new Error('Cheia secretă Supabase lipsește.');
@@ -2890,7 +2902,7 @@ Deno.serve(async (request) => {
       const postType = (mode === 'submit' ? parts[4] : parts[5]) as 'announcement' | 'question' | 'poll';
       if (!audience || !['announcement', 'question', 'poll'].includes(postType) || !['submit', 'edit_submit'].includes(mode)) return reply(interactionMessage('Formularul Anunțuri nu este valid.'));
       const postId = mode === 'edit_submit' ? String(parts[4] || '') : '';
-      const deferred = await deferInteraction(interaction, false);
+      const deferred = announcementDeferred || await deferInteraction(interaction, false);
       let result;
       try {
         const context = await resolveAnnouncementContext(db, interaction, audience, 'write');
