@@ -6,3 +6,24 @@
 
 (()=>{const style=document.createElement('style');style.textContent='.app-header .brand{display:flex;align-items:center;gap:10px}.app-header .brand img{width:38px!important;height:38px!important;max-width:38px;object-fit:cover;border-radius:11px}.app-header .brand span{display:flex!important;flex-direction:column!important;line-height:1.15!important}.sidebar,.side-nav,.side-nav a{font-family:Inter,Segoe UI,Arial,sans-serif!important}.app-header .brand small{display:block;color:#67e8f9;font-size:9px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:2px}.app-header{display:flex;align-items:center;justify-content:space-between;min-height:70px}';document.head.appendChild(style)})();
 (()=>{const footer=document.getElementById('bot-footer');if(!footer)return;const style=document.createElement('style');style.textContent='.app-footer{display:grid!important;grid-template-columns:1fr auto 1fr;align-items:center;gap:14px;text-align:center}.app-footer>span:first-child{text-align:left}.app-footer>span:last-child{text-align:right}.bot-terms-link{color:#67e8f9;text-decoration:none;font-weight:800}.bot-terms-link:hover{text-decoration:underline}@media(max-width:700px){.app-footer{grid-template-columns:1fr;gap:7px}.app-footer>span:first-child,.app-footer>span:last-child{text-align:center}}';document.head.appendChild(style);footer.innerHTML='<span><strong>Panel Pro Bot</strong> · administrare Discord separată</span><a class="bot-terms-link" href="termeni-si-conditii-bot.html">Termeni și condiții</a><span>© 2026 Panel Pro</span>'})();
+(()=>{
+  'use strict';
+  const page=location.pathname.split('/').pop()||'index.html';
+  if(page==='index.html')return;
+  const API='https://zrjxlbkbctlapgupktxw.supabase.co/functions/v1/manage-discord-bot',KEY='sb_publishable_LfngX7pwFruPw35_ZUdO4Q_MGAHoeW0',APP='1531023771211792384';
+  const token=()=>sessionStorage.getItem('discovery_access_token')||sessionStorage.getItem('discord_bot_admin_token')||'';
+  fetch(API,{method:'POST',headers:{'Content-Type':'application/json',apikey:KEY},body:JSON.stringify({action:'bootstrap',view_scope:'personal',access_token:token(),application_id:APP})})
+    .then(r=>r.json().catch(()=>({})))
+    .then(data=>{
+      const admin=data.platform_admin===true;
+      sessionStorage.setItem('discovery_platform_admin',admin?'true':'false');
+      if(admin)return;
+      document.querySelectorAll('#bot-sidebar .side-nav a').forEach(link=>{
+        const href=link.getAttribute('href')||'';
+        const keep=href==='administrare-boturi-discord.html'||href==='https://panel-pro.ro';
+        if(!keep)link.remove();
+      });
+      if(page!=='administrare-boturi-discord.html')location.replace('administrare-boturi-discord.html');
+    })
+    .catch(()=>{});
+})();
