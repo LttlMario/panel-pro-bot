@@ -764,7 +764,7 @@ Deno.serve(async (request) => {
     }
     const { data: settings, error: settingsError } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', selectedGuild.organization_id).maybeSingle();
     if (settingsError) throw settingsError;
-    if (action === 'dashboard_overview' || action === 'repair_guild' || action === 'auto_configure_routes' || action === 'auto_configure_guild' || action === 'set_module_enabled') {
+    if (action === 'dashboard_overview' || action === 'repair_guild' || action === 'auto_configure_routes' || action === 'auto_configure_guild' || action === 'set_module_enabled' || action === 'test_setup') {
       const customSetting = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
       if (customSetting.error) throw customSetting.error;
       const definitions = { ...mergeModuleDefinitions(MODULES, await readGlobalModules(db)), ...sanitizeCustomModules(customSetting.data?.custom_modules || {}) } as Record<string, any>;
@@ -817,6 +817,18 @@ Deno.serve(async (request) => {
         if (action === 'auto_configure_routes') return reply(request, { ok: true, configured: true, matched: automatic.matched, unmatched: automatic.unmatched, channels: { total: channelList.length }, routes });
       }
       const availableChannels = new Set(channelList.map((channel: any) => String(channel.id)));
+      if (action === 'test_setup') {
+        const configuredChannels = [...new Set(Object.values(routes).flatMap((route: any) => [route?.primary?.channel_id]).filter((channelId: any) => validDiscordChannelId(String(channelId || '')) && availableChannels.has(String(channelId))))].slice(0, 2) as string[];
+        if (!botOnline) return reply(request, { error: 'Botul nu este online pe server.' }, 400);
+        if (!hasAdministrator) return reply(request, { error: 'Botul trebuie să aibă permisiunea Administrator.' }, 400);
+        if (!configuredChannels.length) return reply(request, { error: 'Configurează mai întâi cel puțin un canal.' }, 400);
+        const sent: string[] = [];
+        for (const channelId of configuredChannels) {
+          const response = await fetch(`${DISCORD_API}/channels/${channelId}/messages`, { method: 'POST', headers: botHeaders(botToken), body: JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [{ title: '🧪 Test Panel Pro', description: 'Configurarea botului funcționează. Acest mesaj confirmă că botul poate publica embeduri în acest canal.', color: 0x22d3ee, footer: { text: `Panel Pro · test configurare · ${new Date().toLocaleString('ro-RO')}` } }] }) });
+          if (response.ok) sent.push(channelId);
+        }
+        return reply(request, { ok: sent.length > 0, sent_channels: sent, checked_channels: configuredChannels, message: `Mesajul de test a fost trimis în ${sent.length} canal${sent.length === 1 ? '' : 'e'}.` });
+      }
       const modules = Object.entries(definitions).map(([key, definition]: [string, any]) => ({ key, label: definition.label, premium: definition.premium === true, active: definition.active !== false, enabled: routes[key]?.primary?.enabled !== false, embed_configured: Boolean(routes[key]?.primary?.channel_id && availableChannels.has(String(routes[key].primary.channel_id))), log_configured: Boolean(definition.log_key && routes[definition.log_key]?.primary?.channel_id && availableChannels.has(String(routes[definition.log_key].primary.channel_id))) }));
       const [activityResult, auditResult] = await Promise.all([
         db.from('discovery_custom_module_submissions').select('id,module_key,subject,status,created_at,updated_at').eq('organization_id', selectedGuild.organization_id).eq('guild_id', guildId).order('created_at', { ascending: false }).limit(12),
