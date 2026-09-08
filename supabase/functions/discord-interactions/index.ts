@@ -886,8 +886,8 @@ async function disciplineRolePicker(db: any, guildId: string, audience: 'organiz
   const roles = response.ok ? await response.json().catch(() => []) : [];
   const options = (Array.isArray(roles) ? roles : []).filter((role: any) => role?.id && !role.managed && role.name !== '@everyone').sort((a: any, b: any) => Number(b.position || 0) - Number(a.position || 0)).slice(0, 25).map((role: any) => ({ label: String(role.name || role.id).slice(0, 100), value: String(role.id), description: 'Afișează membrii cu acest rol'.slice(0, 100) }));
   if (!options.length) {
-    const details = !membersResponse.ok ? `membrii HTTP ${membersResponse.status}` : !rolesResponse.ok ? `roluri HTTP ${rolesResponse.status}` : 'nu există membri pentru acest rol';
-    return interactionMessage(`Nu am putut încărca membrii rolului (${details}). Verifică permisiunea botului și activează Server Members Intent în Developer Portal dacă este dezactivat.`);
+    const details = !response.ok ? `roluri HTTP ${response.status}` : 'nu există roluri utilizabile';
+    return interactionMessage(`Nu am putut încărca rolurile Discord (${details}). Verifică accesul botului la server.`);
   }
   return interactionMessage(`Alege mai întâi rolul; apoi vei vedea membrii care îl au pentru ${kind === 'warning' ? 'avertisment' : 'sancțiune'}.`, { components: [{ type: 1, components: [{ type: 3, custom_id: `panel:discipline:${audience}:${kind}:role`, placeholder: 'Selectează rolul', min_values: 1, max_values: 1, options }] }] });
 }
