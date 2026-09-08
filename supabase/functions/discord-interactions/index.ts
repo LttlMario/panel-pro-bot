@@ -884,7 +884,7 @@ async function disciplineRolePicker(db: any, guildId: string, audience: 'organiz
   const token = await getPlatformSecret(db, 'discord_bot_token');
   const response = await fetch(`${DISCORD_API}/guilds/${guildId}/roles`, { headers: { Authorization: `Bot ${token}` } });
   const roles = response.ok ? await response.json().catch(() => []) : [];
-  const options = (Array.isArray(roles) ? roles : []).filter((role: any) => role?.id && !role.managed && role.name !== '@everyone').sort((a: any, b: any) => Number(b.position || 0) - Number(a.position || 0)).slice(0, 25).map((role: any) => ({ label: String(role.name || role.id).slice(0, 100), value: String(role.id), description: 'Afișează membrii cu acest rol'.slice(0, 100) }));
+  const options = (Array.isArray(roles) ? roles : []).filter((role: any) => role?.id && role.name !== '@everyone').sort((a: any, b: any) => Number(b.position || 0) - Number(a.position || 0)).slice(0, 25).map((role: any) => ({ label: String(role.name || role.id).slice(0, 100), value: String(role.id), description: `${role.managed ? 'Rol gestionat' : 'Rol server'} · afișează membrii`.slice(0, 100) }));
   if (!options.length) {
     const details = !response.ok ? `roluri HTTP ${response.status}` : 'nu există roluri utilizabile';
     return interactionMessage(`Nu am putut încărca rolurile Discord (${details}). Verifică accesul botului la server.`);
