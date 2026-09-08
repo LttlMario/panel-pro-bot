@@ -253,7 +253,11 @@ function autoRouteChannels(channelList: any[], guildId: string, currentRoutes: R
   const routes: Record<string, any> = { ...(currentRoutes || {}) }; const matched: Record<string, string> = {}; const unmatched: string[] = [];
   for (const [key, definition] of Object.entries(definitions || {})) {
     const terms = matchers[key] || [normalize((definition as any).label || key)];
-    const found = rows.find((row: any) => !blocked(row) && terms.some((term) => row.search.includes(normalize(term))));
+    const exactName = normalize((definition as any).label || key).replace(/ /g, '-');
+    const preferred = rows.filter((row: any) => !blocked(row) && terms.some((term) => row.search.includes(normalize(term))));
+    const found = preferred.find((row: any) => normalize(row.name || '').replace(/ /g, '-') === exactName)
+      || preferred.find((row: any) => normalize(row.category_name || '') === 'panel pro' || normalize(row.category_name || '').includes('panel pro'))
+      || preferred[0];
     if (found) { matched[key] = String(found.id); routes[key] = { ...(routes[key] || {}), primary: { ...(routes[key]?.primary || {}), channel_id: String(found.id), guild_id: guildId, enabled: true } }; }
     else if (!routes[key]?.primary?.channel_id) unmatched.push(key);
   }
