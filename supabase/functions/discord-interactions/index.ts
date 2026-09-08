@@ -1346,16 +1346,16 @@ async function resolveStashContext(db: any, interaction: any, routeKey: 'stash' 
   const configured = Array.isArray(permissionSetting?.value?.[`stash.${permission}`]) ? permissionSetting.value[`stash.${permission}`].map(String) : [];
   if (!platformAdmin && !discordOnly && !configured.some((id: string) => roleIds.has(id))) throw new Error('Nu ai permisiunea configurată pentru această funcție Stash.');
   const displayName = String(interaction.member?.nick || user.global_name || user.username || discordId).trim().slice(0, 120) || discordId;
-  return { guildId, channelId, target, discordId, displayName, organization, settings, logRouteKey: permission === 'request' || permission === 'manage_requests' ? 'log_stash_requests' : permission === 'donate' || permission === 'approve_donation' ? 'log_stash_donations' : 'log_stash' };
+  return { guildId, channelId, target, discordId, displayName, organization, settings, logRouteKey: 'log_stash' };
 }
 
 function stashModal(kind: 'item' | 'request' | 'donation') {
   const input = (custom_id: string, label: string, style: number, required: boolean, placeholder: string, max_length: number) => ({ type: 4, custom_id, label, style, required, placeholder, max_length });
   const rows = kind === 'item'
-    ? [input('title', 'Articol', 1, true, 'Numele articolului', 140), input('category', 'Categorie', 1, true, 'Categoria', 60), input('location', 'Locație Stash', 1, true, 'Ex: Depozit central', 100), input('quantity', 'Număr iteme', 1, true, '0', 20), input('description', 'Detalii', 2, false, 'Detalii despre articol', 1000)]
+    ? [input('title', 'Articol', 1, true, 'Numele articolului', 140), input('category', 'Categorie', 1, true, 'Categoria', 60), input('quantity', 'Număr iteme', 1, true, '0', 20), input('description', 'Detalii', 2, false, 'Detalii despre articol', 1000)]
     : kind === 'request'
-      ? [input('item_title', 'Articol solicitat', 1, true, 'Numele articolului', 140), input('location', 'Locație Stash', 1, true, 'Ex: Depozit central', 100), input('quantity', 'Cantitate', 1, true, '0', 20), input('note', 'Motivul cererii', 2, true, 'De ce este necesar articolul?', 1000)]
-      : [input('title', 'Articol donat', 1, true, 'Articol donat', 140), input('category', 'Categorie', 1, true, 'Categoria', 60), input('location', 'Locație Stash', 1, true, 'Ex: Depozit central', 100), input('quantity', 'Număr iteme', 1, true, '0', 20), input('note', 'Notă', 2, false, 'Detalii donație', 1000)];
+      ? [input('item_title', 'Articol solicitat', 1, true, 'Numele articolului', 140), input('quantity', 'Cantitate', 1, true, '0', 20), input('note', 'Motivul cererii', 2, true, 'De ce este necesar articolul?', 1000)]
+      : [input('title', 'Articol donat', 1, true, 'Articol donat', 140), input('category', 'Categorie', 1, true, 'Categoria', 60), input('quantity', 'Număr iteme', 1, true, '0', 20), input('note', 'Notă', 2, false, 'Detalii donație', 1000)];
   return { type: 9, data: { custom_id: `panel:stash:${kind}:submit`, title: kind === 'item' ? 'Adaugă în Stash' : kind === 'request' ? 'Cerere Stash' : 'Donație Stash', components: rows.map((row) => ({ type: 1, components: [row] })) } };
 }
 
@@ -1545,7 +1545,7 @@ async function handleStashDecision(db: any, context: any, kind: 'request' | 'don
       { name: 'Status', value: decision === 'approved' ? 'Aprobată' : 'Respinsă', inline: true },
     ];
     if (decision === 'approved') fields.splice(fields.length - 2, 1);
-    const delivery = await deliverDiscordRoute(db, context.settings, 'log_stash_requests', JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [{ title: decision === 'approved' ? '✅ Cerere Stash aprobată' : '❌ Cerere Stash respinsă', fields, color: decision === 'approved' ? 0x22c55e : 0xef4444, timestamp: now }] }), { postOnly: true });
+    const delivery = await deliverDiscordRoute(db, context.settings, 'log_stash', JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [{ title: decision === 'approved' ? '✅ Cerere Stash aprobată' : '❌ Cerere Stash respinsă', fields, color: decision === 'approved' ? 0x22c55e : 0xef4444, timestamp: now }] }), { postOnly: true });
     const messageIds = Object.fromEntries((delivery.results || []).filter((item: any) => item.id).map((item: any) => [item.target, String(item.id)]));
     if (Object.keys(messageIds).length) await db.from('discovery_stash_requests').update({ discord_message_ids: messageIds }).eq('organization_id', context.organization.id).eq('id', id);
     await deleteStashApprovalMessages(db, context, kind, row);
@@ -1562,14 +1562,14 @@ async function handleStashDecision(db: any, context: any, kind: 'request' | 'don
     const itemDelivery = await deliverDiscordRoute(db, context.settings, 'log_stash', JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [{ title: '✅ Donație aprobată și adăugată în Stash', fields: [{ name: 'Articol', value: String(item.title), inline: true }, { name: 'Categorie', value: String(item.category), inline: true }, { name: 'Număr iteme', value: String(item.quantity), inline: true }, { name: 'Donat de', value: String(donation.donated_by_name), inline: true }, { name: 'Status', value: 'Disponibil', inline: true }], color: 0x22c55e, timestamp: now }], components: [{ type: 1, components: [{ type: 2, style: 4, label: 'Șterge articolul', custom_id: `panel:stash:delete_item:${item.id}` }] }] }), { postOnly: true });
     const itemMessageIds = Object.fromEntries((itemDelivery.results || []).filter((entry: any) => entry.id).map((entry: any) => [entry.target, String(entry.id)]));
     if (Object.keys(itemMessageIds).length) await db.from('discovery_stash_items').update({ discord_message_ids: itemMessageIds }).eq('organization_id', context.organization.id).eq('id', item.id);
-    const donationDelivery = await deliverDiscordRoute(db, context.settings, 'log_stash_donations', JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [{ title: '✅ Donație Stash aprobată', fields: [{ name: 'Articol', value: String(donation.title), inline: true }, { name: 'Număr iteme', value: String(donation.quantity), inline: true }, { name: 'Donat de', value: String(donation.donated_by_name), inline: true }, { name: 'Status', value: 'Aprobată', inline: true }], color: 0x22c55e, timestamp: now }] }), { postOnly: true });
+    const donationDelivery = await deliverDiscordRoute(db, context.settings, 'log_stash', JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [{ title: '✅ Donație Stash aprobată', fields: [{ name: 'Articol', value: String(donation.title), inline: true }, { name: 'Număr iteme', value: String(donation.quantity), inline: true }, { name: 'Donat de', value: String(donation.donated_by_name), inline: true }, { name: 'Status', value: 'Aprobată', inline: true }], color: 0x22c55e, timestamp: now }] }), { postOnly: true });
     const donationMessageIds = Object.fromEntries((donationDelivery.results || []).filter((entry: any) => entry.id).map((entry: any) => [entry.target, String(entry.id)]));
     if (Object.keys(donationMessageIds).length) await db.from('discovery_stash_donations').update({ discord_message_ids: donationMessageIds }).eq('organization_id', context.organization.id).eq('id', id);
     await deleteStashApprovalMessages(db, context, kind, row);
   } else {
     const { data: donation, error } = await db.from('discovery_stash_donations').update({ status: 'rejected', reviewed_by_discord_id: context.discordId, reviewed_by_name: context.displayName, reviewed_at: now, updated_at: now }).eq('organization_id', context.organization.id).eq('id', id).eq('status', 'pending').select('*').single();
     if (error) throw error;
-    const delivery = await deliverDiscordRoute(db, context.settings, 'log_stash_donations', JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [{ title: '❌ Donație Stash respinsă', fields: [{ name: 'Articol', value: String(donation.title), inline: true }, { name: 'Număr iteme', value: String(donation.quantity), inline: true }, { name: 'Donat de', value: String(donation.donated_by_name), inline: true }, { name: 'Status', value: 'Respinsă', inline: true }], color: 0xef4444, timestamp: now }] }), { postOnly: true });
+    const delivery = await deliverDiscordRoute(db, context.settings, 'log_stash', JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [{ title: '❌ Donație Stash respinsă', fields: [{ name: 'Articol', value: String(donation.title), inline: true }, { name: 'Număr iteme', value: String(donation.quantity), inline: true }, { name: 'Donat de', value: String(donation.donated_by_name), inline: true }, { name: 'Status', value: 'Respinsă', inline: true }], color: 0xef4444, timestamp: now }] }), { postOnly: true });
     const messageIds = Object.fromEntries((delivery.results || []).filter((item: any) => item.id).map((item: any) => [item.target, String(item.id)]));
     if (Object.keys(messageIds).length) await db.from('discovery_stash_donations').update({ discord_message_ids: messageIds }).eq('organization_id', context.organization.id).eq('id', id);
     await deleteStashApprovalMessages(db, context, kind, row);
