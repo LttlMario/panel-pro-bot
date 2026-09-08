@@ -1934,6 +1934,22 @@ async function handleDisciplineAction(db: any, interaction: any, context: any, p
   const nextStatus = kind === 'warning' ? (action === 'revoke' ? 'revoked' : 'resolved') : (action === 'cancel' ? 'cancelled' : 'paid');
   const { data: updated, error } = await db.from(table).update({ status: nextStatus, resolved_at: new Date().toISOString(), resolved_by_discord_id: context.discordId, resolution_note: action === 'cancel' ? 'Anulată din Discord.' : 'Actualizată din Discord.', updated_at: new Date().toISOString() }).eq('organization_id', context.organization.id).eq('id', id).select('*').single();
   if (error) throw error;
+  const logAction = kind === 'warning' ? 'marcat ca rezolvat' : nextStatus === 'paid' ? 'marcată ca achitată' : 'anulată';
+  const logRoute = announcementRoutes(context.audience).log;
+  try {
+    await deliverDiscordRoute(db, context.settings, logRoute, JSON.stringify({
+      allowed_mentions: { parse: [] },
+      embeds: [{
+        ...disciplineEmbed(updated, kind, context, logAction),
+        title: `📝 Disciplinar · ${kind === 'warning' ? 'Avertisment' : 'Sancțiune'} ${logAction}`,
+        description: `Operațiunea a fost efectuată de **${context.displayName}** pentru **${String(updated.target_name || 'membru')}**.`,
+        color: 0x64748b,
+        footer: { text: `Panel Pro · log operațiune · ${context.displayName}` },
+      }],
+    }), { postOnly: true });
+  } catch (logError) {
+    console.error('[discord-interactions] discipline operation log failed', logError);
+  }
   return interactionMessage(`Înregistrarea a fost ${kind === 'sanction' ? (nextStatus === 'paid' ? 'marcată ca achitată' : 'anulată') : 'marcată ca rezolvată'}.`);
 }
 
