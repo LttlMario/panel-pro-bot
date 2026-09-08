@@ -46,6 +46,11 @@ async function claimRun(db: any, organizationId: string, period: any, allowRepea
     if (error.code !== '23505') throw error;
     return null;
   }
+  if (allowRepeat) {
+    const { data: repeated, error: repeatError } = await db.from('discovery_scheduled_report_runs').update({ status: 'processing', error: null, updated_at: new Date().toISOString() }).eq('id', existing.id).select('id').maybeSingle();
+    if (repeatError) throw repeatError;
+    return repeated?.id || null;
+  }
   if (['sent', 'skipped'].includes(existing.status) && !allowRepeat) return null;
   if (['sent', 'skipped'].includes(existing.status) && allowRepeat) {
     const { data: repeated, error: repeatError } = await db.from('discovery_scheduled_report_runs').update({ status: 'processing', error: null, updated_at: new Date().toISOString() }).eq('id', existing.id).select('id').maybeSingle();
