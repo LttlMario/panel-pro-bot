@@ -1395,7 +1395,7 @@ async function handleMarketplaceSubmit(db: any, context: any, kind: 'legal' | 'i
   const products = String(values.products || '').trim();
   if (!name || !products) throw new Error('Completează numele și descrierea anunțului.');
   const row: any = { nume: name.slice(0, 120), telefon: String(values.phone || '').trim().slice(0, 40), tip_actiune: String(values.action || 'Vânzare').trim().slice(0, 30), categorie: String(values.category || 'General').trim().slice(0, 80) || 'General', produse: products.slice(0, 4000), pret: String(values.price || 'Negociabil').trim().slice(0, 80) || 'Negociabil', created_by_discord_id: context.discordId };
-  if (kind === 'illegal') { row.organization_id = null; row.subcategorie = String(values.subcategory || '').trim().slice(0, 100) || null; }
+  if (kind === 'illegal') { row.subcategorie = String(values.subcategory || '').trim().slice(0, 100) || null; }
   else row.organization_id = context.organization.id;
   const { data, error } = await db.from(table).insert(row).select('id').single();
   if (error) throw error;
@@ -2734,7 +2734,7 @@ Deno.serve(async (request) => {
       if (parts[3] === 'mine') {
         const table = kind === 'illegal' ? 'discovery_marketplace_illegal' : 'discovery_marketplace';
         let query = db.from(table).select('nume,tip_actiune,categorie,produse,pret,created_at').eq('created_by_discord_id', context.discordId).order('created_at', { ascending: false }).limit(10);
-        query = kind === 'illegal' ? query.is('organization_id', null) : query.eq('organization_id', context.organization.id);
+        if (kind !== 'illegal') query = query.eq('organization_id', context.organization.id);
         const { data, error } = await query;
         if (error) throw error;
         const lines = (data || []).map((item: any) => `• **${String(item.nume || 'Anunț').slice(0, 80)}** · ${String(item.tip_actiune || '—')} · ${String(item.pret || 'Negociabil')}`).join('\n') || 'Nu ai încă anunțuri publicate.';
