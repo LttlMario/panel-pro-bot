@@ -1394,7 +1394,7 @@ async function handleMarketplaceSubmit(db: any, context: any, kind: 'legal' | 'i
   const name = String(values.name || '').trim();
   const products = String(values.products || '').trim();
   if (!name || !products) throw new Error('Completează numele și descrierea anunțului.');
-  const row: any = { nume: name.slice(0, 120), telefon: String(values.phone || '').trim().slice(0, 40), tip_actiune: String(values.action || 'Vânzare').trim().slice(0, 30), categorie: String(values.category || 'General').trim().slice(0, 80) || 'General', produse: products.slice(0, 4000), pret: String(values.price || 'Negociabil').trim().slice(0, 80) || 'Negociabil', imagini_json: '[]', imagine_url: null, created_by_discord_id: context.discordId };
+  const row: any = { nume: name.slice(0, 120), telefon: String(values.phone || '').trim().slice(0, 40), tip_actiune: String(values.action || 'Vânzare').trim().slice(0, 30), categorie: String(values.category || 'General').trim().slice(0, 80) || 'General', produse: products.slice(0, 4000), pret: String(values.price || 'Negociabil').trim().slice(0, 80) || 'Negociabil', created_by_discord_id: context.discordId };
   if (kind === 'illegal') { row.organization_id = null; row.subcategorie = String(values.subcategory || '').trim().slice(0, 100) || null; }
   else row.organization_id = context.organization.id;
   const { data, error } = await db.from(table).insert(row).select('id').single();
