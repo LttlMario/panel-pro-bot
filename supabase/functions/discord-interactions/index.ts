@@ -2551,6 +2551,8 @@ Deno.serve(async (request) => {
   if (isAnnouncements && isButton && customId.split(':')[3] === 'create' && ['warning', 'sanction'].includes(String(customId.split(':')[4] || ''))) disciplinePickerDeferred = await deferInteraction(interaction, false);
   let disciplineHistoryDeferred: any = null;
   if (isDiscipline && isButton && customId.split(':')[3] === 'history' && customId.split(':')[4] === 'type') disciplineHistoryDeferred = await deferInteraction(interaction, false);
+  let disciplineRoleDeferred: any = null;
+  if (isDiscipline && isSelect && customId.split(':')[4] === 'role') disciplineRoleDeferred = await deferInteraction(interaction, false);
   try {
     const key = serviceKey();
     if (!key) throw new Error('Cheia secretă Supabase lipsește.');
@@ -3034,8 +3036,21 @@ Deno.serve(async (request) => {
         const kind = parts[3] === 'sanction' ? 'sanction' : parts[3] === 'warning' ? 'warning' : null;
         const roleId = String(interaction?.data?.values?.[0] || '').trim();
         if (!kind || !/^\d{15,22}$/.test(roleId)) return reply(interactionMessage('Rolul selectat nu este valid.'));
-        const picker = await disciplineMemberPicker(db, String(interaction.guild_id || ''), audience, kind, roleId);
-        return reply(picker);
+        try {
+          const picker = await disciplineMemberPicker(db, String(interaction.guild_id || ''), audience, kind, roleId);
+          if (disciplineRoleDeferred) {
+            await sendFollowup(disciplineRoleDeferred.applicationId, disciplineRoleDeferred.interactionToken, picker);
+            return new Response(null, { status: 204 });
+          }
+          return reply(picker);
+        } catch (error) {
+          const result = interactionMessage(error instanceof Error ? error.message : 'Membrii rolului nu au putut fi încărcați.');
+          if (disciplineRoleDeferred) {
+            await sendFollowup(disciplineRoleDeferred.applicationId, disciplineRoleDeferred.interactionToken, result);
+            return new Response(null, { status: 204 });
+          }
+          return reply(result);
+        }
       }
       if (audience && parts[3] === 'history' && parts[4] === 'record') {
         const kind = parts[5] === 'sanction' ? 'sanction' : parts[5] === 'warning' ? 'warning' : null;
