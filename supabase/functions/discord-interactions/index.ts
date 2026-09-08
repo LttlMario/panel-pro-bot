@@ -885,7 +885,7 @@ async function disciplineRolePicker(db: any, guildId: string, audience: 'organiz
   const response = await fetch(`${DISCORD_API}/guilds/${guildId}/roles`, { headers: { Authorization: `Bot ${token}` } });
   const roles = response.ok ? await response.json().catch(() => []) : [];
   const options = (Array.isArray(roles) ? roles : []).filter((role: any) => role?.id && !role.managed && role.name !== '@everyone').sort((a: any, b: any) => Number(b.position || 0) - Number(a.position || 0)).slice(0, 25).map((role: any) => ({ label: String(role.name || role.id).slice(0, 100), value: String(role.id), description: 'Afișează membrii cu acest rol'.slice(0, 100) }));
-  if (!options.length) return disciplineTargetPicker(audience, kind);
+  if (!options.length) return interactionMessage('Rolurile Discord nu au putut fi încărcate. Verifică permisiunea botului de a vedea membrii și rolurile serverului.');
   return interactionMessage(`Alege mai întâi rolul; apoi vei vedea membrii care îl au pentru ${kind === 'warning' ? 'avertisment' : 'sancțiune'}.`, { components: [{ type: 1, components: [{ type: 3, custom_id: `panel:discipline:${audience}:${kind}:role`, placeholder: 'Selectează rolul', min_values: 1, max_values: 1, options }] }] });
 }
 
@@ -2993,7 +2993,7 @@ Deno.serve(async (request) => {
       if (action === 'warning' || action === 'sanction') {
          const permission = action === 'sanction' ? 'sanction' : 'write';
          const context = await resolveManagementContext(db, interaction, audience, permission as 'write' | 'sanction', audience === 'organization' ? 'organization' : 'departments', audience === 'organization' ? 'discipline_organization' : 'discipline_departments', 'discipline_permissions', `${audience}.${permission}`);
-         return reply(disciplineTargetPicker(audience, action));
+         return reply(await disciplineRolePicker(db, String(interaction.guild_id || ''), audience, action));
       }
       const kind = parts[4] === 'sanction' ? 'sanction' : 'warning';
       const permission = kind === 'sanction' ? 'sanction' : 'write';
