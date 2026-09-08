@@ -61,7 +61,7 @@ const commandOption = (interaction: any, name: string) => commandOptions(interac
 const PANEL_ROUTE_LABELS: Record<string, string> = {
   organization: 'Anunțuri organizație', departments: 'Anunțuri angajați', pontaj: 'Pontaj', log_pontaj: 'Log pontaj',
   requests_organization: 'Învoiri organizație', requests_departments: 'Învoiri angajați', log_requests_organization: 'Log învoiri organizație', log_requests_departments: 'Log învoiri angajați',
-  contracts: 'Contracte', log_contracts: 'Log contracte', marketplace: 'Marketplace legal', log_marketplace: 'Log Marketplace legal', illegal_marketplace: 'Marketplace ilegal', log_illegal_marketplace: 'Log Marketplace ilegal', actions_organization: 'Acțiuni organizație', log_actions_organization: 'Log acțiuni organizație', actions_organization_weekly: 'Log acțiuni', status_live: 'Status live',
+  contracts: 'Contracte', log_contracts: 'Log contracte', marketplace: 'Marketplace', log_marketplace: 'Log Marketplace', illegal_marketplace: 'Marketplace ilegal', log_illegal_marketplace: 'Log Marketplace ilegal', actions_organization: 'Acțiuni organizație', log_actions_organization: 'Log acțiuni organizație', actions_organization_weekly: 'Log acțiuni', status_live: 'Status live',
   stash: 'Stash', log_stash: 'Log Stash', stash_requests: 'Cereri Stash', log_stash_requests: 'Log cereri Stash', stash_donations: 'Donații Stash', log_stash_donations: 'Log donații Stash', event_reminders: 'Evenimente și remindere', contract_identity_weekly: 'Raport săptămânal contracte', log_contract_identity_weekly: 'Log raport săptămânal contracte',
 };
 const panelRouteKeys = Object.keys(PANEL_ROUTE_LABELS);
@@ -1337,7 +1337,7 @@ function marketplaceModal(kind: 'legal' | 'illegal', defaultName = '') {
     { type: 4, custom_id: 'products', label: 'Produse / descriere', style: 2, required: true, max_length: 1400, placeholder: 'Descrierea anunțului' },
     { type: 4, custom_id: 'price', label: 'Preț (opțional)', style: 1, required: false, max_length: 80, placeholder: 'Ex: 50.000$ · lasă gol pentru Negociabil' },
   ];
-  return { type: 9, data: { custom_id: `panel:marketplace:${kind}:submit`, title: illegal ? 'Anunț Marketplace ilegal' : 'Anunț Marketplace legal', components: fields.map((field) => ({ type: 1, components: [field] })) } };
+  return { type: 9, data: { custom_id: `panel:marketplace:${kind}:submit`, title: illegal ? 'Anunț Marketplace ilegal' : 'Anunț Marketplace', components: fields.map((field) => ({ type: 1, components: [field] })) } };
 }
 
 async function resolveMarketplaceContext(db: any, interaction: any, kind: 'legal' | 'illegal') {
@@ -1381,7 +1381,7 @@ function marketplaceEmbed(kind: 'legal' | 'illegal', values: Record<string, any>
     { name: 'Produse / descriere', value: String(values.products || '—').slice(0, 1024), inline: false },
     { name: 'Preț', value: String(values.price || 'Negociabil').slice(0, 1024), inline: true },
   ];
-  return { allowed_mentions: { parse: [] }, embeds: [{ title: illegal ? '🚨 Anunț nou · Marketplace ilegal' : '🛒 Anunț nou · Marketplace legal', description: `Publicat de **${String(context.displayName || context.discordId)}**.`, color: illegal ? 0xef4444 : 0x2563eb, fields, footer: { text: 'Panel Pro · fără imagini în versiunea Discord' }, timestamp: new Date().toISOString() }], components: id ? [{ type: 1, components: [{ type: 2, style: 5, label: 'Deschide în panel', url: `https://panel-pro.ro/${illegal ? 'marketplace-ilegal.html' : 'marketplace.html'}?anunt=${encodeURIComponent(id)}` }] }] : [] };
+  return { allowed_mentions: { parse: [] }, embeds: [{ title: illegal ? '🚨 Anunț nou · Marketplace ilegal' : '🛒 Anunț nou · Marketplace', description: `Publicat de **${String(context.displayName || context.discordId)}**.`, color: illegal ? 0xef4444 : 0x2563eb, fields, footer: { text: 'Panel Pro · fără imagini în versiunea Discord' }, timestamp: new Date().toISOString() }], components: id ? [{ type: 1, components: [{ type: 2, style: 5, label: 'Deschide în panel', url: `https://panel-pro.ro/${illegal ? 'marketplace-ilegal.html' : 'marketplace.html'}?anunt=${encodeURIComponent(id)}` }] }] : [] };
 }
 
 async function handleMarketplaceSubmit(db: any, context: any, kind: 'legal' | 'illegal', values: Record<string, any>) {
