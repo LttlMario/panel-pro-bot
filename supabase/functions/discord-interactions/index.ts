@@ -1395,7 +1395,7 @@ function marketplaceMinePicker(kind: 'legal' | 'illegal', rows: any[]) {
 }
 
 function marketplaceManageView(kind: 'legal' | 'illegal', row: any) {
-  return interactionMessage('', { embeds: [{ title: kind === 'illegal' ? `🚨 ${String(row.nume || 'Anunț')} · Marketplace ilegal` : `🛒 ${String(row.nume || 'Anunț')} · Marketplace`, description: String(row.produse || '—').slice(0, 4000), color: kind === 'illegal' ? 0xef4444 : 0x2563eb, fields: [{ name: 'Telefon', value: String(row.telefon || '—'), inline: true }, { name: 'Tip acțiune', value: String(row.tip_actiune || '—'), inline: true }, { name: 'Preț', value: String(row.pret || 'Negociabil'), inline: true }] }], components: [{ type: 1, components: [{ type: 2, style: 1, label: 'Editează', custom_id: `panel:marketplace:${kind}:edit:${row.id}` }, { type: 2, style: 4, label: 'Șterge', custom_id: `panel:marketplace:${kind}:delete:${row.id}` }] }] });
+  return interactionMessage('', { embeds: [{ title: kind === 'illegal' ? `🚨 ${String(row.nume || 'Anunț')} · Marketplace ilegal` : `🛒 ${String(row.nume || 'Anunț')} · Marketplace`, description: String(row.produse || '—').slice(0, 4000), color: kind === 'illegal' ? 0xef4444 : 0x2563eb, fields: [{ name: 'Telefon', value: String(row.telefon || '—'), inline: true }, { name: 'Tip acțiune', value: String(row.tip_actiune || '—'), inline: true }, { name: 'Preț', value: String(row.pret || 'Negociabil'), inline: true }, { name: 'Status', value: String(row.status || 'active') === 'sold' ? 'Vândut' : 'Activ', inline: true }] }], components: [{ type: 1, components: [{ type: 2, style: 3, label: 'Marchează ca vândut!', custom_id: `panel:marketplace:${kind}:sold:${row.id}` }, { type: 2, style: 4, label: 'Șterge', custom_id: `panel:marketplace:${kind}:delete:${row.id}` }] }] });
 }
 
 function marketplaceEditModal(kind: 'legal' | 'illegal', row: any) {
@@ -2754,7 +2754,7 @@ Deno.serve(async (request) => {
         if (error) throw error;
         return reply(marketplaceMinePicker(kind, data || []));
       }
-      if (parts[3] === 'edit' || parts[3] === 'delete') {
+      if (parts[3] === 'edit' || parts[3] === 'delete' || parts[3] === 'sold') {
         const id = String(parts[4] || '').trim();
         if (!/^[0-9a-f-]{36}$/i.test(id)) return reply(interactionMessage('Anunțul selectat nu este valid.'));
         const table = kind === 'illegal' ? 'discovery_marketplace_illegal' : 'discovery_marketplace';
@@ -2762,6 +2762,11 @@ Deno.serve(async (request) => {
         if (error) throw error;
         if (!row) return reply(interactionMessage('Anunțul nu mai există sau nu îți aparține.'));
         if (parts[3] === 'edit') return reply(marketplaceEditModal(kind, row));
+        if (parts[3] === 'sold') {
+          const { error: soldError } = await db.from(table).update({ status: 'sold', updated_at: new Date().toISOString() }).eq('id', id).eq('organization_id', context.organization.id).eq('created_by_discord_id', context.discordId);
+          if (soldError) throw soldError;
+          return reply(interactionMessage('Anunțul a fost marcat ca vândut.'));
+        }
         const { error: deleteError } = await db.from(table).delete().eq('id', id).eq('organization_id', context.organization.id).eq('created_by_discord_id', context.discordId);
         if (deleteError) throw deleteError;
         return reply(interactionMessage('Anunțul a fost șters din Marketplace.'));
