@@ -2919,13 +2919,22 @@ Deno.serve(async (request) => {
       if (action === 'create' && (parts[4] === 'warning' || parts[4] === 'sanction')) {
         const kind = parts[4] as 'warning' | 'sanction';
         const permission = kind === 'sanction' ? 'sanction' : 'write';
-        await resolveManagementContext(db, interaction, audience, permission as 'write' | 'sanction', audience === 'organization' ? 'organization' : 'departments', audience === 'organization' ? 'discipline_organization' : 'discipline_departments', 'discipline_permissions', `${audience}.${permission}`);
-        if (disciplinePickerDeferred) {
-          const picker = await disciplineRolePicker(db, String(interaction.guild_id || ''), audience, kind);
-          await sendFollowup(disciplinePickerDeferred.applicationId, disciplinePickerDeferred.interactionToken, picker);
-          return new Response(null, { status: 204 });
+        try {
+          await resolveManagementContext(db, interaction, audience, permission as 'write' | 'sanction', audience === 'organization' ? 'organization' : 'departments', audience === 'organization' ? 'discipline_organization' : 'discipline_departments', 'discipline_permissions', `${audience}.${permission}`);
+          if (disciplinePickerDeferred) {
+            const picker = await disciplineRolePicker(db, String(interaction.guild_id || ''), audience, kind);
+            await sendFollowup(disciplinePickerDeferred.applicationId, disciplinePickerDeferred.interactionToken, picker);
+            return new Response(null, { status: 204 });
+          }
+          return reply(disciplineTargetPicker(audience, kind));
+        } catch (error) {
+          const result = interactionMessage(error instanceof Error ? error.message : 'Selectorul de roluri nu a putut fi încărcat.');
+          if (disciplinePickerDeferred) {
+            await sendFollowup(disciplinePickerDeferred.applicationId, disciplinePickerDeferred.interactionToken, result);
+            return new Response(null, { status: 204 });
+          }
+          return reply(result);
         }
-        return reply(disciplineTargetPicker(audience, kind));
       }
       if (action === 'create' && postType) return reply(announcementModal(audience, postType));
       if (action === 'edit') {
@@ -2974,17 +2983,26 @@ Deno.serve(async (request) => {
         if (parts[4] !== 'type') return reply(disciplineHistoryTypePicker(audience));
         const kind = parts[5] === 'sanction' ? 'sanction' : parts[5] === 'warning' ? 'warning' : null;
         if (!kind) return reply(interactionMessage('Tipul de înregistrare nu este valid.'));
-        const context = await resolveManagementContext(db, interaction, audience, 'write', audience === 'organization' ? 'organization' : 'departments', audience === 'organization' ? 'discipline_organization' : 'discipline_departments', 'discipline_permissions', `${audience}.write`);
-        const table = kind === 'warning' ? 'discovery_disciplinary_warnings' : 'discovery_disciplinary_sanctions';
-        const historyColumns = kind === 'warning' ? 'id,status,reason,target_name,created_at' : 'id,status,reason,amount,currency,target_name,created_at';
-        const { data, error } = await db.from(table).select(historyColumns).eq('organization_id', context.organization.id).eq('target_scope', audience).in('status', kind === 'warning' ? ['active'] : ['active', 'issued']).order('created_at', { ascending: false }).limit(25);
-        if (error) throw error;
-        const historyResult = disciplineHistoryRecordPicker(audience, kind, data || []);
-        if (disciplineHistoryDeferred) {
-          await sendFollowup(disciplineHistoryDeferred.applicationId, disciplineHistoryDeferred.interactionToken, historyResult);
-          return new Response(null, { status: 204 });
+        try {
+          const context = await resolveManagementContext(db, interaction, audience, 'write', audience === 'organization' ? 'organization' : 'departments', audience === 'organization' ? 'discipline_organization' : 'discipline_departments', 'discipline_permissions', `${audience}.write`);
+          const table = kind === 'warning' ? 'discovery_disciplinary_warnings' : 'discovery_disciplinary_sanctions';
+          const historyColumns = kind === 'warning' ? 'id,status,reason,target_name,created_at' : 'id,status,reason,amount,currency,target_name,created_at';
+          const { data, error } = await db.from(table).select(historyColumns).eq('organization_id', context.organization.id).eq('target_scope', audience).in('status', kind === 'warning' ? ['active'] : ['active', 'issued']).order('created_at', { ascending: false }).limit(25);
+          if (error) throw error;
+          const historyResult = disciplineHistoryRecordPicker(audience, kind, data || []);
+          if (disciplineHistoryDeferred) {
+            await sendFollowup(disciplineHistoryDeferred.applicationId, disciplineHistoryDeferred.interactionToken, historyResult);
+            return new Response(null, { status: 204 });
+          }
+          return reply(historyResult);
+        } catch (error) {
+          const result = interactionMessage(error instanceof Error ? error.message : 'Istoricul nu a putut fi încărcat.');
+          if (disciplineHistoryDeferred) {
+            await sendFollowup(disciplineHistoryDeferred.applicationId, disciplineHistoryDeferred.interactionToken, result);
+            return new Response(null, { status: 204 });
+          }
+          return reply(result);
         }
-        return reply(historyResult);
       }
       if (action === 'role_members') {
         const kind = parts[4] === 'sanction' ? 'sanction' : parts[4] === 'warning' ? 'warning' : null;
