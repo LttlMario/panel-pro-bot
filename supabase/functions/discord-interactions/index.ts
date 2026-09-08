@@ -1239,10 +1239,10 @@ function requestModal(audience: 'organization' | 'departments') {
   ] } };
 }
 
-function marketplaceModal(kind: 'legal' | 'illegal') {
+function marketplaceModal(kind: 'legal' | 'illegal', defaultName = '') {
   const illegal = kind === 'illegal';
   const fields: any[] = [
-    { type: 4, custom_id: 'name', label: 'Nume afișat', style: 1, required: true, max_length: 120 },
+    { type: 4, custom_id: 'name', label: 'Nume afișat', style: 1, required: true, max_length: 120, value: String(defaultName || '').slice(0, 120) },
     { type: 4, custom_id: 'phone', label: 'Număr de telefon', style: 1, required: true, max_length: 40 },
     { type: 4, custom_id: 'action', label: 'Tip: Vânzare / Cumpărare / Servicii', style: 1, required: true, max_length: 20 },
     { type: 4, custom_id: 'products', label: 'Produse / descriere', style: 2, required: true, max_length: 1400, placeholder: 'Descrierea anunțului' },
@@ -2572,7 +2572,11 @@ Deno.serve(async (request) => {
       const parts = customId.split(':');
       const kind = parts[2] === 'illegal' ? 'illegal' : parts[2] === 'legal' ? 'legal' : null;
       if (!kind) return reply(interactionMessage('Marketplace-ul selectat nu este valid.'));
-      if (parts[3] === 'create') return reply(marketplaceModal(kind));
+      if (parts[3] === 'create') {
+        const user = interaction.member?.user || interaction.user || {};
+        const displayName = String(interaction.member?.nick || user.global_name || user.username || '').trim().slice(0, 120);
+        return reply(marketplaceModal(kind, displayName));
+      }
       const context = await resolveMarketplaceContext(db, interaction, kind);
       if (parts[3] === 'mine') {
         const table = kind === 'illegal' ? 'discovery_marketplace_illegal' : 'discovery_marketplace_legal';
