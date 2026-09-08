@@ -415,7 +415,7 @@ async function autoConfigureGuild(db: any, guildId: string, organizationId: stri
   const headers = { ...botHeaders(token), 'Content-Type': 'application/json' };
   const base = `${DISCORD_API}/guilds/${guildId}`;
   const api = async (path: string, options: RequestInit = {}) => { const response = await fetch(base + path, { ...options, headers: { ...headers, ...(options.headers || {}) } }); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(`Discord API ${path} HTTP ${response.status}: ${String(body?.message || 'Missing Permissions')}`); return body; };
-  const existing = await api('/channels');
+  let existing = await api('/channels');
   const botResponse = await fetch(`${DISCORD_API}/users/@me`, { headers }); const bot = await botResponse.json().catch(() => ({}));
   const botId = String(bot?.id || '');
   const categoryName = '🧩 PANEL PRO';
@@ -427,11 +427,15 @@ async function autoConfigureGuild(db: any, guildId: string, organizationId: stri
   const slug = (value: string) => String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'modul';
   const botChannelPrefixes = new Set(['📌・', ...Object.values(MODULE_EMOJIS).map((emoji) => `${emoji}・`)]);
   const overwrite = (readOnly = false) => { const rows: any[] = [{ id: guildId, type: 0, allow: '1024', deny: readOnly ? '2048' : '0' }]; if (botId) rows.push({ id: botId, type: 1, allow: '68608' }); return rows; };
+  const desiredNames = new Set(eligible.map(([key, definition]) => `${MODULE_EMOJIS[key] || '🧩'}・${slug(definition.label || key)}`));
+  for (const [key, definition] of eligible) if (definition.log_key) desiredNames.add(`${MODULE_EMOJIS[key] || '🧩'}・log-${slug(definition.label || key)}`);
+  const oldManaged = (Array.isArray(existing) ? existing : []).filter((channel: any) => Number(channel.type) === 0 && String(channel.parent_id || '') === String(category.id) && !desiredNames.has(String(channel.name || '')) && (String(channel.name || '') === '📋・loguri-panel-pro' || [...botChannelPrefixes].some((prefix) => String(channel.name || '').startsWith(prefix))));
+  for (const channel of oldManaged) await api(`/channels/${channel.id}`, { method: 'DELETE' });
+  if (oldManaged.length) existing = existing.filter((channel: any) => !oldManaged.some((old: any) => String(old.id) === String(channel.id)));
   for (const [key, definition] of eligible) {
     const name = `${MODULE_EMOJIS[key] || '🧩'}・${slug(definition.label || key)}`;
-    const found = (Array.isArray(existing) ? existing : []).find((channel: any) => Number(channel.type) === 0 && String(channel.parent_id || '') === String(category.id) && slug(String(channel.name || '')) === slug(name) && (String(channel.name) === name || [...botChannelPrefixes].some((prefix) => String(channel.name || '').startsWith(prefix))));
-    const channel = found || await api('/channels', { method: 'POST', body: JSON.stringify({ name, type: 0, parent_id: String(category.id), permission_overwrites: overwrite(false) }) });
-    if (found && String(found.name) !== name) await api(`/channels/${found.id}`, { method: 'PATCH', body: JSON.stringify({ name, permission_overwrites: overwrite(false) }) });
+    const found = (Array.isArray(existing) ? existing : []).find((channel: any) => Number(channel.type) === 0 && String(channel.parent_id || '') === String(category.id) && String(channel.name) === name);
+    const channel = found || await api('/channels', { method: 'POST', body: JSON.stringify({ name, type: 0, parent_id: String(category.id), topic: 'Panel Pro Bot · canal gestionat automat', permission_overwrites: overwrite(false) }) });
     channelIds[key] = String(channel.id); if (!found) created.push(name);
     routes[key] = { ...(routes[key] || {}), primary: { ...(routes[key]?.primary || {}), channel_id: String(channel.id), guild_id: guildId, enabled: true } };
   }
@@ -440,7 +444,7 @@ async function autoConfigureGuild(db: any, guildId: string, organizationId: stri
     if (!definition.log_key) continue;
     const logName = `${MODULE_EMOJIS[key] || '🧩'}・log-${slug(definition.label || key)}`;
     const logFound = (Array.isArray(existing) ? existing : []).find((channel: any) => Number(channel.type) === 0 && String(channel.parent_id || '') === String(category.id) && String(channel.name) === logName);
-    const logChannel = logFound || await api('/channels', { method: 'POST', body: JSON.stringify({ name: logName, type: 0, parent_id: String(category.id), permission_overwrites: overwrite(true) }) });
+    const logChannel = logFound || await api('/channels', { method: 'POST', body: JSON.stringify({ name: logName, type: 0, parent_id: String(category.id), topic: 'Panel Pro Bot · log gestionat automat', permission_overwrites: overwrite(true) }) });
     logChannels[key] = logChannel;
     if (!logFound) created.push(logName);
     routes[definition.log_key] = { ...(routes[definition.log_key] || {}), primary: { ...(routes[definition.log_key]?.primary || {}), channel_id: String(logChannel.id), guild_id: guildId, enabled: true } };
