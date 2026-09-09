@@ -314,8 +314,14 @@ async function deleteFollowup(applicationId: string, interactionToken: string, m
 async function runDeferredCommand(interaction: any, work: () => Promise<any>, fallback: string) {
   const deferred = await deferInteraction(interaction, false);
   let result;
-  try { result = await work(); } catch (error) { console.error('[discord-interactions] command failed', error); result = interactionMessage(readableError(error, fallback)); }
-  await sendFollowup(deferred.applicationId, deferred.interactionToken, result);
+  try {
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Comanda a durat prea mult. Încearcă din nou în câteva secunde.')), 12000));
+    result = await Promise.race([work(), timeout]);
+  } catch (error) {
+    console.error('[discord-interactions] command failed', error);
+    result = interactionMessage(readableError(error, fallback));
+  }
+  await editDeferredResponse(deferred.applicationId, deferred.interactionToken, result);
   return new Response(null, { status: 204 });
 }
 
