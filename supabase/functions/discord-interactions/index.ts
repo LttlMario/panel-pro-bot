@@ -321,7 +321,8 @@ async function runDeferredCommand(interaction: any, work: () => Promise<any>, fa
     console.error('[discord-interactions] command failed', error);
     result = interactionMessage(readableError(error, fallback));
   }
-  await editDeferredResponse(deferred.applicationId, deferred.interactionToken, result);
+  const edited = await editDeferredResponse(deferred.applicationId, deferred.interactionToken, result);
+  if (!edited) await sendFollowup(deferred.applicationId, deferred.interactionToken, result);
   return new Response(null, { status: 204 });
 }
 
@@ -889,10 +890,12 @@ async function handleContractAddressSubmit(db: any, context: any, values: Record
 }
 
 async function editDeferredResponse(applicationId: string, interactionToken: string, data: any) {
+  const payload = { ...(data?.data || {}) };
+  delete (payload as any).flags;
   const response = await fetch(`${DISCORD_API}/webhooks/${applicationId}/${encodeURIComponent(interactionToken)}/messages/@original`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...(data?.data || {}) }),
+    body: JSON.stringify(payload),
   });
   if (!response.ok) console.error('[discord-interactions] deferred edit failed', response.status, await response.text().catch(() => ''));
   return response.ok;
