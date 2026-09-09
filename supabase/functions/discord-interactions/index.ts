@@ -175,7 +175,7 @@ async function ensureDiscordOnlyOrganization(db: any, interaction: any) {
   }
   if (!isDiscordManager(interaction)) throw new Error('Serverul nu este configurat pentru Panel Pro. Ownerul serverului sau un administrator cu Manage Server trebuie să ruleze mai întâi /panel config.');
 
-  const applicationId = String(interaction?.application_id || '').trim();
+  const applicationId = String(interaction?.application_id || Deno.env.get('DISCORD_DISCOVERY_APPLICATION_ID') || '').trim();
   const guildName = String(interaction?.guild?.name || interaction?.guild_name || `Server Discord ${guildId}`).trim().slice(0, 120);
   const slug = `discord-${guildId}`;
   const now = new Date().toISOString();
@@ -277,12 +277,19 @@ async function activateDiscordTrial(db: any, interaction: any) {
   return interactionMessage('Trial-ul Premium de 30 de zile a fost activat pentru acest server.');
 }
 
+async function discordRequest(url: string, init: RequestInit, timeoutMs = 6000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try { return await fetch(url, { ...init, signal: controller.signal }); }
+  finally { clearTimeout(timer); }
+}
+
 async function deferInteraction(interaction: any, updateOnly = false) {
   const interactionId = String(interaction?.id || '').trim();
-  const applicationId = String(interaction?.application_id || '').trim();
+  const applicationId = String(interaction?.application_id || Deno.env.get('DISCORD_DISCOVERY_APPLICATION_ID') || '').trim();
   const interactionToken = String(interaction?.token || '').trim();
   if (!/^\d{15,22}$/.test(interactionId) || !/^\d{15,22}$/.test(applicationId) || !interactionToken) throw new Error('Interacțiunea Discord nu are un token valid.');
-  const response = await fetch(`${DISCORD_API}/interactions/${interactionId}/${encodeURIComponent(interactionToken)}/callback`, {
+  const response = await discordRequest(`${DISCORD_API}/interactions/${interactionId}/${encodeURIComponent(interactionToken)}/callback`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updateOnly ? { type: 6 } : { type: 5, data: { flags: SILENT_EPHEMERAL_FLAGS } }),
@@ -292,7 +299,7 @@ async function deferInteraction(interaction: any, updateOnly = false) {
 }
 
 async function sendFollowup(applicationId: string, interactionToken: string, data: any) {
-  const response = await fetch(`${DISCORD_API}/webhooks/${applicationId}/${encodeURIComponent(interactionToken)}?wait=true`, {
+  const response = await discordRequest(`${DISCORD_API}/webhooks/${applicationId}/${encodeURIComponent(interactionToken)}?wait=true`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...(data?.data || {}), flags: SILENT_EPHEMERAL_FLAGS }),
@@ -307,15 +314,15 @@ async function sendFollowup(applicationId: string, interactionToken: string, dat
 
 async function deleteFollowup(applicationId: string, interactionToken: string, messageId: string) {
   if (!messageId) return;
-  const response = await fetch(`${DISCORD_API}/webhooks/${applicationId}/${encodeURIComponent(interactionToken)}/messages/${encodeURIComponent(messageId)}`, { method: 'DELETE' });
+  const response = await discordRequest(`${DISCORD_API}/webhooks/${applicationId}/${encodeURIComponent(interactionToken)}/messages/${encodeURIComponent(messageId)}`, { method: 'DELETE' });
   if (!response.ok && response.status !== 404) console.error('[discord-interactions] follow-up delete failed', response.status, await response.text().catch(() => ''));
 }
 
 async function acknowledgeInteraction(interaction: any, data: any) {
   const interactionId = String(interaction?.id || '').trim();
-  const applicationId = String(interaction?.application_id || '').trim();
+  const applicationId = String(interaction?.application_id || Deno.env.get('DISCORD_DISCOVERY_APPLICATION_ID') || '').trim();
   const interactionToken = String(interaction?.token || '').trim();
-  const response = await fetch(`${DISCORD_API}/interactions/${interactionId}/${encodeURIComponent(interactionToken)}/callback`, {
+  const response = await discordRequest(`${DISCORD_API}/interactions/${interactionId}/${encodeURIComponent(interactionToken)}/callback`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -920,7 +927,7 @@ async function handleContractAddressSubmit(db: any, context: any, values: Record
 async function editDeferredResponse(applicationId: string, interactionToken: string, data: any) {
   const payload = { ...(data?.data || {}) };
   delete (payload as any).flags;
-  const response = await fetch(`${DISCORD_API}/webhooks/${applicationId}/${encodeURIComponent(interactionToken)}/messages/@original`, {
+  const response = await discordRequest(`${DISCORD_API}/webhooks/${applicationId}/${encodeURIComponent(interactionToken)}/messages/@original`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
