@@ -362,7 +362,7 @@ async function runAcknowledgedCommand(interaction: any, work: () => Promise<any>
   return new Response(null, { status: 204 });
 }
 
-function runBackgroundAcknowledgedCommand(interaction: any, work: () => Promise<any>, fallback: string) {
+function runBackgroundAcknowledgedCommand(interaction: any, work: () => Promise<any>, fallback: string, acknowledgement: any = { type: 5, data: { flags: SILENT_EPHEMERAL_FLAGS } }) {
   const applicationId = String(interaction?.application_id || Deno.env.get('DISCORD_DISCOVERY_APPLICATION_ID') || '').trim();
   const interactionToken = String(interaction?.token || '').trim();
   const task = (async () => {
@@ -385,7 +385,7 @@ function runBackgroundAcknowledgedCommand(interaction: any, work: () => Promise<
   const runtime = (globalThis as any).EdgeRuntime;
   if (runtime && typeof runtime.waitUntil === 'function') runtime.waitUntil(task);
   else void task;
-  return reply({ type: 5, data: { flags: SILENT_EPHEMERAL_FLAGS } });
+  return reply(acknowledgement);
 }
 
 async function runDeferredCommand(interaction: any, work: () => Promise<any>, fallback: string) {
@@ -2729,7 +2729,7 @@ Deno.serve(async (request) => {
     const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
     await ensureDiscordOnlyOrganization(db, interaction);
     return saveBotAccessRoles(db, interaction);
-  }, 'Rolurile de acces nu au putut fi salvate.');
+  }, 'Rolurile de acces nu au putut fi salvate.', { type: 6 });
   // Confirmă imediat interacțiunile ticket; verificările DB/Discord pot dura peste limita de 3 secunde.
   let ticketDeferred: any = null;
   if (isTicket && !(isButton && customId === 'panel:ticket:open')) ticketDeferred = await deferInteraction(interaction, false);
