@@ -690,9 +690,19 @@ Deno.serve(async (request) => {
     const guildId = clean(body.guild_id, 30);
     const selectedGuild = guilds.find((guild: any) => guild.id === guildId);
     if (!selectedGuild) return reply(request, { error: platformAdmin ? 'Serverul nu este disponibil sau botul nu este instalat.' : 'Serverul nu este disponibil: trebuie să fii owner și botul trebuie să fie instalat.' }, 403);
-    if (action === 'wheel_reminder_status' || action === 'wheel_reminder_start') {
+    if (action === 'wheel_reminder_status' || action === 'wheel_reminder_start' || action === 'wheel_reminder_test') {
       const organizationId = String(selectedGuild.organization_id || '').trim();
       if (!organizationId) return reply(request, { error: 'Organizația serverului nu este disponibilă.' }, 400);
+      if (action === 'wheel_reminder_test') {
+        const botToken = await getPlatformSecret(db, 'discord_bot_token');
+        if (!botToken) return reply(request, { error: 'Tokenul botului Discord nu este configurat.' }, 503);
+        const dmChannel = await fetch(`${DISCORD_API}/users/@me/channels`, { method: 'POST', headers: { ...botHeaders(botToken), 'Content-Type': 'application/json' }, body: JSON.stringify({ recipient_id: String(discord.id) }) });
+        const dm = await dmChannel.json().catch(() => ({}));
+        if (!dmChannel.ok || !dm?.id) return reply(request, { error: 'Nu am putut deschide conversația privată pe Discord.' }, 502);
+        const message = await fetch(`${DISCORD_API}/channels/${dm.id}/messages`, { method: 'POST', headers: { ...botHeaders(botToken), 'Content-Type': 'application/json' }, body: JSON.stringify({ content: '🔔 Test notificare Panel Pro: mesajul privat Discord funcționează. Timerul tău de 6 ore nu a fost modificat.' }) });
+        if (!message.ok) return reply(request, { error: 'Mesajul privat de test nu a putut fi trimis pe Discord.' }, 502);
+        return reply(request, { ok: true, discord_private: true, web_private: true });
+      }
       const { data: activeReminder, error: reminderError } = await db.from('discovery_wheel_reminders')
         .select('id,started_at,due_at,status,notified_at,last_error')
         .eq('organization_id', organizationId)
