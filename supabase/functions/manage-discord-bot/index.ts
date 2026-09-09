@@ -21,7 +21,7 @@ const MODULES: Record<string, { label: string; premium: boolean; title: string; 
   contract_identity_weekly: { label: 'Raport săptămânal contracte', premium: true, title: '📋 Raport săptămânal contracte', description: 'Generează exportul săptămânal cu numele și CNP-ul angajaților.', color: 0x14b8a6, buttons: [{ label: 'Generează raport', style: 1, id: 'panel:discovery:weekly_report' }, { label: 'Info raport', style: 2, id: 'panel:discovery:report_info' }] },
   weekly_reports: { label: 'Raport săptămânal pontaj', premium: true, title: '📊 Raport săptămânal pontaj', description: 'Trimite zilele lucrate, orele pe fiecare membru și totalul săptămânal.', color: 0x06b6d4, buttons: [{ label: 'Generează raport pontaj', style: 1, id: 'panel:discovery:weekly_shift_report' }] },
   actions_organization: { label: 'Acțiuni organizație', premium: true, title: '🎯 Acțiuni · Organizație', description: 'Înregistrează și consultă acțiunile organizației.', color: 0x3b82f6, buttons: [{ label: 'Acțiune', style: 1, id: 'panel:actions:organization:create' }, { label: 'Clasament acțiuni', style: 2, id: 'panel:actions:organization:stats' }] },
-  stash: { label: 'Stash', premium: true, title: '📦 Stash · Administrare', description: 'Gestionează articolele, cererile și donațiile Stash.', color: 0x22c55e, buttons: [{ label: 'Adaugă în Stash', style: 3, id: 'panel:stash:create' }, { label: 'Cereri în așteptare', style: 1, id: 'panel:stash:pending_requests' }, { label: 'Donații în așteptare', style: 1, id: 'panel:stash:pending_donations' }] },
+  stash: { label: 'Stash', premium: true, title: '📦 Stash · Administrare', description: 'Gestionează articolele Stash. Cererile și donațiile se gestionează din embedurile lor separate.', color: 0x22c55e, buttons: [{ label: 'Adaugă în Stash', style: 3, id: 'panel:stash:create' }, { label: 'Gestionează articole', style: 2, id: 'panel:stash:manage_items' }] },
   stash_requests: { label: 'Cereri Stash', premium: true, title: '📨 Cereri Stash', description: 'Solicită articole și urmărește cererile trimise pentru aprobare.', color: 0x3b82f6, buttons: [{ label: 'Solicită articol', style: 1, id: 'panel:stash:request' }, { label: 'Cereri în așteptare', style: 2, id: 'panel:stash:pending_requests' }] },
   stash_donations: { label: 'Donații Stash', premium: true, title: '🎁 Donații Stash', description: 'Înregistrează donații și trimite-le spre aprobare administrativă.', color: 0x22c55e, buttons: [{ label: 'Donează articol', style: 3, id: 'panel:stash:donate' }, { label: 'Donații în așteptare', style: 2, id: 'panel:stash:pending_donations' }] },
   status_live: { label: 'Status live', premium: true, title: '📡 Status live · Panel Pro', description: 'Statusul este actualizat automat cu pontajele și pauzele active.', color: 0x06b6d4, buttons: [] },
@@ -690,7 +690,40 @@ Deno.serve(async (request) => {
     const guildId = clean(body.guild_id, 30);
     const selectedGuild = guilds.find((guild: any) => guild.id === guildId);
     if (!selectedGuild) return reply(request, { error: platformAdmin ? 'Serverul nu este disponibil sau botul nu este instalat.' : 'Serverul nu este disponibil: trebuie să fii owner și botul trebuie să fie instalat.' }, 403);
-    if (action === 'rename_guild') {
+    if (action === 'wheel_reminder_status' || action === 'wheel_reminder_start') {
+      const organizationId = String(selectedGuild.organization_id || '').trim();
+      if (!organizationId) return reply(request, { error: 'Organizația serverului nu este disponibilă.' }, 400);
+      const { data: activeReminder, error: reminderError } = await db.from('discovery_wheel_reminders')
+        .select('id,started_at,due_at,status,notified_at,last_error')
+        .eq('organization_id', organizationId)
+        .eq('guild_id', guildId)
+        .eq('discord_id', String(discord.id))
+        .in('status', ['pending', 'sending'])
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (reminderError) throw reminderError;
+      if (action === 'wheel_reminder_status') return reply(request, { ok: true, reminder: activeReminder || null, duration_hours: 6 });
+      if (activeReminder && Date.parse(String(activeReminder.due_at || '')) > Date.now()) {
+        return reply(request, { ok: true, reminder: activeReminder, already_active: true, duration_hours: 6 });
+      }
+      const now = new Date();
+      const dueAt = new Date(now.getTime() + 6 * 60 * 60 * 1000);
+      const { data: reminder, error: insertError } = await db.from('discovery_wheel_reminders').insert({
+        organization_id: organizationId,
+        guild_id: guildId,
+        discord_id: String(discord.id),
+        started_at: now.toISOString(),
+        due_at: dueAt.toISOString(),
+        status: 'pending',
+        updated_at: now.toISOString(),
+      }).select('id,started_at,due_at,status,notified_at,last_error').single();
+      if (insertError) {
+        if (String(insertError.code || '') === '23505') return reply(request, { error: 'Ai deja un reminder activ pentru acest server.', code: 'wheel_reminder_active' }, 409);
+        throw insertError;
+      }
+      return reply(request, { ok: true, reminder, duration_hours: 6 });
+    }    if (action === 'rename_guild') {
       if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate redenumi un server din registrul Discovery.' }, 403);
       const name = clean(body.name, 120);
       if (name.length < 2) return reply(request, { error: 'Numele serverului trebuie să aibă cel puțin 2 caractere.' }, 400);

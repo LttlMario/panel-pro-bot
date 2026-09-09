@@ -138,3 +138,6 @@ verify_jwt = true
 
 [functions.manage-discord-account]
 verify_jwt = false
+
+[functions.send-wheel-reminders]
+verify_jwt = false
