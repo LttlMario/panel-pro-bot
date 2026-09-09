@@ -362,6 +362,32 @@ async function runAcknowledgedCommand(interaction: any, work: () => Promise<any>
   return new Response(null, { status: 204 });
 }
 
+function runBackgroundAcknowledgedCommand(interaction: any, work: () => Promise<any>, fallback: string) {
+  const applicationId = String(interaction?.application_id || Deno.env.get('DISCORD_DISCOVERY_APPLICATION_ID') || '').trim();
+  const interactionToken = String(interaction?.token || '').trim();
+  const task = (async () => {
+    let result: any;
+    try {
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Comanda a durat prea mult. Încearcă din nou în câteva secunde.')), 12000));
+      result = await interactionPayload(await Promise.race([work(), timeout]));
+    } catch (error) {
+      console.error('[discord-interactions] background command failed', error);
+      result = interactionMessage(readableError(error, fallback));
+    }
+    let edited = false;
+    try { edited = await editDeferredResponse(applicationId, interactionToken, result); }
+    catch (error) { console.error('[discord-interactions] background edit failed', error); }
+    if (!edited) {
+      try { await sendFollowup(applicationId, interactionToken, result); }
+      catch (error) { console.error('[discord-interactions] background follow-up failed', error); }
+    }
+  })();
+  const runtime = (globalThis as any).EdgeRuntime;
+  if (runtime && typeof runtime.waitUntil === 'function') runtime.waitUntil(task);
+  else void task;
+  return reply({ type: 5, data: { flags: SILENT_EPHEMERAL_FLAGS } });
+}
+
 async function runDeferredCommand(interaction: any, work: () => Promise<any>, fallback: string) {
   const deferred = await deferInteraction(interaction, false);
   let result;
@@ -2588,7 +2614,7 @@ Deno.serve(async (request) => {
           if (updateError) throw updateError;
           return reply(interactionMessage(`Canalul ${channelId} a fost salvat pentru **${PANEL_ROUTE_LABELS[routeKey]}**${logChannelId && logRouteKey ? `, iar canalul de log ${logChannelId} pentru **${PANEL_ROUTE_LABELS[logRouteKey]}**` : ''} (${target === 'primary' ? 'principal' : 'secundar'}).`));
       }, 'Comanda /panel config nu a putut fi procesată.');
-      if (subcommand === 'status') return runAcknowledgedCommand(interaction, async () => {
+      if (subcommand === 'status') return runBackgroundAcknowledgedCommand(interaction, async () => {
           const key = serviceKey();
           if (!key) return reply(interactionMessage('Cheia secretă Supabase lipsește.'));
           const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
