@@ -43,10 +43,11 @@
     const wheelButton = node.querySelector('[data-wheel-reminder]');
     const wheelStatus = node.querySelector('[data-wheel-reminder-status]');
     const renderWheel = (reminder) => {
-      const active = reminder && ['pending', 'sending'].includes(String(reminder.status)) && Date.parse(String(reminder.due_at || '')) > Date.now();
+      const active = reminder && ['pending', 'sending'].includes(String(reminder.status));
       wheelButton.disabled = Boolean(active);
       wheelButton.textContent = active ? '⏳ Reminder activ · 6 ore' : '🎡 Am dat la roată';
-      wheelStatus.textContent = active ? `Notificare la ${new Date(reminder.due_at).toLocaleString('ro-RO')}` : 'Pornește un reminder de 6 ore';
+      const due = reminder ? Date.parse(String(reminder.due_at || '')) : 0;
+      wheelStatus.textContent = active ? (due <= Date.now() ? 'Se trimite notificarea…' : `Notificare la ${new Date(due).toLocaleString('ro-RO')}`) : 'Pornește un reminder de 6 ore';
     };
     call({ action: 'wheel_reminder_status', guild_id: card.dataset.guildId }).then((result) => renderWheel(result.reminder)).catch(() => { wheelStatus.textContent = 'Reminder indisponibil momentan.'; });
     wheelButton?.addEventListener('click', async () => {
