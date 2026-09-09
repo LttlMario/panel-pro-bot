@@ -2495,30 +2495,30 @@ Deno.serve(async (request) => {
           return interactionMessage(`Embedul **${PANEL_ROUTE_LABELS[routeKey]}** a fost publicat în <#${route.channel_id}>.`);
         }, 'Embedul nu a putut fi publicat.');
       }
-      if (subcommand === 'config') {
-        const routeKey = String(commandOption(interaction, 'modul') || '').trim();
-        const channelId = String(commandOption(interaction, 'canal') || '').trim();
-        const logChannelId = String(commandOption(interaction, 'canal_log') || '').trim();
-        if (!isDiscordManager(interaction)) return reply(interactionMessage('Doar ownerul serverului sau un administrator cu permisiunea Manage Server poate modifica setările.'));
-        if (!panelRouteKeys.includes(routeKey) || !/^\d{15,22}$/.test(channelId)) return reply(interactionMessage('Modulul sau canalul selectat nu este valid.'));
-        const key = serviceKey();
-        if (!key) return reply(interactionMessage('Cheia secretă Supabase lipsește.'));
-        const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
-        await ensureDiscordOnlyOrganization(db, interaction);
-        const { data: guild, error: guildError } = await db.from('discovery_guilds').select('organization_id,kind').eq('guild_id', guildId).eq('enabled', true).maybeSingle();
-        if (guildError) throw guildError;
-        if (!guild?.organization_id) return reply(interactionMessage('Serverul Discord nu este asociat unei organizații Panel Pro.'));
-        const { data: settings, error: settingsError } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', guild.organization_id).maybeSingle();
-        if (settingsError) throw settingsError;
-        const routes = structuredClone(settings?.discord_channel_routes || {});
-        const target = String(guild.kind || '') === 'secondary' ? 'secondary' : 'primary';
-        routes[routeKey] = { ...(routes[routeKey] || {}), [target]: { ...(routes[routeKey]?.[target] || {}), channel_id: channelId, guild_id: guildId, enabled: true } };
-        const logRouteKey = PANEL_LOG_ROUTES[routeKey];
-        if (logChannelId && logRouteKey) routes[logRouteKey] = { ...(routes[logRouteKey] || {}), [target]: { ...(routes[logRouteKey]?.[target] || {}), channel_id: logChannelId, guild_id: guildId, enabled: true } };
-        const { error: updateError } = await db.from('discovery_settings').update({ discord_channel_routes: routes, updated_at: new Date().toISOString(), updated_by_discord_id: String(interaction?.member?.user?.id || interaction?.user?.id || '') }).eq('organization_id', guild.organization_id);
-        if (updateError) throw updateError;
-        return reply(interactionMessage(`Canalul ${channelId} a fost salvat pentru **${PANEL_ROUTE_LABELS[routeKey]}**${logChannelId && logRouteKey ? `, iar canalul de log ${logChannelId} pentru **${PANEL_ROUTE_LABELS[logRouteKey]}**` : ''} (${target === 'primary' ? 'principal' : 'secundar'}).`));
-      }
+      if (subcommand === 'config') return runDeferredCommand(interaction, async () => {
+          const routeKey = String(commandOption(interaction, 'modul') || '').trim();
+          const channelId = String(commandOption(interaction, 'canal') || '').trim();
+          const logChannelId = String(commandOption(interaction, 'canal_log') || '').trim();
+          if (!isDiscordManager(interaction)) return reply(interactionMessage('Doar ownerul serverului sau un administrator cu permisiunea Manage Server poate modifica setările.'));
+          if (!panelRouteKeys.includes(routeKey) || !/^\d{15,22}$/.test(channelId)) return reply(interactionMessage('Modulul sau canalul selectat nu este valid.'));
+          const key = serviceKey();
+          if (!key) return reply(interactionMessage('Cheia secretă Supabase lipsește.'));
+          const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
+          await ensureDiscordOnlyOrganization(db, interaction);
+          const { data: guild, error: guildError } = await db.from('discovery_guilds').select('organization_id,kind').eq('guild_id', guildId).eq('enabled', true).maybeSingle();
+          if (guildError) throw guildError;
+          if (!guild?.organization_id) return reply(interactionMessage('Serverul Discord nu este asociat unei organizații Panel Pro.'));
+          const { data: settings, error: settingsError } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', guild.organization_id).maybeSingle();
+          if (settingsError) throw settingsError;
+          const routes = structuredClone(settings?.discord_channel_routes || {});
+          const target = String(guild.kind || '') === 'secondary' ? 'secondary' : 'primary';
+          routes[routeKey] = { ...(routes[routeKey] || {}), [target]: { ...(routes[routeKey]?.[target] || {}), channel_id: channelId, guild_id: guildId, enabled: true } };
+          const logRouteKey = PANEL_LOG_ROUTES[routeKey];
+          if (logChannelId && logRouteKey) routes[logRouteKey] = { ...(routes[logRouteKey] || {}), [target]: { ...(routes[logRouteKey]?.[target] || {}), channel_id: logChannelId, guild_id: guildId, enabled: true } };
+          const { error: updateError } = await db.from('discovery_settings').update({ discord_channel_routes: routes, updated_at: new Date().toISOString(), updated_by_discord_id: String(interaction?.member?.user?.id || interaction?.user?.id || '') }).eq('organization_id', guild.organization_id);
+          if (updateError) throw updateError;
+          return reply(interactionMessage(`Canalul ${channelId} a fost salvat pentru **${PANEL_ROUTE_LABELS[routeKey]}**${logChannelId && logRouteKey ? `, iar canalul de log ${logChannelId} pentru **${PANEL_ROUTE_LABELS[logRouteKey]}**` : ''} (${target === 'primary' ? 'principal' : 'secundar'}).`));
+      }, 'Comanda /panel config nu a putut fi procesată.');
       if (subcommand === 'status') return runDeferredCommand(interaction, async () => {
           const key = serviceKey();
           if (!key) return reply(interactionMessage('Cheia secretă Supabase lipsește.'));
