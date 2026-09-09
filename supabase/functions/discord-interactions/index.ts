@@ -2519,30 +2519,30 @@ Deno.serve(async (request) => {
         if (updateError) throw updateError;
         return reply(interactionMessage(`Canalul ${channelId} a fost salvat pentru **${PANEL_ROUTE_LABELS[routeKey]}**${logChannelId && logRouteKey ? `, iar canalul de log ${logChannelId} pentru **${PANEL_ROUTE_LABELS[logRouteKey]}**` : ''} (${target === 'primary' ? 'principal' : 'secundar'}).`));
       }
-      if (subcommand === 'status') {
-        const key = serviceKey();
-        if (!key) return reply(interactionMessage('Cheia secretă Supabase lipsește.'));
-        const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
-        await ensureDiscordOnlyOrganization(db, interaction);
-        const { data: guild, error: guildError } = await db.from('discovery_guilds').select('organization_id,kind').eq('guild_id', guildId).eq('enabled', true).maybeSingle();
-        if (guildError) throw guildError;
-        if (!guild?.organization_id) return reply(interactionMessage('Serverul Discord nu este asociat unei organizații Panel Pro.'));
-        const { data: settings, error: settingsError } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', guild.organization_id).maybeSingle();
-        if (settingsError) throw settingsError;
-        const target = String(guild.kind || '') === 'secondary' ? 'secondary' : 'primary';
-        const routes = settings?.discord_channel_routes || {};
-        const lines = panelRouteKeys.map((routeKey) => `${routes?.[routeKey]?.[target]?.channel_id ? '✅' : '⬜'} ${PANEL_ROUTE_LABELS[routeKey]}${routes?.[routeKey]?.[target]?.channel_id ? ` · <#${routes[routeKey][target].channel_id}>` : ''}`);
-        const statusOrganization = await db.from('discovery_organizations').select('access_mode').eq('id', guild.organization_id).maybeSingle();
-        if (statusOrganization.error) throw statusOrganization.error;
-        const statusPremiumActive = statusOrganization.data?.access_mode === 'discord_only' && discordPremiumConfigured()
-          ? await discordPremiumAccess(db, String(guild.organization_id), interaction, guildId)
-          : false;
-        const trialValue = statusOrganization.data?.access_mode === 'discord_only' && !statusPremiumActive ? await discordTrialSetting(db, String(guild.organization_id)) : null;
-        const trialActive = Date.parse(String(trialValue?.ends_at || '')) > Date.now();
-        const trialText = trialActive ? await discordTrialNotice(db, String(guild.organization_id)) : '';
-        const offers = !statusPremiumActive && !trialValue ? [{ type: 2, style: 3, label: '🎁 Activează Trial 30 zile', custom_id: 'panel:discovery:trial_activate' }] : [];
-        return reply(interactionMessage('', { embeds: [{ title: '⚙️ Panel Pro · Configurare Discord', description: [trialText, lines.join('\n\n')].filter(Boolean).join('\n\n'), color: 0x5865f2, footer: { text: `Server ${guildId} · ${target}` } }], components: [{ type: 1, components: [{ type: 2, style: 2, label: '🔐 Roluri acces configurare', custom_id: 'panel:bot_access:open' }, { type: 2, style: 1, label: '🗓️ Adaugă reminder', custom_id: 'panel:discovery:reminder_create' }, { type: 2, style: 1, label: '📋 Raport săptămânal', custom_id: 'panel:discovery:weekly_report' }] }, ...(offers.length ? [{ type: 1, components: offers }] : []), ...(discordPremiumConfigured() && !statusPremiumActive ? discordPremiumButton() : [])] }));
-      }
+      if (subcommand === 'status') return runDeferredCommand(interaction, async () => {
+          const key = serviceKey();
+          if (!key) return reply(interactionMessage('Cheia secretă Supabase lipsește.'));
+          const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
+          await ensureDiscordOnlyOrganization(db, interaction);
+          const { data: guild, error: guildError } = await db.from('discovery_guilds').select('organization_id,kind').eq('guild_id', guildId).eq('enabled', true).maybeSingle();
+          if (guildError) throw guildError;
+          if (!guild?.organization_id) return reply(interactionMessage('Serverul Discord nu este asociat unei organizații Panel Pro.'));
+          const { data: settings, error: settingsError } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', guild.organization_id).maybeSingle();
+          if (settingsError) throw settingsError;
+          const target = String(guild.kind || '') === 'secondary' ? 'secondary' : 'primary';
+          const routes = settings?.discord_channel_routes || {};
+          const lines = panelRouteKeys.map((routeKey) => `${routes?.[routeKey]?.[target]?.channel_id ? '✅' : '⬜'} ${PANEL_ROUTE_LABELS[routeKey]}${routes?.[routeKey]?.[target]?.channel_id ? ` · <#${routes[routeKey][target].channel_id}>` : ''}`);
+          const statusOrganization = await db.from('discovery_organizations').select('access_mode').eq('id', guild.organization_id).maybeSingle();
+          if (statusOrganization.error) throw statusOrganization.error;
+          const statusPremiumActive = statusOrganization.data?.access_mode === 'discord_only' && discordPremiumConfigured()
+            ? await discordPremiumAccess(db, String(guild.organization_id), interaction, guildId)
+            : false;
+          const trialValue = statusOrganization.data?.access_mode === 'discord_only' && !statusPremiumActive ? await discordTrialSetting(db, String(guild.organization_id)) : null;
+          const trialActive = Date.parse(String(trialValue?.ends_at || '')) > Date.now();
+          const trialText = trialActive ? await discordTrialNotice(db, String(guild.organization_id)) : '';
+          const offers = !statusPremiumActive && !trialValue ? [{ type: 2, style: 3, label: '🎁 Activează Trial 30 zile', custom_id: 'panel:discovery:trial_activate' }] : [];
+          return reply(interactionMessage('', { embeds: [{ title: '⚙️ Panel Pro · Configurare Discord', description: [trialText, lines.join('\n\n')].filter(Boolean).join('\n\n'), color: 0x5865f2, footer: { text: `Server ${guildId} · ${target}` } }], components: [{ type: 1, components: [{ type: 2, style: 2, label: '🔐 Roluri acces configurare', custom_id: 'panel:bot_access:open' }, { type: 2, style: 1, label: '🗓️ Adaugă reminder', custom_id: 'panel:discovery:reminder_create' }, { type: 2, style: 1, label: '📋 Raport săptămânal', custom_id: 'panel:discovery:weekly_report' }] }, ...(offers.length ? [{ type: 1, components: offers }] : []), ...(discordPremiumConfigured() && !statusPremiumActive ? discordPremiumButton() : [])] }));
+      }, 'Comanda /panel status nu a putut fi procesată.');
       return reply(interactionMessage('', {
         embeds: [{
           title: '🧭 Panel Pro · Meniu Discord',
