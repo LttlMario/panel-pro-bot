@@ -892,7 +892,7 @@ async function editDeferredResponse(applicationId: string, interactionToken: str
   const response = await fetch(`${DISCORD_API}/webhooks/${applicationId}/${encodeURIComponent(interactionToken)}/messages/@original`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...(data?.data || {}), flags: SILENT_EPHEMERAL_FLAGS }),
+    body: JSON.stringify({ ...(data?.data || {}) }),
   });
   if (!response.ok) console.error('[discord-interactions] deferred edit failed', response.status, await response.text().catch(() => ''));
   return response.ok;
