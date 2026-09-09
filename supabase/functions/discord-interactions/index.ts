@@ -284,6 +284,14 @@ async function discordRequest(url: string, init: RequestInit, timeoutMs = 6000) 
   finally { clearTimeout(timer); }
 }
 
+async function interactionPayload(value: any) {
+  if (value instanceof Response) {
+    try { return await value.json(); }
+    catch { return interactionMessage('Răspunsul Discord nu a putut fi construit.'); }
+  }
+  return value;
+}
+
 async function deferInteraction(interaction: any, updateOnly = false) {
   const interactionId = String(interaction?.id || '').trim();
   const applicationId = String(interaction?.application_id || Deno.env.get('DISCORD_DISCOVERY_APPLICATION_ID') || '').trim();
@@ -336,7 +344,7 @@ async function runAcknowledgedCommand(interaction: any, work: () => Promise<any>
   let result;
   try {
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Comanda a durat prea mult. Încearcă din nou în câteva secunde.')), 12000));
-    result = await Promise.race([work(), timeout]);
+    result = await interactionPayload(await Promise.race([work(), timeout]));
   } catch (error) {
     console.error('[discord-interactions] acknowledged command failed', error);
     result = interactionMessage(readableError(error, fallback));
@@ -359,7 +367,7 @@ async function runDeferredCommand(interaction: any, work: () => Promise<any>, fa
   let result;
   try {
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Comanda a durat prea mult. Încearcă din nou în câteva secunde.')), 12000));
-    result = await Promise.race([work(), timeout]);
+    result = await interactionPayload(await Promise.race([work(), timeout]));
   } catch (error) {
     console.error('[discord-interactions] command failed', error);
     result = interactionMessage(readableError(error, fallback));
