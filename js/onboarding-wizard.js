@@ -43,8 +43,9 @@
       reopen.onclick = () => { localStorage.removeItem(`panel-pro-onboarding-${id}`); panel.hidden = false; panel.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
     }
     if (done === 6 && localStorage.getItem(`panel-pro-onboarding-${id}`) === 'hidden') panel.hidden = true;
+    card.dataset.onboarding = 'ready';
   };
-  const scan = () => document.querySelectorAll('#list .bot-card').forEach(async (card) => { if (card.dataset.guildId && card.dataset.onboarding !== 'loading') { card.dataset.onboarding = 'loading'; try { render(card, await call(card.dataset.guildId)); } catch (_) {} } });
+  const scan = () => document.querySelectorAll('#list .bot-card').forEach(async (card) => { if (card.dataset.guildId && card.dataset.onboarding !== 'loading' && (card.dataset.onboarding !== 'ready' || !card.querySelector('.onboarding'))) { card.dataset.onboarding = 'loading'; try { render(card, await call(card.dataset.guildId)); } catch (_) { card.dataset.onboarding = 'error'; } } });
   new MutationObserver(scan).observe(document.getElementById('list') || document.body, { childList: true, subtree: true });
   setInterval(scan, 1800); scan();
 })();
