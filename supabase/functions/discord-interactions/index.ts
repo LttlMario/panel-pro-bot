@@ -2715,6 +2715,21 @@ Deno.serve(async (request) => {
     if (['announcement', 'question', 'poll'].includes(announcementType)) return reply(announcementModal(announcementAudience, announcementType as 'announcement' | 'question' | 'poll'));
   }
   if (isDiscipline && isButton && customId.split(':')[3] === 'history' && customId.split(':').length === 4) return reply(disciplineHistoryTypePicker(customId.split(':')[2] === 'departments' ? 'departments' : 'organization'));
+  // Confirmă imediat meniul de roluri; citirea rolurilor Discord și a setărilor poate depăși limita de 3 secunde.
+  if (isBotAccess && isButton && customId === 'panel:bot_access:open') return runBackgroundAcknowledgedCommand(interaction, async () => {
+    const key = serviceKey();
+    if (!key) return interactionMessage('Cheia secretă Supabase lipsește.');
+    const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
+    await ensureDiscordOnlyOrganization(db, interaction);
+    return botAccessRolePicker(db, interaction);
+  }, 'Rolurile de acces nu au putut fi încărcate.');
+  if (isBotAccess && isSelect && customId === 'panel:bot_access:select') return runBackgroundAcknowledgedCommand(interaction, async () => {
+    const key = serviceKey();
+    if (!key) return interactionMessage('Cheia secretă Supabase lipsește.');
+    const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
+    await ensureDiscordOnlyOrganization(db, interaction);
+    return saveBotAccessRoles(db, interaction);
+  }, 'Rolurile de acces nu au putut fi salvate.');
   // Confirmă imediat interacțiunile ticket; verificările DB/Discord pot dura peste limita de 3 secunde.
   let ticketDeferred: any = null;
   if (isTicket && !(isButton && customId === 'panel:ticket:open')) ticketDeferred = await deferInteraction(interaction, false);
