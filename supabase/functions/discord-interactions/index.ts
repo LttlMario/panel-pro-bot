@@ -151,9 +151,10 @@ async function createDiscoveryReminder(db: any, interaction: any) {
 }
 
 async function ensureDiscordOnlyOrganization(db: any, interaction: any) {
-  const guildId = String(interaction?.guild_id || '').trim();
-  const discordId = String(interaction?.member?.user?.id || interaction?.user?.id || '').trim();
-  if (!/^\d{15,22}$/.test(guildId) || !/^\d{15,22}$/.test(discordId)) throw new Error('Serverul Discord nu a putut fi identificat.');
+  const guildId = String(interaction?.guild_id || interaction?.guild?.id || interaction?.data?.guild_id || '').trim();
+  const discordId = String(interaction?.member?.user?.id || interaction?.member?.user_id || interaction?.user?.id || interaction?.user_id || '').trim();
+  if (!/^\d{15,22}$/.test(guildId)) throw new Error('Comanda trebuie rulată într-un server Discord, nu într-un mesaj privat.');
+  if (!/^\d{15,22}$/.test(discordId)) throw new Error('Contul Discord nu a putut fi identificat pentru această comandă.');
   const { data: existing, error: existingError } = await db.from('discovery_guilds').select('organization_id,kind').eq('guild_id', guildId).eq('enabled', true).maybeSingle();
   if (existingError) throw existingError;
   if (existing?.organization_id) {
