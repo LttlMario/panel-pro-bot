@@ -13,7 +13,7 @@ const serviceKey = () => Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || JSON.parse
 const reply = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 // Ephemeral + Suppress Notifications: feedbackul rămâne vizibil utilizatorului,
 // dar Discord nu mai redă sunet pentru răspunsul interacțiunii.
-const SILENT_EPHEMERAL_FLAGS = 64 | 4096;
+const SILENT_EPHEMERAL_FLAGS = 64;
 const interactionMessage = (content: string, extra: Record<string, unknown> = {}) => ({ type: 4, data: { content, flags: SILENT_EPHEMERAL_FLAGS, ...extra } });
 const demoModal = (action: string) => ({ type: 9, data: { custom_id: `panel:demo:submit:${action.slice(0, 40)}`, title: '🧪 Demo Panel Pro', components: [
   { type: 1, components: [{ type: 4, custom_id: 'demo_subject', label: 'Subiect / nume', style: 1, required: true, max_length: 120, placeholder: 'Exemplu de date pentru demonstrație' }] },
