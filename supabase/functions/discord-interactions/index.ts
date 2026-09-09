@@ -2730,6 +2730,9 @@ Deno.serve(async (request) => {
     await ensureDiscordOnlyOrganization(db, interaction);
     return saveBotAccessRoles(db, interaction);
   }, 'Rolurile de acces nu au putut fi salvate.', { type: 6 });
+  if (isBotAccess && isButton && customId === 'panel:bot_access:save') return runBackgroundAcknowledgedCommand(interaction, async () => {
+    return interactionMessage('Rolurile selectate au fost salvate și pot folosi configurarea botului.');
+  }, 'Rolurile de acces nu au putut fi salvate.');
   // Confirmă imediat interacțiunile ticket; verificările DB/Discord pot dura peste limita de 3 secunde.
   let ticketDeferred: any = null;
   if (isTicket && !(isButton && customId === 'panel:ticket:open')) ticketDeferred = await deferInteraction(interaction, false);
