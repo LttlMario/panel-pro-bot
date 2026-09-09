@@ -15,6 +15,7 @@ create index if not exists discovery_wheel_reminders_due_idx on public.discovery
 create unique index if not exists discovery_wheel_reminders_one_pending_idx on public.discovery_wheel_reminders(organization_id, guild_id, discord_id) where status in ('pending','sending');
 alter table public.discovery_wheel_reminders enable row level security;
 revoke all on public.discovery_wheel_reminders from anon, authenticated;
+grant select, insert, update on table public.discovery_wheel_reminders to service_role;
 comment on table public.discovery_wheel_reminders is 'Remindere one-shot pornite explicit prin butonul Am dat la roata.';
 
 create extension if not exists pg_cron;
