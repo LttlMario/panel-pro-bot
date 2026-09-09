@@ -341,8 +341,16 @@ async function runAcknowledgedCommand(interaction: any, work: () => Promise<any>
     console.error('[discord-interactions] acknowledged command failed', error);
     result = interactionMessage(readableError(error, fallback));
   }
-  const edited = await editDeferredResponse(acknowledged.applicationId, acknowledged.interactionToken, result);
-  if (!edited) await sendFollowup(acknowledged.applicationId, acknowledged.interactionToken, result);
+  let edited = false;
+  try {
+    edited = await editDeferredResponse(acknowledged.applicationId, acknowledged.interactionToken, result);
+  } catch (error) {
+    console.error('[discord-interactions] acknowledged edit failed', error);
+  }
+  if (!edited) {
+    try { await sendFollowup(acknowledged.applicationId, acknowledged.interactionToken, result); }
+    catch (error) { console.error('[discord-interactions] acknowledged follow-up failed', error); }
+  }
   return new Response(null, { status: 204 });
 }
 
@@ -356,8 +364,16 @@ async function runDeferredCommand(interaction: any, work: () => Promise<any>, fa
     console.error('[discord-interactions] command failed', error);
     result = interactionMessage(readableError(error, fallback));
   }
-  const edited = await editDeferredResponse(deferred.applicationId, deferred.interactionToken, result);
-  if (!edited) await sendFollowup(deferred.applicationId, deferred.interactionToken, result);
+  let edited = false;
+  try {
+    edited = await editDeferredResponse(deferred.applicationId, deferred.interactionToken, result);
+  } catch (error) {
+    console.error('[discord-interactions] deferred edit failed', error);
+  }
+  if (!edited) {
+    try { await sendFollowup(deferred.applicationId, deferred.interactionToken, result); }
+    catch (error) { console.error('[discord-interactions] deferred follow-up failed', error); }
+  }
   return new Response(null, { status: 204 });
 }
 
