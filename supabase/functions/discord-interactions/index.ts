@@ -311,6 +311,33 @@ async function deleteFollowup(applicationId: string, interactionToken: string, m
   if (!response.ok && response.status !== 404) console.error('[discord-interactions] follow-up delete failed', response.status, await response.text().catch(() => ''));
 }
 
+async function acknowledgeInteraction(interaction: any, data: any) {
+  const interactionId = String(interaction?.id || '').trim();
+  const applicationId = String(interaction?.application_id || '').trim();
+  const interactionToken = String(interaction?.token || '').trim();
+  const response = await fetch(`${DISCORD_API}/interactions/${interactionId}/${encodeURIComponent(interactionToken)}/callback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok && response.status !== 204) throw new Error(`Discord nu a confirmat răspunsul (HTTP ${response.status}).`);
+  return { applicationId, interactionToken };
+}
+
+async function runAcknowledgedCommand(interaction: any, work: () => Promise<any>, fallback: string) {
+  const acknowledged = await acknowledgeInteraction(interaction, interactionMessage('Se verifică statusul serverului…'));
+  let result;
+  try {
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Comanda a durat prea mult. Încearcă din nou în câteva secunde.')), 12000));
+    result = await Promise.race([work(), timeout]);
+  } catch (error) {
+    console.error('[discord-interactions] acknowledged command failed', error);
+    result = interactionMessage(readableError(error, fallback));
+  }
+  await sendFollowup(acknowledged.applicationId, acknowledged.interactionToken, result);
+  return new Response(null, { status: 204 });
+}
+
 async function runDeferredCommand(interaction: any, work: () => Promise<any>, fallback: string) {
   const deferred = await deferInteraction(interaction, false);
   let result;
@@ -2529,7 +2556,7 @@ Deno.serve(async (request) => {
           if (updateError) throw updateError;
           return reply(interactionMessage(`Canalul ${channelId} a fost salvat pentru **${PANEL_ROUTE_LABELS[routeKey]}**${logChannelId && logRouteKey ? `, iar canalul de log ${logChannelId} pentru **${PANEL_ROUTE_LABELS[logRouteKey]}**` : ''} (${target === 'primary' ? 'principal' : 'secundar'}).`));
       }, 'Comanda /panel config nu a putut fi procesată.');
-      if (subcommand === 'status') return runDeferredCommand(interaction, async () => {
+      if (subcommand === 'status') return runAcknowledgedCommand(interaction, async () => {
           const key = serviceKey();
           if (!key) return reply(interactionMessage('Cheia secretă Supabase lipsește.'));
           const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
