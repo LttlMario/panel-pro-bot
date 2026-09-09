@@ -334,7 +334,8 @@ async function runAcknowledgedCommand(interaction: any, work: () => Promise<any>
     console.error('[discord-interactions] acknowledged command failed', error);
     result = interactionMessage(readableError(error, fallback));
   }
-  await sendFollowup(acknowledged.applicationId, acknowledged.interactionToken, result);
+  const edited = await editDeferredResponse(acknowledged.applicationId, acknowledged.interactionToken, result);
+  if (!edited) await sendFollowup(acknowledged.applicationId, acknowledged.interactionToken, result);
   return new Response(null, { status: 204 });
 }
 
