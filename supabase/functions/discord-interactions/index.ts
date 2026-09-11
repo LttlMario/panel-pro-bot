@@ -2544,12 +2544,12 @@ Deno.serve(async (request) => {
       const subcommand = String(commandSubcommand(interaction)?.name || '').trim().toLowerCase();
       const guildId = String(interaction?.guild_id || '').trim();
       if (subcommand === 'ticket') return reply(ticketModal());
-      if (subcommand === 'help') return reply(interactionMessage('', { embeds: [{ title: '🧭 Ajutor Panel Pro', description: 'Poți configura embedurile cu butoane direct din Discord sau automat din dashboard.', color: 0x5865f2, fields: [
+      if (subcommand === 'ajutor') return reply(interactionMessage('', { embeds: [{ title: '🧭 Ajutor Panel Pro', description: 'Poți configura embedurile cu butoane direct din Discord sau automat din dashboard.', color: 0x5865f2, fields: [
         { name: '⚙️ Configurare manuală în Discord', value: '1. Rulează `/panel config` și alege modulul, canalul pentru embed și, opțional, canalul de log.\n2. Rulează `/panel publica` și selectează modulul pe care vrei să îl publici.\n3. Rulează `/panel status` pentru a verifica toate canalele configurate.', inline: false },
         { name: '🚀 Configurare automată', value: 'Pentru instalarea canalelor, embedurilor, butoanelor și logurilor dintr-un singur loc, deschide dashboard-ul Panel Pro și folosește butonul **Configurează automat canale Discord**.', inline: false },
         { name: '🔐 Permisiuni necesare', value: 'Botul trebuie să fie online și să aibă permisiunea **Administrator** pe server. Pentru configurarea din Discord ai nevoie de Owner sau Manage Server.', inline: false },
       ], footer: { text: 'Panel Pro · /panel help' } }], components: [{ type: 1, components: [{ type: 2, style: 5, label: '🌐 Deschide configurarea pe site', url: 'https://bot.panel-pro.ro/' }] }] }));
-      if (subcommand && !['status', 'help', 'publica', 'config', 'ticket'].includes(subcommand)) {
+      if (subcommand && !['status', 'ajutor', 'publica', 'config', 'ticket'].includes(subcommand)) {
         const key = serviceKey();
         if (!key) return reply(interactionMessage('Cheia secretă Supabase lipsește.'));
         const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
