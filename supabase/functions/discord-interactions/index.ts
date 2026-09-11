@@ -2548,7 +2548,7 @@ Deno.serve(async (request) => {
         { name: '⚙️ Configurare manuală în Discord', value: '1. Rulează `/panel config` și alege modulul, canalul pentru embed și, opțional, canalul de log.\n2. Rulează `/panel publica` și selectează modulul pe care vrei să îl publici.\n3. Rulează `/panel status` pentru a verifica toate canalele configurate.', inline: false },
         { name: '🚀 Configurare automată', value: 'Pentru instalarea canalelor, embedurilor, butoanelor și logurilor dintr-un singur loc, deschide dashboard-ul Panel Pro și folosește butonul **Configurează automat canale Discord**.', inline: false },
         { name: '🔐 Permisiuni necesare', value: 'Botul trebuie să fie online și să aibă permisiunea **Administrator** pe server. Pentru configurarea din Discord ai nevoie de Owner sau Manage Server.', inline: false },
-      ], footer: { text: 'Panel Pro · /panel help' } }], components: [{ type: 1, components: [{ type: 2, style: 5, label: '🌐 Deschide configurarea pe site', url: 'https://bot.panel-pro.ro/' }] }] }));
+      ], footer: { text: 'Panel Pro · /panel ajutor' } }], components: [{ type: 1, components: [{ type: 2, style: 5, label: '🌐 Deschide configurarea pe site', url: 'https://bot.panel-pro.ro/' }] }] }));
       if (subcommand && !['status', 'ajutor', 'publica', 'config', 'ticket'].includes(subcommand)) {
         const key = serviceKey();
         if (!key) return reply(interactionMessage('Cheia secretă Supabase lipsește.'));
