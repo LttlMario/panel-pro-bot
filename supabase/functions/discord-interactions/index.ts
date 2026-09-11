@@ -15,6 +15,8 @@ const reply = (data: unknown, status = 200) => new Response(JSON.stringify(data)
 // dar Discord nu mai redă sunet pentru răspunsul interacțiunii.
 const SILENT_EPHEMERAL_FLAGS = 64;
 const interactionMessage = (content: string, extra: Record<string, unknown> = {}) => ({ type: 4, data: { content, flags: SILENT_EPHEMERAL_FLAGS, ...extra } });
+const PAYMENT_PROOF_GUILD_ID = '1544703486384537603';
+const PAYMENT_PROOF_CHANNEL_ID = '1547891455006085170';
 const demoModal = (action: string) => ({ type: 9, data: { custom_id: `panel:demo:submit:${action.slice(0, 40)}`, title: '🧪 Demo Panel Pro', components: [
   { type: 1, components: [{ type: 4, custom_id: 'demo_subject', label: 'Subiect / nume', style: 1, required: true, max_length: 120, placeholder: 'Exemplu de date pentru demonstrație' }] },
   { type: 1, components: [{ type: 4, custom_id: 'demo_details', label: 'Detalii', style: 2, required: false, max_length: 1000, placeholder: 'Aceste date nu vor fi salvate' }] },
@@ -282,6 +284,15 @@ async function discordRequest(url: string, init: RequestInit, timeoutMs = 6000) 
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try { return await fetch(url, { ...init, signal: controller.signal }); }
   finally { clearTimeout(timer); }
+}
+function billingProofModal() {
+  const input = (custom_id: string, label: string, style: number, required: boolean, placeholder: string, max_length: number) => ({ type: 4, custom_id, label, style, required, placeholder, max_length });
+  return { type: 9, data: { custom_id: 'panel:billing:proof_submit', title: 'Trimite dovada plății', components: [
+    { type: 1, components: [input('plan', 'Planul ales', 1, true, 'Lunar / 6 luni / Anual / Unlimited', 40)] },
+    { type: 1, components: [input('guild_name', 'Numele serverului Discord', 1, true, 'Ex: Panel Pro', 100)] },
+    { type: 1, components: [input('guild_id', 'Guild ID', 1, true, 'ID-ul serverului', 22)] },
+    { type: 1, components: [input('proof', 'Dovada plății / link', 2, true, 'Link imagine sau detalii tranzacție Revolut', 1000)] },
+  ] } };
 }
 
 async function interactionPayload(value: any) {
@@ -2669,14 +2680,36 @@ Deno.serve(async (request) => {
   const isStash = customId.startsWith('panel:stash:');
   const isMarketplace = customId.startsWith('panel:marketplace:');
   const isBotAccess = customId.startsWith('panel:bot_access:');
+  const isBilling = customId.startsWith('panel:billing:');
   const isDiscovery = customId.startsWith('panel:discovery:');
   const isTicket = customId === 'panel:ticket:open' || customId === 'panel:ticket:submit' || customId.startsWith('panel:ticket:claim:') || customId.startsWith('panel:ticket:close:') || customId.startsWith('panel:ticket:notify:') || customId.startsWith('panel:ticket:transcript:') || customId.startsWith('panel:ticket:add_member:') || customId.startsWith('panel:ticket:add_member_submit:') || customId.startsWith('panel:ticket:add_member_select:') || customId.startsWith('panel:ticket:reopen:');
   const isCustom = customId.startsWith('panel:custom:') || customId.startsWith('panel:custom_submit:') || customId.startsWith('panel:custom_review:') || customId.startsWith('panel:custom_reason:');
   if (!isComponent && !isModalSubmit) return reply(interactionMessage('Acest tip de interacțiune nu este disponibil.'));
-  if (!isPontaj && !isRequests && !isContracts && !isAnnouncements && !isDiscipline && !isActions && !isStash && !isMarketplace && !isBotAccess && !isDiscovery && !isCustom && !isTicket) return reply(interactionMessage('Acest buton nu aparține unui modul Panel Pro.'));
+  if (!isPontaj && !isRequests && !isContracts && !isAnnouncements && !isDiscipline && !isActions && !isStash && !isMarketplace && !isBotAccess && !isDiscovery && !isBilling && !isCustom && !isTicket) return reply(interactionMessage('Acest buton nu aparține unui modul Panel Pro.'));
   // Modalul trebuie returnat imediat; orice acces la DB înainte de răspuns poate depăși limita Discord de 3 secunde.
   if (isTicket && isButton && customId === 'panel:ticket:open') return reply(ticketModal());
   if (isTicket && isButton && customId.startsWith('panel:ticket:add_member:')) { const id = customId.slice('panel:ticket:add_member:'.length); if (!/^[0-9a-f-]{20,40}$/i.test(id)) return reply(interactionMessage('Ticketul nu este valid.')); return reply(interactionMessage('Alege membrul care trebuie adăugat în ticket.', { components: [{ type: 1, components: [{ type: 5, custom_id: `panel:ticket:add_member_select:${id}`, placeholder: 'Selectează un membru', min_values: 1, max_values: 1 }] }] })); }
+  if (isBilling && isButton && customId === 'panel:billing:proof') return reply(billingProofModal());
+  if (isBilling && isModalSubmit && customId === 'panel:billing:proof_submit') return runBackgroundAcknowledgedCommand(interaction, async () => {
+    if (String(interaction.guild_id || '') !== PAYMENT_PROOF_GUILD_ID) return interactionMessage('Formularul poate fi folosit doar în serverul oficial Panel Pro.');
+    const values = modalValues(interaction);
+    const plan = String(values.plan || '').trim().slice(0, 80);
+    const guildName = String(values.guild_name || '').trim().slice(0, 120);
+    const guildId = String(values.guild_id || '').trim();
+    const proof = String(values.proof || '').trim().slice(0, 1000);
+    if (!plan || !guildName || !/^\d{15,22}$/.test(guildId) || !proof) return interactionMessage('Completează toate câmpurile și introdu un Guild ID valid.');
+    const key = serviceKey();
+    if (!key) return interactionMessage('Serviciul de activare nu este configurat.');
+    const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
+    const botToken = await getPlatformSecret(db, 'discord_bot_token');
+    if (!botToken) return interactionMessage('Tokenul botului nu este configurat.');
+    const user = interaction.member?.user || interaction.user || {};
+    const displayName = String(user.global_name || user.username || user.id || 'Utilizator Discord').slice(0, 120);
+    const payload = { allowed_mentions: { users: ['247012210021236738'] }, content: '<@247012210021236738>', embeds: [{ title: '💳 Dovadă plată Panel Pro', color: 0x22d3ee, fields: [{ name: 'Utilizator', value: `${displayName} (${user.id})`, inline: false }, { name: 'Server', value: `${guildName} (${guildId})`, inline: false }, { name: 'Plan ales', value: plan, inline: true }, { name: 'Dovadă / detalii', value: proof, inline: false }], footer: { text: 'Panel Pro · verificare activare' }, timestamp: new Date().toISOString() }] };
+    const response = await fetch(`${DISCORD_API}/channels/${PAYMENT_PROOF_CHANNEL_ID}/messages`, { method: 'POST', headers: { Authorization: `Bot ${botToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!response.ok) throw new Error(`Dovada nu a putut fi trimisă în canalul de verificare (HTTP ${response.status}).`);
+    return interactionMessage('Dovada a fost trimisă pentru verificare. Licența va fi activată după confirmarea plății.');
+  }, 'Dovada plății nu a putut fi trimisă.');
   // Contractele trebuie să deschidă formularul înainte de orice citire din
   // Supabase. Altfel, validarea organizației poate consuma limita de 3 secunde
   // a Discord și utilizatorul vede „Panel Pro didn't respond in time”.
