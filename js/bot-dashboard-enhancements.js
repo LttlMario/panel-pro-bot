@@ -1,6 +1,7 @@
 (() => {
   'use strict';
   const API = 'https://zrjxlbkbctlapgupktxw.supabase.co/functions/v1/manage-discord-bot';
+  const SYNC_API = 'https://zrjxlbkbctlapgupktxw.supabase.co/functions/v1/sync-discord-commands';
   const KEY = 'sb_publishable_LfngX7pwFruPw35_ZUdO4Q_MGAHoeW0';
   const APP = '1531023771211792384';
   const token = () => sessionStorage.getItem('discovery_access_token') || sessionStorage.getItem('discord_bot_admin_token') || '';
@@ -15,6 +16,12 @@
     const response = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY }, body: JSON.stringify({ ...body, view_scope: 'personal', access_token: token(), application_id: APP }) });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || 'Dashboardul nu a putut încărca detaliile serverului.');
+    return data;
+  };
+  const syncCommands = async () => {
+    const response = await fetch(SYNC_API, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: KEY }, body: JSON.stringify({ access_token: token(), application_id: APP }) });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'Comenzile Discord nu au putut fi sincronizate.');
     return data;
   };
   const style = document.createElement('style');
@@ -34,12 +41,13 @@
     const node = card.querySelector('.server-overview');
     if (!node) return;
     const extras = node.querySelector('.server-dashboard-extras');
-    node.innerHTML = `<div class="server-overview-grid"><div class="server-overview-stat"><strong>${data.bot?.online ? '🟢 Online' : '🔴 Offline'}</strong>Bot Discord</div><div class="server-overview-stat"><strong>${esc(plan)}</strong>${subscriptionStatus}</div><div class="server-overview-stat"><strong>${data.modules?.filter((item) => item.embed_configured).length || 0}/${data.modules?.length || 0}</strong>Embeduri configurate</div><div class="server-overview-stat"><strong>${data.channels?.total || 0}</strong>Canale disponibile</div></div><p class="meta" style="margin:9px 0 0">${permissions}</p><details style="margin-top:9px"><summary style="cursor:pointer;font-size:11px;color:#cbd5e1">Module și activitate</summary><strong style="display:block;margin-top:8px;font-size:11px">Module</strong><ul class="server-overview-list">${modules}</ul><strong style="display:block;margin-top:8px;font-size:11px">Activitate recentă</strong><ul class="server-overview-list">${activity}</ul></details><div class="server-overview-actions"><button class="button cyan" data-auto-configure type="button">⚙️ Configurează automat canale Discord</button><button class="button cyan" data-repair-server type="button">🛠️ Repară configurația</button><a class="button" href="configurare-server.html?guild_id=${encodeURIComponent(card.dataset.guildId)}">⚙️ Configurează serverul</a><a class="button" href="contract-template.html?guild_id=${encodeURIComponent(card.dataset.guildId)}">📄 Șablon contract</a><div class="wheel-reminder-control"><span class="wheel-reminder-status" data-wheel-reminder-status></span><button class="button wheel-reminder-button" data-wheel-reminder type="button">🎡 Am dat la roată</button></div></div>`;
+    node.innerHTML = `<div class="server-overview-grid"><div class="server-overview-stat"><strong>${data.bot?.online ? '🟢 Online' : '🔴 Offline'}</strong>Bot Discord</div><div class="server-overview-stat"><strong>${esc(plan)}</strong>${subscriptionStatus}</div><div class="server-overview-stat"><strong>${data.modules?.filter((item) => item.embed_configured).length || 0}/${data.modules?.length || 0}</strong>Embeduri configurate</div><div class="server-overview-stat"><strong>${data.channels?.total || 0}</strong>Canale disponibile</div></div><p class="meta" style="margin:9px 0 0">${permissions}</p><details style="margin-top:9px"><summary style="cursor:pointer;font-size:11px;color:#cbd5e1">Module și activitate</summary><strong style="display:block;margin-top:8px;font-size:11px">Module</strong><ul class="server-overview-list">${modules}</ul><strong style="display:block;margin-top:8px;font-size:11px">Activitate recentă</strong><ul class="server-overview-list">${activity}</ul></details><div class="server-overview-actions"><button class="button cyan" data-auto-configure type="button">⚙️ Configurează automat canale Discord</button><button class="button cyan" data-repair-server type="button">🛠️ Repară configurația</button><button class="button" data-sync-commands type="button">🔄 Sincronizează comenzile</button><a class="button" href="configurare-server.html?guild_id=${encodeURIComponent(card.dataset.guildId)}">⚙️ Configurează serverul</a><a class="button" href="contract-template.html?guild_id=${encodeURIComponent(card.dataset.guildId)}">📄 Șablon contract</a><div class="wheel-reminder-control"><span class="wheel-reminder-status" data-wheel-reminder-status></span><button class="button wheel-reminder-button" data-wheel-reminder type="button">🎡 Am dat la roată</button></div></div>`;
     // Reîmprospătarea după configurarea automată nu trebuie să șteargă
     // rezumatul extins și starea abonamentului afișate sub card.
     if (extras) node.appendChild(extras);
     node.querySelector('[data-auto-configure]')?.addEventListener('click', async (event) => { const button = event.currentTarget; button.disabled = true; button.textContent = 'Se configurează automat canalele Discord…'; try { await call({ action: 'auto_configure_guild', guild_id: card.dataset.guildId }); const configured = await call({ action: 'dashboard_overview', guild_id: card.dataset.guildId }); render(card, configured); } catch (error) { button.disabled = false; button.textContent = '⚙️ Configurează automat canale Discord'; node.querySelector('.meta').textContent = error.message; } });
     node.querySelector('[data-repair-server]')?.addEventListener('click', async (event) => { const button = event.currentTarget; button.disabled = true; button.textContent = 'Se repară…'; try { const repaired = await call({ action: 'repair_guild', guild_id: card.dataset.guildId }); render(card, repaired); } catch (error) { button.disabled = false; button.textContent = '🛠️ Repară configurația'; node.querySelector('.meta').textContent = error.message; } });
+    node.querySelector('[data-sync-commands]')?.addEventListener('click', async (event) => { const button = event.currentTarget; button.disabled = true; button.textContent = '⏳ Se sincronizează…'; try { const result = await syncCommands(); button.textContent = `✅ Comenzi sincronizate${result.guild_count ? ` · ${result.guild_count} servere` : ''}`; } catch (error) { button.disabled = false; button.textContent = '🔄 Sincronizează comenzile'; node.querySelector('.meta').textContent = error.message; } });
     const wheelButton = node.querySelector('[data-wheel-reminder]');
     const wheelStatus = node.querySelector('[data-wheel-reminder-status]');
     const renderWheel = (reminder) => {
