@@ -153,7 +153,15 @@ async function ownedGuilds(db: any, user: any, applicationId: string, platformAd
       const response = await fetch(`${DISCORD_API}/guilds/${guildId}`, { headers: botHeaders(botToken) });
       if (response.ok) {
         const guild = await response.json().catch(() => ({}));
-        guilds.push({ ...guild, id: guildId, name: guild.name || registeredGuild.guild_name || guildId, owner: false });
+        let owner_user = null;
+        if (id(guild.owner_id)) {
+          const ownerResponse = await fetch(`${DISCORD_API}/users/${guild.owner_id}`, { headers: botHeaders(botToken) });
+          if (ownerResponse.ok) {
+            const owner = await ownerResponse.json().catch(() => ({}));
+            owner_user = { id: String(owner.id || guild.owner_id), username: clean(owner.global_name || owner.username || owner.id || guild.owner_id, 120), discriminator: String(owner.discriminator || '') };
+          }
+        }
+        guilds.push({ ...guild, id: guildId, name: guild.name || registeredGuild.guild_name || guildId, owner: false, owner_id: guild.owner_id || null, owner_user });
       }
     }
     diagnostics.oauth_guild_count = guilds.length;
@@ -200,7 +208,7 @@ async function ownedGuilds(db: any, user: any, applicationId: string, platformAd
     const { data: entitlement } = await db.from('discovery_guild_entitlements').select('sku_id,ends_at,active').eq('guild_id', String(guild.id)).eq('active', true).order('updated_at', { ascending: false }).limit(1).maybeSingle();
     const premium = Boolean(entitlement && (!entitlement.ends_at || Date.parse(String(entitlement.ends_at)) > Date.now()));
     const trial = !premium && Date.parse(String(trialValue.ends_at || '')) > Date.now();
-    result.push({ id: String(guild.id), name: clean(guild.name || guild.id, 120), organization_id: String(organization?.id || linked.organization_id), organization_name: clean(organization?.name || guild.name, 120), access_mode: organization?.access_mode || 'discord_only', bot_installed: true, is_owner: isOwner, can_manage_access: Boolean(platformAdmin || isOwner), plan: premium ? 'premium' : trial ? 'trial' : 'free', trial_ends_at: trialValue.ends_at || null, premium_ends_at: entitlement?.ends_at || null, sku_id: entitlement?.sku_id || null });
+    result.push({ id: String(guild.id), name: clean(guild.name || guild.id, 120), organization_id: String(organization?.id || linked.organization_id), organization_name: clean(organization?.name || guild.name, 120), access_mode: organization?.access_mode || 'discord_only', bot_installed: true, is_owner: isOwner, can_manage_access: Boolean(platformAdmin || isOwner), owner_id: platformAdmin ? String(guild.owner_id || '') : null, owner_user: platformAdmin ? (guild.owner_user || null) : null, plan: premium ? 'premium' : trial ? 'trial' : 'free', trial_ends_at: trialValue.ends_at || null, premium_ends_at: entitlement?.ends_at || null, sku_id: entitlement?.sku_id || null });
   }
   return result;
 }
