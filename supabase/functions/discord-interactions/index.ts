@@ -2545,11 +2545,11 @@ Deno.serve(async (request) => {
       const subcommand = String(commandSubcommand(interaction)?.name || '').trim().toLowerCase();
       const guildId = String(interaction?.guild_id || '').trim();
       if (subcommand === 'ticket') return reply(ticketModal());
-      if (subcommand === 'ajutor') return reply(interactionMessage('', { embeds: [{ title: '🧭 Ajutor Panel Pro', description: 'Poți configura embedurile cu butoane direct din Discord sau automat din dashboard.', color: 0x5865f2, fields: [
+      if (subcommand === 'ajutor') { let override: any = {}; try { const key = serviceKey(); if (key) override = (await readGlobalModules(createClient(Deno.env.get('SUPABASE_URL')!, key))).panel_help || {}; } catch (_) {} return reply(interactionMessage('', { embeds: [{ title: override.title || '🧭 Ajutor Panel Pro', description: override.description || 'Poți configura embedurile cu butoane direct din Discord sau automat din dashboard.', color: Number.isInteger(override.color) ? override.color : 0x5865f2, fields: [
         { name: '⚙️ Configurare manuală în Discord', value: '1. Rulează `/panel config` și alege modulul, canalul pentru embed și, opțional, canalul de log.\n2. Rulează `/panel publica` și selectează modulul pe care vrei să îl publici.\n3. Rulează `/panel status` pentru a verifica toate canalele configurate.', inline: false },
         { name: '🚀 Configurare automată', value: 'Pentru instalarea canalelor, embedurilor, butoanelor și logurilor dintr-un singur loc, deschide dashboard-ul Panel Pro și folosește butonul **Configurează automat canale Discord**.', inline: false },
         { name: '🔐 Permisiuni necesare', value: 'Botul trebuie să fie online și să aibă permisiunea **Administrator** pe server. Pentru configurarea din Discord ai nevoie de Owner sau Manage Server.', inline: false },
-      ], footer: { text: 'Panel Pro · /panel ajutor' } }], components: [{ type: 1, components: [{ type: 2, style: 5, label: '🌐 Deschide configurarea pe site', url: 'https://bot.panel-pro.ro/' }] }] }));
+      ], footer: { text: 'Panel Pro · /panel ajutor' } }], components: [{ type: 1, components: [{ type: 2, style: 5, label: '🌐 Deschide configurarea pe site', url: 'https://bot.panel-pro.ro/' }] }] })); }
       if (subcommand && !['status', 'ajutor', 'publica', 'config', 'ticket'].includes(subcommand)) {
         const key = serviceKey();
         if (!key) return reply(interactionMessage('Cheia secretă Supabase lipsește.'));
@@ -2653,13 +2653,16 @@ Deno.serve(async (request) => {
           const trialActive = Date.parse(String(trialValue?.ends_at || '')) > Date.now();
           const trialText = trialActive ? await discordTrialNotice(db, String(guild.organization_id)) : '';
           const offers = !statusPremiumActive && !trialValue ? [{ type: 2, style: 3, label: '🎁 Activează Trial 30 zile', custom_id: 'panel:discovery:trial_activate' }] : [];
-          return reply(interactionMessage('', { embeds: [{ title: '⚙️ Panel Pro · Configurare Discord', description: [trialText, lines.join('\n\n')].filter(Boolean).join('\n\n'), color: 0x5865f2, footer: { text: `Server ${guildId} · ${target}` } }], components: [{ type: 1, components: [{ type: 2, style: 2, label: '🔐 Roluri acces configurare', custom_id: 'panel:bot_access:open' }, { type: 2, style: 1, label: '🗓️ Adaugă reminder', custom_id: 'panel:discovery:reminder_create' }, { type: 2, style: 1, label: '📋 Raport săptămânal', custom_id: 'panel:discovery:weekly_report' }] }, ...(offers.length ? [{ type: 1, components: offers }] : []), ...(discordPremiumConfigured() && !statusPremiumActive ? discordPremiumButton() : [])] }));
+          const configOverride = (await readGlobalModules(db)).panel_config || {};
+          return reply(interactionMessage('', { embeds: [{ title: configOverride.title || '⚙️ Panel Pro · Configurare Discord', description: [configOverride.description, trialText, lines.join('\n\n')].filter(Boolean).join('\n\n'), color: Number.isInteger(configOverride.color) ? configOverride.color : 0x5865f2, footer: { text: `Server ${guildId} · ${target}` } }], components: [{ type: 1, components: [{ type: 2, style: 2, label: '🔐 Roluri acces configurare', custom_id: 'panel:bot_access:open' }, { type: 2, style: 1, label: '🗓️ Adaugă reminder', custom_id: 'panel:discovery:reminder_create' }, { type: 2, style: 1, label: '📋 Raport săptămânal', custom_id: 'panel:discovery:weekly_report' }] }, ...(offers.length ? [{ type: 1, components: offers }] : []), ...(discordPremiumConfigured() && !statusPremiumActive ? discordPremiumButton() : [])] }));
       }, 'Comanda /panel status nu a putut fi procesată.');
+      let menuOverride: any = {};
+      try { const key = serviceKey(); if (key) menuOverride = (await readGlobalModules(createClient(Deno.env.get('SUPABASE_URL')!, key))).panel_menu || {}; } catch (_) {}
       return reply(interactionMessage('', {
         embeds: [{
-          title: '🧭 Panel Pro · Meniu Discord',
-          description: 'Panel Pro gestionează pontaje, învoiri, anunțuri, sondaje, acțiuni, contracte și Stash direct prin embedurile configurate pe server.',
-          color: 0x5865f2,
+          title: menuOverride.title || '🧭 Panel Pro · Meniu Discord',
+          description: menuOverride.description || 'Panel Pro gestionează pontaje, învoiri, anunțuri, sondaje, acțiuni, contracte și Stash direct prin embedurile configurate pe server.',
+          color: Number.isInteger(menuOverride.color) ? menuOverride.color : 0x5865f2,
           fields: [
             { name: 'Cum folosești aplicația', value: 'Apasă butoanele din embedurile Panel Pro publicate în canalele configurate. Fiecare acțiune respectă rolurile și permisiunile organizației.', inline: false },
             { name: 'Date și organizații', value: 'Datele sunt salvate în Supabase și rămân separate pentru organizația serverului Discord.', inline: false },

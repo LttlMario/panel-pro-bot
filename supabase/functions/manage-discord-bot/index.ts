@@ -25,6 +25,9 @@ const MODULES: Record<string, { label: string; premium: boolean; title: string; 
   stash_requests: { label: 'Cereri Stash', premium: true, title: '📨 Cereri Stash', description: 'Solicită articole și urmărește cererile trimise pentru aprobare.', color: 0x3b82f6, buttons: [{ label: 'Solicită articol', style: 1, id: 'panel:stash:request' }, { label: 'Cereri în așteptare', style: 2, id: 'panel:stash:pending_requests' }] },
   stash_donations: { label: 'Donații Stash', premium: true, title: '🎁 Donații Stash', description: 'Înregistrează donații și trimite-le spre aprobare administrativă.', color: 0x22c55e, buttons: [{ label: 'Donează articol', style: 3, id: 'panel:stash:donate' }, { label: 'Donații în așteptare', style: 2, id: 'panel:stash:pending_donations' }] },
   status_live: { label: 'Status live', premium: true, title: '📡 Status live · Panel Pro', description: 'Statusul este actualizat automat cu pontajele și pauzele active.', color: 0x06b6d4, buttons: [] },
+  panel_menu: { label: 'Meniu principal Discord', premium: false, title: '🧭 Panel Pro · Meniu Discord', description: 'Panel Pro gestionează pontaje, învoiri, anunțuri, sondaje, acțiuni, contracte și Stash direct prin embedurile configurate pe server.', color: 0x5865f2, buttons: [] },
+  panel_config: { label: 'Meniu configurare Discord', premium: false, title: '⚙️ Panel Pro · Configurare Discord', description: 'Vezi starea canalelor și comenzile de configurare ale serverului.', color: 0x5865f2, buttons: [] },
+  panel_help: { label: 'Ajutor Panel Pro', premium: false, title: '🧭 Ajutor Panel Pro', description: 'Poți configura embedurile cu butoane direct din Discord sau automat din dashboard.', color: 0x5865f2, buttons: [] },
 };
 const LOG_ROUTES: Record<string, string> = {
   organization: 'log_announcements_organization', departments: 'log_announcements_departments', pontaj: 'log_pontaj',
