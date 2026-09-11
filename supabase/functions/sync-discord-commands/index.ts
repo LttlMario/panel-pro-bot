@@ -52,6 +52,7 @@ Deno.serve(async (request) => {
       .map((module: any) => ({ type: 1, name: String(module.command_name).trim().toLowerCase(), description: String(module.label || 'Modul Panel Pro').trim().slice(0, 100) }));
     const syncedCommands = [{ ...commands[0], options: [...commands[0].options, ...customCommands] }];
     const requestInit = { method: 'PUT', headers: { Authorization: `Bot ${botToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(syncedCommands) };
+    const clearGuildInit = { method: 'PUT', headers: { Authorization: `Bot ${botToken}`, 'Content-Type': 'application/json' }, body: '[]' };
     const globalResponse = await fetch(`https://discord.com/api/v10/applications/${applicationId}/commands`, requestInit);
     if (!globalResponse.ok) return reply(request, { error: `Discord a respins comenzile globale (HTTP ${globalResponse.status}).`, details: await globalResponse.text() }, 400);
     const { data: guilds, error: guildsError } = await db.from('discovery_guilds').select('guild_id').eq('enabled', true);
@@ -61,7 +62,9 @@ Deno.serve(async (request) => {
     for (const guild of guilds || []) {
       const guildId = String(guild.guild_id || '').trim();
       if (!/^\d{15,22}$/.test(guildId)) continue;
-      const response = await fetch(`https://discord.com/api/v10/applications/${applicationId}/guilds/${guildId}/commands`, requestInit);
+      // Comenzile sunt globale. Ștergem copiile guild-scoped rămase din
+      // sincronizările vechi, altfel Discord le afișează de două ori.
+      const response = await fetch(`https://discord.com/api/v10/applications/${applicationId}/guilds/${guildId}/commands`, clearGuildInit);
       guildResults.push({ guild_id: guildId, ok: response.ok, status: response.status });
       syncedGuildIds.add(guildId);
     }
@@ -74,7 +77,7 @@ Deno.serve(async (request) => {
       for (const guild of Array.isArray(botGuilds) ? botGuilds : []) {
         const guildId = String(guild?.id || '').trim();
         if (!/^\d{15,22}$/.test(guildId) || syncedGuildIds.has(guildId)) continue;
-        const response = await fetch(`https://discord.com/api/v10/applications/${applicationId}/guilds/${guildId}/commands`, requestInit);
+        const response = await fetch(`https://discord.com/api/v10/applications/${applicationId}/guilds/${guildId}/commands`, clearGuildInit);
         guildResults.push({ guild_id: guildId, ok: response.ok, status: response.status });
         syncedGuildIds.add(guildId);
       }
