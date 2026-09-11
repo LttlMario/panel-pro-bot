@@ -2543,7 +2543,7 @@ Deno.serve(async (request) => {
     if (commandName === 'panel') {
       const subcommand = String(commandSubcommand(interaction)?.name || '').trim().toLowerCase();
       const guildId = String(interaction?.guild_id || '').trim();
-      if (subcommand === 'ticket') return ticketModal();
+      if (subcommand === 'ticket') return reply(ticketModal());
       if (subcommand === 'help') return reply(interactionMessage('', { embeds: [{ title: '🧭 Ajutor Panel Pro', description: 'Poți configura embedurile cu butoane direct din Discord sau automat din dashboard.', color: 0x5865f2, fields: [
         { name: '⚙️ Configurare manuală în Discord', value: '1. Rulează `/panel config` și alege modulul, canalul pentru embed și, opțional, canalul de log.\n2. Rulează `/panel publica` și selectează modulul pe care vrei să îl publici.\n3. Rulează `/panel status` pentru a verifica toate canalele configurate.', inline: false },
         { name: '🚀 Configurare automată', value: 'Pentru instalarea canalelor, embedurilor, butoanelor și logurilor dintr-un singur loc, deschide dashboard-ul Panel Pro și folosește butonul **Configurează automat canale Discord**.', inline: false },
