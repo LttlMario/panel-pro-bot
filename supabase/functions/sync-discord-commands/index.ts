@@ -12,7 +12,7 @@ const routeChoices = [
   ['Stash', 'stash'], ['Log Stash', 'log_stash'], ['Cereri Stash', 'stash_requests'], ['Log cereri Stash', 'log_stash_requests'], ['Donații Stash', 'stash_donations'], ['Log donații Stash', 'log_stash_donations'],
 ].map(([name, value]) => ({ name, value }));
 const commands = [{
-  name: 'panel', description: 'Afișează meniul și administrează Panel Pro', options: [
+  name: 'panel', description: 'Manage Panel Pro server tools', options: [
     { type: 1, name: 'status', description: 'Verifică toate canalele configurate' },
     { type: 1, name: 'help', description: 'Află cum configurezi embedurile și butoanele' },
     { type: 1, name: 'ticket', description: 'Deschide un ticket privat pentru suport' },
