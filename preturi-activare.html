@@ -1,1 +1,291 @@
-<!doctype html><html lang="ro" class="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Panel Pro · Prețuri și activare</title><link rel="stylesheet" href="css/tailwind.css"><style>:root{color-scheme:dark}body{margin:0;background:#020617;color:#e2e8f0;font-family:Inter,system-ui,sans-serif}.page{min-height:100vh;display:grid;place-items:center;padding:24px}.card{width:min(900px,100%);border:1px solid #263b58;border-radius:20px;background:linear-gradient(145deg,#101c31,#091222);padding:clamp(22px,5vw,48px);box-shadow:0 20px 70px #02061799}.eyebrow{color:#67e8f9;font-size:11px;font-weight:900;letter-spacing:.16em;text-transform:uppercase}.title{font-size:clamp(26px,5vw,42px);margin:8px 0}.lead{color:#9fb0c5;line-height:1.7}.options{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:26px 0}.option{border:1px solid #334155;border-radius:14px;padding:17px;background:#07101f}.highlight{border-color:#a78bfa;background:#17112d}.option h2{font-size:14px;margin:0}.price{font-size:26px;font-weight:950;color:#67e8f9;margin:8px 0}.highlight .price{color:#c4b5fd}.muted{color:#94a3b8;font-size:11px;line-height:1.5}.steps{border-top:1px solid #263b58;padding-top:20px;line-height:1.7}.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}.button{display:inline-block;padding:11px 15px;border:1px solid #36516f;border-radius:10px;text-decoration:none;color:#e2e8f0;font-weight:900;font-size:12px;background:#12243a}.primary{background:#047857;border-color:#10b981}.cyan{background:#0e3545;border-color:#22d3ee;color:#cffafe}.back{display:inline-block;margin-top:22px;color:#67e8f9;font-size:12px}</style></head><body><main class="page"><section class="card"><p class="eyebrow">Panel Pro · activare externă</p><h1 class="title">Prețuri și alternative de plată</h1><p class="lead">Alege perioada potrivită. Plata se face extern, prin Revolut, iar accesul este activat manual după verificarea dovezii de plată.</p><div class="options"><article class="option"><h2>Premium lunar</h2><p class="price">49 lei</p><p class="muted">Echivalent $9.99/lună<br>Reînnoire manuală la nevoie.</p></article><article class="option"><h2>Premium 6 luni</h2><p class="price">230 lei</p><p class="muted">Echivalent $50 / 6 luni<br>Acces Premium pentru șase luni.</p></article><article class="option"><h2>Premium anual</h2><p class="price">459 lei</p><p class="muted">Echivalent $99.99/an<br>Acces Premium pentru un an.</p></article><article class="option highlight"><h2>Panel Pro Unlimited</h2><p class="price">1.849 lei</p><p class="muted">Echivalent $399.99<br>Plată unică · acces permanent.</p></article></div><div class="steps"><strong>Cum se activează:</strong><br>1. Alege una dintre alternative și efectuează plata prin Revolut.<br>2. Trimite dovada în mesaj privat administratorului Discord.<br>3. Include numele serverului și Guild ID-ul pentru activare.<br>4. După verificare, Premium-ul este activat manual.<p class="muted">Prețurile în lei sunt rotunjite orientativ și pot varia în funcție de cursul valutar. Nu trimite tokenuri sau parole.</p></div><div class="actions"><a class="button primary" href="https://revolut.me/mariomihail" target="_blank" rel="noopener">💳 Plătește prin Revolut</a><a class="button cyan" href="https://discord.com/users/1531023771211792384" target="_blank" rel="noopener">📨 Trimite dovada botului</a></div><a class="back" href="administrare-boturi-discord.html">← Înapoi la dashboard</a></section></main></body></html>
+<!doctype html>
+<html lang="ro" class="dark">
+<head>
+    <meta charset="utf-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1"
+    >
+
+    <title>Panel Pro · Prețuri și activare</title>
+
+    <link
+        rel="stylesheet"
+        href="css/tailwind.css"
+    >
+
+    <style>
+        :root {
+            color-scheme: dark;
+        }
+
+        body {
+            margin: 0;
+            background: #020617;
+            color: #e2e8f0;
+            font-family: Inter, system-ui, sans-serif;
+        }
+
+        .page {
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+        }
+
+        .card {
+            width: min(900px, 100%);
+            border: 1px solid #263b58;
+            border-radius: 20px;
+            background: linear-gradient(145deg, #101c31, #091222);
+            padding: clamp(22px, 5vw, 48px);
+            box-shadow: 0 20px 70px #02061799;
+        }
+
+        .eyebrow {
+            color: #67e8f9;
+            font-size: 11px;
+            font-weight: 900;
+            letter-spacing: .16em;
+            text-transform: uppercase;
+        }
+
+        .title {
+            font-size: clamp(26px, 5vw, 42px);
+            margin: 8px 0;
+        }
+
+        .lead {
+            color: #9fb0c5;
+            line-height: 1.7;
+        }
+
+        .options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 12px;
+            margin: 26px 0;
+        }
+
+        .option {
+            border: 1px solid #334155;
+            border-radius: 14px;
+            padding: 17px;
+            background: #07101f;
+        }
+
+        .highlight {
+            border-color: #a78bfa;
+            background: #17112d;
+        }
+
+        .option h2 {
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .price {
+            font-size: 26px;
+            font-weight: 950;
+            color: #67e8f9;
+            margin: 8px 0;
+        }
+
+        .highlight .price {
+            color: #c4b5fd;
+        }
+
+        .muted {
+            color: #94a3b8;
+            font-size: 11px;
+            line-height: 1.5;
+        }
+
+        .steps {
+            border-top: 1px solid #263b58;
+            padding-top: 20px;
+            line-height: 1.7;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 22px;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 11px 15px;
+            border: 1px solid #36516f;
+            border-radius: 10px;
+            text-decoration: none;
+            color: #e2e8f0;
+            font-weight: 900;
+            font-size: 12px;
+            background: #12243a;
+        }
+
+        .primary {
+            background: #047857;
+            border-color: #10b981;
+        }
+
+        .cyan {
+            background: #0e3545;
+            border-color: #22d3ee;
+            color: #cffafe;
+        }
+
+        .back {
+            display: inline-block;
+            margin-top: 22px;
+            color: #67e8f9;
+            font-size: 12px;
+        }
+    </style>
+</head>
+
+<body>
+    <main class="page">
+
+        <section class="card">
+
+            <p class="eyebrow">
+                Panel Pro · activare externă
+            </p>
+
+            <h1 class="title">
+                Prețuri și alternative de plată
+            </h1>
+
+            <p class="lead">
+                Alege perioada potrivită. Plata se face extern, prin Revolut,
+                iar accesul este activat manual după verificarea dovezii de plată.
+            </p>
+
+            <div class="options">
+
+                <article class="option">
+                    <h2>Premium lunar</h2>
+
+                    <p class="price">
+                        49 lei
+                    </p>
+
+                    <p class="muted">
+                        Echivalent $9.99/lună
+                        <br>
+                        Reînnoire manuală la nevoie.
+                    </p>
+                </article>
+
+                <article class="option">
+                    <h2>Premium 6 luni</h2>
+
+                    <p class="price">
+                        279 lei
+                    </p>
+
+                    <p class="muted">
+                        Echivalent $60 / 6 luni
+                        <br>
+                        Acces Premium pentru șase luni.
+                    </p>
+                </article>
+
+                <article class="option">
+                    <h2>Premium anual</h2>
+
+                    <p class="price">
+                        459 lei
+                    </p>
+
+                    <p class="muted">
+                        Echivalent $99.99/an
+                        <br>
+                        Acces Premium pentru un an.
+                    </p>
+                </article>
+
+                <article class="option highlight">
+                    <h2>Panel Pro Unlimited</h2>
+
+                    <p class="price">
+                        1.849 lei
+                    </p>
+
+                    <p class="muted">
+                        Echivalent $399.99
+                        <br>
+                        Plată unică · acces permanent.
+                    </p>
+                </article>
+
+            </div>
+
+            <div class="steps">
+
+                <strong>
+                    Cum se activează:
+                </strong>
+
+                <br>
+
+                1. Alege una dintre alternative și efectuează plata prin Revolut.
+
+                <br>
+
+                2. Trimite dovada plății pe canalul Discord dedicat activărilor.
+
+                <br>
+
+                3. Include numele serverului și Guild ID-ul pentru activare.
+
+                <br>
+
+                4. După verificare, Premium-ul este activat manual.
+
+                <p class="muted">
+                    Prețurile în lei sunt rotunjite orientativ și pot varia
+                    în funcție de cursul valutar.
+                    Nu trimite tokenuri sau parole.
+                </p>
+
+            </div>
+
+            <div class="actions">
+
+                <a
+                    class="button primary"
+                    href="https://revolut.me/mariomihail"
+                    target="_blank"
+                    rel="noopener"
+                >
+                    💳 Plătește prin Revolut
+                </a>
+
+                <a
+                    class="button cyan"
+                    href="https://discord.com/channels/1544703486384537603/1546447705138536518"
+                    target="_blank"
+                    rel="noopener"
+                >
+                    📨 Trimite dovada plății
+                </a>
+
+            </div>
+
+            <a
+                class="back"
+                href="administrare-boturi-discord.html"
+            >
+                ← Înapoi la dashboard
+            </a>
+
+        </section>
+
+    </main>
+</body>
+</html>
