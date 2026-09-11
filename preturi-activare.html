@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="ro" class="dark">
+
 <head>
     <meta charset="utf-8">
 
@@ -125,11 +126,24 @@
             font-weight: 900;
             font-size: 12px;
             background: #12243a;
+            transition: transform .15s ease, filter .15s ease;
+        }
+
+        .button:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.08);
         }
 
         .primary {
             background: #047857;
             border-color: #10b981;
+            color: #ffffff;
+        }
+
+        .discord {
+            background: #5865F2;
+            border-color: #7289da;
+            color: #ffffff;
         }
 
         .cyan {
@@ -143,17 +157,24 @@
             margin-top: 22px;
             color: #67e8f9;
             font-size: 12px;
+            text-decoration: none;
+        }
+
+        .back:hover {
+            text-decoration: underline;
         }
     </style>
+
 </head>
 
 <body>
+
     <main class="page">
 
         <section class="card">
 
             <p class="eyebrow">
-                Panel Pro · activare externă
+                Panel Pro · activare Premium
             </p>
 
             <h1 class="title">
@@ -161,14 +182,18 @@
             </h1>
 
             <p class="lead">
-                Alege perioada potrivită. Plata se face extern, prin Revolut,
-                iar accesul este activat manual după verificarea dovezii de plată.
+                Alege perioada potrivită și metoda de plată preferată.
+                Poți plăti extern prin Revolut sau direct prin pagina oficială
+                Panel Pro din Discord.
             </p>
 
             <div class="options">
 
                 <article class="option">
-                    <h2>Premium lunar</h2>
+
+                    <h2>
+                        Premium lunar
+                    </h2>
 
                     <p class="price">
                         49 lei
@@ -177,12 +202,16 @@
                     <p class="muted">
                         Echivalent $9.99/lună
                         <br>
-                        Reînnoire manuală la nevoie.
+                        Reînnoire lunară.
                     </p>
+
                 </article>
 
                 <article class="option">
-                    <h2>Premium 6 luni</h2>
+
+                    <h2>
+                        Premium 6 luni
+                    </h2>
 
                     <p class="price">
                         279 lei
@@ -193,10 +222,14 @@
                         <br>
                         Acces Premium pentru șase luni.
                     </p>
+
                 </article>
 
                 <article class="option">
-                    <h2>Premium anual</h2>
+
+                    <h2>
+                        Premium anual
+                    </h2>
 
                     <p class="price">
                         459 lei
@@ -207,20 +240,25 @@
                         <br>
                         Acces Premium pentru un an.
                     </p>
+
                 </article>
 
                 <article class="option highlight">
-                    <h2>Panel Pro Unlimited</h2>
+
+                    <h2>
+                        Panel Pro Unlimited
+                    </h2>
 
                     <p class="price">
                         1.849 lei
                     </p>
 
                     <p class="muted">
-                        Echivalent $399.99
+                        Echivalent aproximativ €400
                         <br>
                         Plată unică · acces permanent.
                     </p>
+
                 </article>
 
             </div>
@@ -233,24 +271,29 @@
 
                 <br>
 
-                1. Alege una dintre alternative și efectuează plata prin Revolut.
+                1. Alege pachetul Premium dorit.
 
                 <br>
 
-                2. Trimite dovada plății pe canalul Discord dedicat activărilor.
+                2. Plătește prin Revolut sau direct prin pagina oficială Discord.
 
                 <br>
 
-                3. Include numele serverului și Guild ID-ul pentru activare.
+                3. Pentru plata prin Revolut, trimite dovada pe canalul Discord dedicat activărilor.
 
                 <br>
 
-                4. După verificare, Premium-ul este activat manual.
+                4. Include numele serverului și Guild ID-ul pentru identificarea serverului.
+
+                <br>
+
+                5. După verificarea plății, accesul Premium este activat.
 
                 <p class="muted">
-                    Prețurile în lei sunt rotunjite orientativ și pot varia
-                    în funcție de cursul valutar.
-                    Nu trimite tokenuri sau parole.
+                    Prețurile în lei sunt orientative și pot varia în funcție
+                    de cursul valutar. Prețurile și opțiunile disponibile prin
+                    Discord sunt cele afișate în pagina oficială a aplicației.
+                    Nu trimite niciodată tokenuri, parole sau alte date de autentificare.
                 </p>
 
             </div>
@@ -261,16 +304,25 @@
                     class="button primary"
                     href="https://revolut.me/mariomihail"
                     target="_blank"
-                    rel="noopener"
+                    rel="noopener noreferrer"
                 >
                     💳 Plătește prin Revolut
+                </a>
+
+                <a
+                    class="button discord"
+                    href="https://discord.com/application-directory/1531023771211792384/store"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                    💠 Plătește prin Discord
                 </a>
 
                 <a
                     class="button cyan"
                     href="https://discord.com/channels/1544703486384537603/1546447705138536518"
                     target="_blank"
-                    rel="noopener"
+                    rel="noopener noreferrer"
                 >
                     📨 Trimite dovada plății
                 </a>
@@ -287,5 +339,7 @@
         </section>
 
     </main>
+
 </body>
+
 </html>
