@@ -1,29 +1,954 @@
-(()=>{'use strict';const page=location.pathname.split('/').pop()||'index.html',token=()=>sessionStorage.getItem('discovery_access_token')||sessionStorage.getItem('discord_bot_admin_token')||'';if(page!=='index.html'&&!token()){location.replace('index.html');return}const header=document.getElementById('bot-header'),sidebar=document.getElementById('bot-sidebar'),footer=document.getElementById('bot-footer');if(header)header.innerHTML='<a class="brand" href="administrare-boturi-discord.html"><img src="img/logo-64.webp" alt="Panel Pro Bot"><span><small>Discord only</small>Panel Pro Bot</span></a><span class="header-status">Dashboard administrare bot</span>';if(sidebar){sidebar.innerHTML=`<section class="bot-profile" aria-label="Profil utilizator"><div class="bot-profile-main"><img class="bot-avatar" id="bot-avatar" src="img/logo-64.webp" alt="Avatar Discord"><strong id="bot-user-name">Cont Discord</strong></div><button class="profile-action" id="bot-theme" type="button">🌙 Tema Dark</button><button class="profile-action danger" id="bot-logout" type="button">↪ Deconectare</button></section><div class="side-divider"></div><p class="side-title">Panou de control</p><nav class="side-nav" aria-label="Navigație principală"><a class="${page==='administrare-boturi-discord.html'?'active':''}" href="administrare-boturi-discord.html">📊 Dashboard</a><a class="${page==='configurare-bot.html'?'active':''}" href="configurare-bot.html">⚙️ Configurare bot</a><a class="${page==='administrare-globala.html'?'active':''}" href="administrare-globala.html">🛡️ Administrare globală</a><a href="administrare-module.html">🧩 Constructor module</a><a href="administrare-module-tutorial.html">📘 Tutorial module</a></nav><div class="side-divider"></div><nav class="side-nav" aria-label="Linkuri utile"><a href="https://panel-pro.ro" target="_blank" rel="noopener">🌐 Panel Pro Web</a></nav>`;const theme=localStorage.getItem('panel-pro-bot-theme')||'normal';document.documentElement.dataset.theme=theme;const style=document.createElement('style');style.textContent=`#bot-sidebar{display:flex;flex-direction:column;align-items:stretch}.bot-profile{padding:12px 10px;border:1px solid #203650;border-radius:14px;background:#0b1a2d}.bot-profile-main{display:flex;align-items:center;gap:9px;margin-bottom:10px}.bot-avatar{width:34px;height:34px;border-radius:50%;object-fit:cover;background:#5865f2}.bot-profile strong{display:block;color:#e2e8f0;font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.profile-action{display:block;width:100%;margin-top:6px;border:1px solid #294460;border-radius:8px;background:#10243a;color:#cbd5e1;padding:7px;text-align:left;font-size:10px;font-weight:800;cursor:pointer}.profile-action:hover{border-color:#67e8f9;color:#cffafe}.profile-action.danger{color:#fda4af}.side-title{margin:0 0 7px;color:#94a3b8;font-size:11px;font-weight:900}.side-nav{display:flex;flex-direction:column;align-items:stretch;gap:5px;width:100%}.side-nav a{display:block;width:100%;padding:8px 9px;border:1px solid transparent;border-radius:9px;color:#cbd5e1;font-size:12px;line-height:1.25;text-decoration:none;white-space:normal}.side-nav a:hover,.side-nav a.active{border-color:#294460;background:#10243a;color:#fff}.side-divider{height:1px;margin:14px 0;background:#203650}html[data-theme="dark"] .app-shell{filter:saturate(.82) brightness(.82)}html[data-theme="dark"] .bot-profile{background:#050b14}`;document.head.appendChild(style);const themeButton=document.getElementById('bot-theme'),updateTheme=()=>{themeButton.textContent=document.documentElement.dataset.theme==='dark'?'☀️ Tema normală':'🌙 Tema Dark'};updateTheme();themeButton?.addEventListener('click',()=>{const next=document.documentElement.dataset.theme==='dark'?'normal':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('panel-pro-bot-theme',next);updateTheme()});document.getElementById('bot-logout')?.addEventListener('click',()=>{sessionStorage.removeItem('discovery_access_token');sessionStorage.removeItem('discord_bot_admin_token');sessionStorage.removeItem('discord_access_token');location.href='index.html'});if(token())fetch('https://discord.com/api/v10/users/@me',{headers:{Authorization:`Bearer ${token()}`}}).then(r=>r.ok?r.json():null).then(user=>{if(!user)return;document.getElementById('bot-user-name').textContent=user.global_name||user.username||'Cont Discord';if(user.avatar)document.getElementById('bot-avatar').src=`https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=64`}).catch(()=>{})}if(footer)footer.innerHTML='<div class="bot-footer-brand"><strong>Panel Pro Bot</strong><small>administrare Discord separată</small></div><div class="bot-footer-copy">© 2026 Panel Pro</div><div class="bot-footer-right"><details class="bot-pricing-footer"><summary>💎 Prețuri și activare</summary><div><p><b>Premium:</b> 49 lei/lună · 279 lei/6 luni · 459 lei/an</p><p><b>Unlimited permanent:</b> 1.849 lei · plată unică</p><p>Plata se face prin Revolut. După plată, trimite dovada în mesaj privat pentru activare.</p><p><a href="https://revolut.me/mariomihail" target="_blank" rel="noopener">💳 Revolut</a> · <a href="https://discord.com/users/247012210021236738" target="_blank" rel="noopener">📨 Trimite dovada pe Discord</a></p></div></details><a class="bot-terms-link" href="termeni-si-conditii-bot.html">Termeni și condiții</a></div>';if(page==='configurare-server.html'){const script=document.createElement('script');script.src='js/server-config-bulk.js?v=20260904-bulk';document.body.appendChild(script)}})();
-(()=>{const add=()=>{const nav=document.querySelector('#bot-sidebar .side-nav');if(nav&&!nav.querySelector('a[href="administrare-module.html"]'))nav.insertAdjacentHTML('beforeend',`<a class="${location.pathname.endsWith('administrare-module.html')?'active':''}" href="administrare-module.html">🧩 Constructor module</a>`)};document.addEventListener('DOMContentLoaded',add,{once:true});setTimeout(add,100);setTimeout(add,500);setTimeout(add,1000)})();
-(()=>{if(sessionStorage.getItem('discovery_platform_admin')!=='true'){document.querySelectorAll('a[href="administrare-globala.html"],a[href="administrare-module.html"],a[href="configurare-bot.html"]').forEach(link=>{link.style.display='none'})}})();
-(()=>{const sync=()=>{const allowed=sessionStorage.getItem('discovery_platform_admin')==='true';const nav=document.querySelector('#bot-sidebar .side-nav');if(allowed&&nav&&!nav.querySelector('a[href="administrare-module.html"]'))nav.insertAdjacentHTML('beforeend','<a href="administrare-module.html">🧩 Constructor module</a>');document.querySelectorAll('a[href="administrare-globala.html"],a[href="administrare-module.html"],a[href="configurare-bot.html"]').forEach(link=>{link.style.display=allowed?'':'none'})};document.addEventListener('DOMContentLoaded',sync);[100,300,800,1500,3000].forEach(ms=>setTimeout(sync,ms))})();
-(()=>{const page=location.pathname.split('/').pop()||'index.html';if(page==='index.html')return;const token=sessionStorage.getItem('discovery_access_token')||sessionStorage.getItem('discord_bot_admin_token')||'';if(!token)return;const API='https://zrjxlbkbctlapgupktxw.supabase.co/functions/v1/manage-discord-bot',KEY='sb_publishable_LfngX7pwFruPw35_ZUdO4Q_MGAHoeW0',APP='1531023771211792384';fetch(API,{method:'POST',headers:{'Content-Type':'application/json',apikey:KEY},body:JSON.stringify({action:'bootstrap',view_scope:'personal',access_token:token,application_id:APP})}).then(async response=>{const data=await response.json().catch(()=>({}));if(!response.ok||(!data.platform_admin&&(!Array.isArray(data.guilds)||!data.guilds.length))){sessionStorage.removeItem('discovery_access_token');sessionStorage.removeItem('discovery_platform_admin');sessionStorage.removeItem('discord_bot_admin_token');sessionStorage.removeItem('discord_access_token');location.replace('index.html')}}).catch(()=>{})})();
+(() => {
+    'use strict';
 
-(()=>{const style=document.createElement('style');style.textContent='.app-header .brand{display:flex;align-items:center;gap:10px}.app-header .brand img{width:38px!important;height:38px!important;max-width:38px;object-fit:cover;border-radius:11px}.app-header .brand span{display:flex!important;flex-direction:column!important;line-height:1.15!important}.sidebar,.side-nav,.side-nav a{font-family:Inter,Segoe UI,Arial,sans-serif!important}.app-header .brand small{display:block;color:#67e8f9;font-size:9px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:2px}.app-header{display:flex;align-items:center;justify-content:space-between;min-height:70px}';document.head.appendChild(style)})();
-(()=>{const footer=document.getElementById('bot-footer');if(!footer)return;const style=document.createElement('style');style.textContent='.app-footer{display:grid!important;grid-template-columns:1fr auto 1fr;align-items:center;gap:14px;text-align:center}.bot-footer-brand{justify-self:start;text-align:left;color:#67e8f9;font-size:11px;font-weight:800}.bot-footer-brand small{display:block;color:#71859f;font-weight:400;margin-top:3px}.bot-footer-copy{justify-self:center;color:#71859f}.bot-footer-right{justify-self:end;display:grid;gap:8px;justify-items:end;text-align:right}.app-footer>span:first-child{text-align:left}.app-footer>span:last-child{text-align:right}.bot-pricing-footer{position:relative;color:#cbd5e1;font-size:11px}.bot-pricing-footer summary{cursor:pointer;color:#c4b5fd;font-weight:800}.bot-pricing-footer div{position:absolute;bottom:28px;left:0;width:330px;padding:12px;border:1px solid #475569;border-radius:12px;background:#071222;box-shadow:0 12px 30px #020617aa;line-height:1.5}.bot-pricing-footer p{margin:4px 0}.bot-pricing-footer a{color:#67e8f9;font-weight:800;text-decoration:none}.bot-pricing-footer a:hover{text-decoration:underline}.bot-pricing-link{color:#c4b5fd;text-decoration:none;font-weight:800}.bot-pricing-link:hover{text-decoration:underline}.bot-terms-link{color:#67e8f9;text-decoration:none;font-weight:800}.bot-terms-link:hover{text-decoration:underline}@media(max-width:700px){.app-footer{grid-template-columns:1fr;gap:7px}.app-footer>span:first-child,.app-footer>span:last-child{text-align:center}}';document.head.appendChild(style);footer.innerHTML='<div class="bot-footer-brand"><strong>Panel Pro Bot</strong><small>administrare Discord separată</small></div><div class="bot-footer-copy">© 2026 Panel Pro</div><div class="bot-footer-right"><a class="bot-pricing-link" href="preturi-activare.html">💎 Prețuri și activare</a><a class="bot-terms-link" href="termeni-si-conditii-bot.html">Termeni și condiții</a></div>'})();
-(()=>{
-  'use strict';
-  const page=location.pathname.split('/').pop()||'index.html';
-  if(page==='index.html')return;
-  const API='https://zrjxlbkbctlapgupktxw.supabase.co/functions/v1/manage-discord-bot',KEY='sb_publishable_LfngX7pwFruPw35_ZUdO4Q_MGAHoeW0',APP='1531023771211792384';
-  const token=()=>sessionStorage.getItem('discovery_access_token')||sessionStorage.getItem('discord_bot_admin_token')||'';
-  fetch(API,{method:'POST',headers:{'Content-Type':'application/json',apikey:KEY},body:JSON.stringify({action:'bootstrap',view_scope:'personal',access_token:token(),application_id:APP})})
-    .then(r=>r.json().catch(()=>({})))
-    .then(data=>{
-      const admin=data.platform_admin===true;
-      sessionStorage.setItem('discovery_platform_admin',admin?'true':'false');
-      if(admin)return;
-      document.querySelectorAll('#bot-sidebar .side-nav a').forEach(link=>{
-        const href=link.getAttribute('href')||'';
-        const keep=href==='administrare-boturi-discord.html'||href==='https://panel-pro.ro';
-        if(!keep)link.remove();
-      });
-      if(page!=='administrare-boturi-discord.html')location.replace('administrare-boturi-discord.html');
-    })
-    .catch(()=>{});
+    const page = location.pathname.split('/').pop() || 'index.html';
+
+    const token = () =>
+        sessionStorage.getItem('discovery_access_token') ||
+        sessionStorage.getItem('discord_bot_admin_token') ||
+        '';
+
+    if (page !== 'index.html' && !token()) {
+        location.replace('index.html');
+        return;
+    }
+
+    const header = document.getElementById('bot-header');
+    const sidebar = document.getElementById('bot-sidebar');
+    const footer = document.getElementById('bot-footer');
+
+    if (header) {
+        header.innerHTML = `
+            <a class="brand" href="administrare-boturi-discord.html">
+                <img src="img/logo-64.webp" alt="Panel Pro Bot">
+
+                <span>
+                    <small>Discord only</small>
+                    Panel Pro Bot
+                </span>
+            </a>
+
+            <span class="header-status">
+                Dashboard administrare bot
+            </span>
+        `;
+    }
+
+    if (sidebar) {
+        sidebar.innerHTML = `
+            <section class="bot-profile" aria-label="Profil utilizator">
+
+                <div class="bot-profile-main">
+                    <img
+                        class="bot-avatar"
+                        id="bot-avatar"
+                        src="img/logo-64.webp"
+                        alt="Avatar Discord"
+                    >
+
+                    <strong id="bot-user-name">
+                        Cont Discord
+                    </strong>
+                </div>
+
+                <button
+                    class="profile-action"
+                    id="bot-theme"
+                    type="button"
+                >
+                    🌙 Tema Dark
+                </button>
+
+                <button
+                    class="profile-action danger"
+                    id="bot-logout"
+                    type="button"
+                >
+                    ↪ Deconectare
+                </button>
+
+            </section>
+
+            <div class="side-divider"></div>
+
+            <p class="side-title">
+                Panou de control
+            </p>
+
+            <nav
+                class="side-nav"
+                aria-label="Navigație principală"
+            >
+
+                <a
+                    class="${page === 'administrare-boturi-discord.html' ? 'active' : ''}"
+                    href="administrare-boturi-discord.html"
+                >
+                    📊 Dashboard
+                </a>
+
+                <a
+                    class="${page === 'configurare-bot.html' ? 'active' : ''}"
+                    href="configurare-bot.html"
+                >
+                    ⚙️ Configurare bot
+                </a>
+
+                <a
+                    class="${page === 'administrare-globala.html' ? 'active' : ''}"
+                    href="administrare-globala.html"
+                >
+                    🛡️ Administrare globală
+                </a>
+
+                <a href="administrare-module.html">
+                    🧩 Constructor module
+                </a>
+
+                <a href="administrare-module-tutorial.html">
+                    📘 Tutorial module
+                </a>
+
+            </nav>
+
+            <div class="side-divider"></div>
+
+            <nav
+                class="side-nav"
+                aria-label="Linkuri utile"
+            >
+                <a
+                    href="https://panel-pro.ro"
+                    target="_blank"
+                    rel="noopener"
+                >
+                    🌐 Panel Pro Web
+                </a>
+            </nav>
+        `;
+
+        const theme =
+            localStorage.getItem('panel-pro-bot-theme') || 'normal';
+
+        document.documentElement.dataset.theme = theme;
+
+        const style = document.createElement('style');
+
+        style.textContent = `
+            #bot-sidebar {
+                display: flex;
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .bot-profile {
+                padding: 12px 10px;
+                border: 1px solid #203650;
+                border-radius: 14px;
+                background: #0b1a2d;
+            }
+
+            .bot-profile-main {
+                display: flex;
+                align-items: center;
+                gap: 9px;
+                margin-bottom: 10px;
+            }
+
+            .bot-avatar {
+                width: 34px;
+                height: 34px;
+                border-radius: 50%;
+                object-fit: cover;
+                background: #5865f2;
+            }
+
+            .bot-profile strong {
+                display: block;
+                color: #e2e8f0;
+                font-size: 12px;
+                max-width: 160px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .profile-action {
+                display: block;
+                width: 100%;
+                margin-top: 6px;
+                border: 1px solid #294460;
+                border-radius: 8px;
+                background: #10243a;
+                color: #cbd5e1;
+                padding: 7px;
+                text-align: left;
+                font-size: 10px;
+                font-weight: 800;
+                cursor: pointer;
+            }
+
+            .profile-action:hover {
+                border-color: #67e8f9;
+                color: #cffafe;
+            }
+
+            .profile-action.danger {
+                color: #fda4af;
+            }
+
+            .side-title {
+                margin: 0 0 7px;
+                color: #94a3b8;
+                font-size: 11px;
+                font-weight: 900;
+            }
+
+            .side-nav {
+                display: flex;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 5px;
+                width: 100%;
+            }
+
+            .side-nav a {
+                display: block;
+                width: 100%;
+                padding: 8px 9px;
+                border: 1px solid transparent;
+                border-radius: 9px;
+                color: #cbd5e1;
+                font-size: 12px;
+                line-height: 1.25;
+                text-decoration: none;
+                white-space: normal;
+            }
+
+            .side-nav a:hover,
+            .side-nav a.active {
+                border-color: #294460;
+                background: #10243a;
+                color: #fff;
+            }
+
+            .side-divider {
+                height: 1px;
+                margin: 14px 0;
+                background: #203650;
+            }
+
+            html[data-theme="dark"] .app-shell {
+                filter: saturate(.82) brightness(.82);
+            }
+
+            html[data-theme="dark"] .bot-profile {
+                background: #050b14;
+            }
+        `;
+
+        document.head.appendChild(style);
+
+        const themeButton = document.getElementById('bot-theme');
+
+        const updateTheme = () => {
+            themeButton.textContent =
+                document.documentElement.dataset.theme === 'dark'
+                    ? '☀️ Tema normală'
+                    : '🌙 Tema Dark';
+        };
+
+        updateTheme();
+
+        themeButton?.addEventListener('click', () => {
+            const next =
+                document.documentElement.dataset.theme === 'dark'
+                    ? 'normal'
+                    : 'dark';
+
+            document.documentElement.dataset.theme = next;
+
+            localStorage.setItem(
+                'panel-pro-bot-theme',
+                next
+            );
+
+            updateTheme();
+        });
+
+        document
+            .getElementById('bot-logout')
+            ?.addEventListener('click', () => {
+
+                sessionStorage.removeItem(
+                    'discovery_access_token'
+                );
+
+                sessionStorage.removeItem(
+                    'discord_bot_admin_token'
+                );
+
+                sessionStorage.removeItem(
+                    'discord_access_token'
+                );
+
+                location.href = 'index.html';
+            });
+
+        if (token()) {
+            fetch(
+                'https://discord.com/api/v10/users/@me',
+                {
+                    headers: {
+                        Authorization: `Bearer ${token()}`
+                    }
+                }
+            )
+                .then(response =>
+                    response.ok
+                        ? response.json()
+                        : null
+                )
+                .then(user => {
+                    if (!user) return;
+
+                    document.getElementById(
+                        'bot-user-name'
+                    ).textContent =
+                        user.global_name ||
+                        user.username ||
+                        'Cont Discord';
+
+                    if (user.avatar) {
+                        document.getElementById(
+                            'bot-avatar'
+                        ).src =
+                            `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=64`;
+                    }
+                })
+                .catch(() => {});
+        }
+    }
+
+    if (footer) {
+        footer.innerHTML = `
+            <div class="bot-footer-brand">
+                <strong>Panel Pro Bot</strong>
+                <small>administrare Discord separată</small>
+            </div>
+
+            <div class="bot-footer-copy">
+                © 2026 Panel Pro
+            </div>
+
+            <div class="bot-footer-right">
+
+                <a
+                    class="bot-pricing-link"
+                    href="preturi-activare.html"
+                >
+                    💎 Prețuri și activare
+                </a>
+
+                <a
+                    class="bot-donate-link"
+                    href="https://revolut.me/mariomihail"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                    ❤️ Susține proiectul
+                </a>
+
+                <a
+                    class="bot-terms-link"
+                    href="termeni-si-conditii-bot.html"
+                >
+                    Termeni și condiții
+                </a>
+
+            </div>
+        `;
+    }
+
+    if (page === 'configurare-server.html') {
+        const script =
+            document.createElement('script');
+
+        script.src =
+            'js/server-config-bulk.js?v=20260904-bulk';
+
+        document.body.appendChild(script);
+    }
+})();
+
+
+(() => {
+
+    const add = () => {
+
+        const nav =
+            document.querySelector(
+                '#bot-sidebar .side-nav'
+            );
+
+        if (
+            nav &&
+            !nav.querySelector(
+                'a[href="administrare-module.html"]'
+            )
+        ) {
+            nav.insertAdjacentHTML(
+                'beforeend',
+                `
+                    <a
+                        class="${location.pathname.endsWith('administrare-module.html') ? 'active' : ''}"
+                        href="administrare-module.html"
+                    >
+                        🧩 Constructor module
+                    </a>
+                `
+            );
+        }
+    };
+
+    document.addEventListener(
+        'DOMContentLoaded',
+        add,
+        {
+            once: true
+        }
+    );
+
+    setTimeout(add, 100);
+    setTimeout(add, 500);
+    setTimeout(add, 1000);
+
+})();
+
+
+(() => {
+
+    if (
+        sessionStorage.getItem(
+            'discovery_platform_admin'
+        ) !== 'true'
+    ) {
+        document
+            .querySelectorAll(
+                'a[href="administrare-globala.html"], a[href="administrare-module.html"], a[href="configurare-bot.html"]'
+            )
+            .forEach(link => {
+                link.style.display = 'none';
+            });
+    }
+
+})();
+
+
+(() => {
+
+    const sync = () => {
+
+        const allowed =
+            sessionStorage.getItem(
+                'discovery_platform_admin'
+            ) === 'true';
+
+        const nav =
+            document.querySelector(
+                '#bot-sidebar .side-nav'
+            );
+
+        if (
+            allowed &&
+            nav &&
+            !nav.querySelector(
+                'a[href="administrare-module.html"]'
+            )
+        ) {
+            nav.insertAdjacentHTML(
+                'beforeend',
+                `
+                    <a href="administrare-module.html">
+                        🧩 Constructor module
+                    </a>
+                `
+            );
+        }
+
+        document
+            .querySelectorAll(
+                'a[href="administrare-globala.html"], a[href="administrare-module.html"], a[href="configurare-bot.html"]'
+            )
+            .forEach(link => {
+                link.style.display =
+                    allowed
+                        ? ''
+                        : 'none';
+            });
+    };
+
+    document.addEventListener(
+        'DOMContentLoaded',
+        sync
+    );
+
+    [100, 300, 800, 1500, 3000]
+        .forEach(ms =>
+            setTimeout(sync, ms)
+        );
+
+})();
+
+
+(() => {
+
+    const page =
+        location.pathname
+            .split('/')
+            .pop() ||
+        'index.html';
+
+    if (page === 'index.html') return;
+
+    const token =
+        sessionStorage.getItem(
+            'discovery_access_token'
+        ) ||
+        sessionStorage.getItem(
+            'discord_bot_admin_token'
+        ) ||
+        '';
+
+    if (!token) return;
+
+    const API =
+        'https://zrjxlbkbctlapgupktxw.supabase.co/functions/v1/manage-discord-bot';
+
+    const KEY =
+        'sb_publishable_LfngX7pwFruPw35_ZUdO4Q_MGAHoeW0';
+
+    const APP =
+        '1531023771211792384';
+
+    fetch(
+        API,
+        {
+            method: 'POST',
+
+            headers: {
+                'Content-Type': 'application/json',
+                apikey: KEY
+            },
+
+            body: JSON.stringify({
+                action: 'bootstrap',
+                view_scope: 'personal',
+                access_token: token,
+                application_id: APP
+            })
+        }
+    )
+        .then(async response => {
+
+            const data =
+                await response
+                    .json()
+                    .catch(() => ({}));
+
+            if (
+                !response.ok ||
+                (
+                    !data.platform_admin &&
+                    (
+                        !Array.isArray(data.guilds) ||
+                        !data.guilds.length
+                    )
+                )
+            ) {
+                sessionStorage.removeItem(
+                    'discovery_access_token'
+                );
+
+                sessionStorage.removeItem(
+                    'discovery_platform_admin'
+                );
+
+                sessionStorage.removeItem(
+                    'discord_bot_admin_token'
+                );
+
+                sessionStorage.removeItem(
+                    'discord_access_token'
+                );
+
+                location.replace(
+                    'index.html'
+                );
+            }
+        })
+        .catch(() => {});
+
+})();
+
+
+(() => {
+
+    const style =
+        document.createElement('style');
+
+    style.textContent = `
+        .app-header .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .app-header .brand img {
+            width: 38px !important;
+            height: 38px !important;
+            max-width: 38px;
+            object-fit: cover;
+            border-radius: 11px;
+        }
+
+        .app-header .brand span {
+            display: flex !important;
+            flex-direction: column !important;
+            line-height: 1.15 !important;
+        }
+
+        .sidebar,
+        .side-nav,
+        .side-nav a {
+            font-family:
+                Inter,
+                Segoe UI,
+                Arial,
+                sans-serif !important;
+        }
+
+        .app-header .brand small {
+            display: block;
+            color: #67e8f9;
+            font-size: 9px;
+            letter-spacing: .14em;
+            text-transform: uppercase;
+            margin-bottom: 2px;
+        }
+
+        .app-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            min-height: 70px;
+        }
+    `;
+
+    document.head.appendChild(style);
+
+})();
+
+
+(() => {
+
+    const footer =
+        document.getElementById(
+            'bot-footer'
+        );
+
+    if (!footer) return;
+
+    const style =
+        document.createElement('style');
+
+    style.textContent = `
+        .app-footer {
+            display: grid !important;
+            grid-template-columns: 1fr auto 1fr;
+            align-items: center;
+            gap: 14px;
+            text-align: center;
+        }
+
+        .bot-footer-brand {
+            justify-self: start;
+            text-align: left;
+            color: #67e8f9;
+            font-size: 11px;
+            font-weight: 800;
+        }
+
+        .bot-footer-brand small {
+            display: block;
+            color: #71859f;
+            font-weight: 400;
+            margin-top: 3px;
+        }
+
+        .bot-footer-copy {
+            justify-self: center;
+            color: #71859f;
+        }
+
+        .bot-footer-right {
+            justify-self: end;
+            display: grid;
+            gap: 8px;
+            justify-items: end;
+            text-align: right;
+        }
+
+        .app-footer > span:first-child {
+            text-align: left;
+        }
+
+        .app-footer > span:last-child {
+            text-align: right;
+        }
+
+        .bot-pricing-footer {
+            position: relative;
+            color: #cbd5e1;
+            font-size: 11px;
+        }
+
+        .bot-pricing-footer summary {
+            cursor: pointer;
+            color: #c4b5fd;
+            font-weight: 800;
+        }
+
+        .bot-pricing-footer div {
+            position: absolute;
+            bottom: 28px;
+            left: 0;
+            width: 330px;
+            padding: 12px;
+            border: 1px solid #475569;
+            border-radius: 12px;
+            background: #071222;
+            box-shadow: 0 12px 30px #020617aa;
+            line-height: 1.5;
+        }
+
+        .bot-pricing-footer p {
+            margin: 4px 0;
+        }
+
+        .bot-pricing-footer a {
+            color: #67e8f9;
+            font-weight: 800;
+            text-decoration: none;
+        }
+
+        .bot-pricing-footer a:hover {
+            text-decoration: underline;
+        }
+
+        .bot-pricing-link {
+            color: #c4b5fd;
+            text-decoration: none;
+            font-weight: 800;
+        }
+
+        .bot-pricing-link:hover {
+            text-decoration: underline;
+        }
+
+        .bot-donate-link {
+            color: #fda4af;
+            text-decoration: none;
+            font-weight: 800;
+        }
+
+        .bot-donate-link:hover {
+            color: #fecdd3;
+            text-decoration: underline;
+        }
+
+        .bot-terms-link {
+            color: #67e8f9;
+            text-decoration: none;
+            font-weight: 800;
+        }
+
+        .bot-terms-link:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 700px) {
+
+            .app-footer {
+                grid-template-columns: 1fr;
+                gap: 7px;
+            }
+
+            .app-footer > span:first-child,
+            .app-footer > span:last-child {
+                text-align: center;
+            }
+
+            .bot-footer-brand,
+            .bot-footer-copy,
+            .bot-footer-right {
+                justify-self: center;
+                text-align: center;
+                justify-items: center;
+            }
+        }
+    `;
+
+    document.head.appendChild(style);
+
+    footer.innerHTML = `
+        <div class="bot-footer-brand">
+
+            <strong>
+                Panel Pro Bot
+            </strong>
+
+            <small>
+                administrare Discord separată
+            </small>
+
+        </div>
+
+        <div class="bot-footer-copy">
+            © 2026 Panel Pro
+        </div>
+
+        <div class="bot-footer-right">
+
+            <a
+                class="bot-pricing-link"
+                href="preturi-activare.html"
+            >
+                💎 Prețuri și activare
+            </a>
+
+            <a
+                class="bot-donate-link"
+                href="https://revolut.me/mariomihail"
+                target="_blank"
+                rel="noopener noreferrer"
+            >
+                ❤️ Susține proiectul
+            </a>
+
+            <a
+                class="bot-terms-link"
+                href="termeni-si-conditii-bot.html"
+            >
+                Termeni și condiții
+            </a>
+
+        </div>
+    `;
+
+})();
+
+
+(() => {
+
+    'use strict';
+
+    const page =
+        location.pathname
+            .split('/')
+            .pop() ||
+        'index.html';
+
+    if (page === 'index.html') return;
+
+    const API =
+        'https://zrjxlbkbctlapgupktxw.supabase.co/functions/v1/manage-discord-bot';
+
+    const KEY =
+        'sb_publishable_LfngX7pwFruPw35_ZUdO4Q_MGAHoeW0';
+
+    const APP =
+        '1531023771211792384';
+
+    const token = () =>
+        sessionStorage.getItem(
+            'discovery_access_token'
+        ) ||
+        sessionStorage.getItem(
+            'discord_bot_admin_token'
+        ) ||
+        '';
+
+    fetch(
+        API,
+        {
+            method: 'POST',
+
+            headers: {
+                'Content-Type':
+                    'application/json',
+
+                apikey: KEY
+            },
+
+            body: JSON.stringify({
+                action: 'bootstrap',
+                view_scope: 'personal',
+                access_token: token(),
+                application_id: APP
+            })
+        }
+    )
+        .then(response =>
+            response
+                .json()
+                .catch(() => ({}))
+        )
+        .then(data => {
+
+            const admin =
+                data.platform_admin === true;
+
+            sessionStorage.setItem(
+                'discovery_platform_admin',
+                admin
+                    ? 'true'
+                    : 'false'
+            );
+
+            if (admin) return;
+
+            document
+                .querySelectorAll(
+                    '#bot-sidebar .side-nav a'
+                )
+                .forEach(link => {
+
+                    const href =
+                        link.getAttribute(
+                            'href'
+                        ) || '';
+
+                    const keep =
+                        href ===
+                            'administrare-boturi-discord.html' ||
+                        href ===
+                            'https://panel-pro.ro';
+
+                    if (!keep) {
+                        link.remove();
+                    }
+                });
+
+            if (
+                page !==
+                'administrare-boturi-discord.html'
+            ) {
+                location.replace(
+                    'administrare-boturi-discord.html'
+                );
+            }
+        })
+        .catch(() => {});
+
 })();
