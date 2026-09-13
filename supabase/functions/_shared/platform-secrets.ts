@@ -3,6 +3,7 @@ const SECRET_ENV_FALLBACKS: Record<string, string[]> = {
   publishable_key: ['SUPABASE_PUBLISHABLE_KEY', 'SUPABASE_ANON_KEY'],
   cron_secret: ['CRON_SECRET'],
   discord_bot_token: ['DISCORD_BOT_TOKEN'],
+  discord_client_secret: ['DISCORD_CLIENT_SECRET'],
   platform_owner_discord_ids: ['PLATFORM_OWNER_DISCORD_IDS'],
   status_live_cron_secret: ['STATUS_LIVE_CRON_SECRET', 'CRON_SECRET'],
   public_community_channel_primary: ['PUBLIC_COMMUNITY_CHANNEL_PRIMARY'],
