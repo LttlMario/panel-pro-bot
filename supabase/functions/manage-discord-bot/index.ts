@@ -968,7 +968,7 @@ Deno.serve(async (request) => {
       const { data: setting } = await db.from('discovery_app_settings').select('value').eq('organization_id', selectedGuild.organization_id).eq('key', 'discord_activity_module_access').maybeSingle();
       const access = setting?.value?.modules && typeof setting.value.modules === 'object' ? setting.value.modules : {};
       const modules = [...configuredKeys].map((key) => ({ key, label: definitions[key].label, premium: definitions[key].premium === true, active: definitions[key].active !== false, embed_channel_id: routeMap[key]?.primary?.channel_id || '', log_channel_id: definitions[key].log_key ? routeMap[definitions[key].log_key]?.primary?.channel_id || '' : '', access: access[key] || { view_role_ids: [], use_role_ids: [], manage_role_ids: [] } }));
-      return reply(request, { ok: true, guild_id: guildId, plan: selectedGuild.plan, roles: availableRoles, modules, access });
+      return reply(request, { ok: true, guild_id: guildId, guild_name: selectedGuild.name, plan: selectedGuild.plan, roles: availableRoles, modules, access });
     }
     if (action === 'admin_roles') {
       if (!selectedGuild.can_manage_access) return reply(request, { error: 'Doar ownerul serverului poate modifica rolurile care au acces la configurarea botului.' }, 403);
