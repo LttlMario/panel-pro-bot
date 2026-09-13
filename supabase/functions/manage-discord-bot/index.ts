@@ -204,14 +204,16 @@ async function ownedGuilds(db: any, user: any, applicationId: string, platformAd
     const adminUsersValue = (packageSetting || []).find((item: any) => item.key === 'discord_bot_admin_users')?.value || {};
     const adminUserIds = Array.isArray(adminUsersValue?.discord_ids) ? adminUsersValue.discord_ids.map(String) : [];
     const isOwner = Boolean(guild.owner);
+    let isGuildAdministrator = false;
+    try { isGuildAdministrator = (BigInt(String(guild.permissions || '0')) & 8n) === 8n; } catch (_) {}
     const isRoleAdmin = !isOwner && adminRoleIds.length ? (await memberRoleIds(db, String(guild.id), String(user.id))).some((roleId: string) => adminRoleIds.includes(roleId)) : false;
     const isUserAdmin = !isOwner && adminUserIds.includes(String(user.id));
-    if (!platformAdmin && !isOwner && !isRoleAdmin && !isUserAdmin) continue;
+    if (!platformAdmin && !isOwner && !isGuildAdministrator && !isRoleAdmin && !isUserAdmin) continue;
     await refreshGuildEntitlements(db, String(guild.id), String(organization?.id || linked.organization_id), applicationId);
     const { data: entitlement } = await db.from('discovery_guild_entitlements').select('sku_id,ends_at,active').eq('guild_id', String(guild.id)).eq('active', true).order('updated_at', { ascending: false }).limit(1).maybeSingle();
     const premium = Boolean(entitlement && (!entitlement.ends_at || Date.parse(String(entitlement.ends_at)) > Date.now()));
     const trial = !premium && Date.parse(String(trialValue.ends_at || '')) > Date.now();
-    result.push({ id: String(guild.id), name: clean(guild.name || guild.id, 120), organization_id: String(organization?.id || linked.organization_id), organization_name: clean(organization?.name || guild.name, 120), access_mode: organization?.access_mode || 'discord_only', bot_installed: true, is_owner: isOwner, can_manage_access: Boolean(platformAdmin || isOwner), owner_id: platformAdmin ? String(guild.owner_id || '') : null, owner_user: platformAdmin ? (guild.owner_user || null) : null, plan: premium ? 'premium' : trial ? 'trial' : 'free', trial_ends_at: trialValue.ends_at || null, premium_ends_at: entitlement?.ends_at || null, sku_id: entitlement?.sku_id || null });
+    result.push({ id: String(guild.id), name: clean(guild.name || guild.id, 120), organization_id: String(organization?.id || linked.organization_id), organization_name: clean(organization?.name || guild.name, 120), access_mode: organization?.access_mode || 'discord_only', bot_installed: true, is_owner: isOwner, can_manage_access: Boolean(platformAdmin || isOwner || isGuildAdministrator), owner_id: platformAdmin ? String(guild.owner_id || '') : null, owner_user: platformAdmin ? (guild.owner_user || null) : null, plan: premium ? 'premium' : trial ? 'trial' : 'free', trial_ends_at: trialValue.ends_at || null, premium_ends_at: entitlement?.ends_at || null, sku_id: entitlement?.sku_id || null });
   }
   return result;
 }
@@ -333,7 +335,7 @@ async function provisionOfficialServer(db: any, guildId: string) {
     '📜・reguli': { embeds: [{ title: '📜 Regulile comunității', description: 'Respectă membrii și echipa Panel Pro. Nu publica spam, conținut ilegal, date personale, tokenuri sau parole. Folosește canalele potrivite și oferă detalii clare când ceri ajutor. Moderatorii pot închide sau elimina conținutul care încalcă regulile.', color: 0xf59e0b }] },
     '🔐・confidențialitate': { embeds: [{ title: '🔐 Confidențialitate și securitate', description: 'Panel Pro folosește datele necesare funcțiilor activate de administratorul serverului. Nu trimite parole, tokenuri sau chei API în ticketuri ori canale publice. Verifică întotdeauna domeniul https://bot.panel-pro.ro înainte de autentificare.', color: 0x06b6d4 }] },
     '📘・documentație': { embeds: [{ title: '📘 Documentație Panel Pro', description: 'Documentația explică instalarea botului, configurarea canalelor, permisiunile, modulele și fluxurile de log. Începe cu 📖・ghid-panel-pro, apoi consultă ⚙️・configurare-bot și 🎛️・permisiuni.', color: 0x22d3ee }] },
-    '⚙️・configurare-bot': { embeds: [{ title: '⚙️ Configurarea botului', description: 'Folosește `/panel config` pentru a configura canalul unui embed și canalul de log. Folosește `/panel publica` pentru a publica un modul. După modificări, verifică `/panel status` și testează fiecare buton.', color: 0x5865f2 }] },
+    '⚙️・configurare-bot': { embeds: [{ title: '⚙️ Configurarea botului', description: 'Folosește `/panel config` pentru a configura canalul unui embed și canalul de log. Folosește `/panel publica` pentru a publica un modul. Folosește /panel ticket pentru a crea un ticket. După modificări, verifică `/panel status` și testează fiecare buton. Folosește /panel ajutor pentru ajutor.', color: 0x5865f2 }] },
     '🧩・module-disponibile': { embeds: [{ title: '🧩 Module disponibile', description: 'Modulele Panel Pro includ Pontaj, Învoiri, Anunțuri, Contracte, Stash, Marketplace, Acțiuni, Evenimente și remindere, Rapoarte și module personalizate. Modulele Premium depind de abonamentul activ.', color: 0x8b5cf6 }] },
     '🎛️・permisiuni': { embeds: [{ title: '🎛️ Permisiuni și roluri', description: 'Rolul botului trebuie să aibă View Channel, Send Messages, Embed Links, Manage Channels și Manage Roles. Rolurile Staff și Support gestionează suportul, Premium vede canalele Premium, iar Member este rolul standard.', color: 0x14b8a6 }] },
     '📝・exemple-module': { embeds: [{ title: '📝 Exemple de module', description: '**Cerere cu aprobare:** formular → staff → aprobare/respingere → log.\n**Sondaj:** întrebare → voturi → rezultate.\n**Eveniment:** detalii → reminder automat → log.\n**Ticket:** formular privat → Support → transcript și închidere.', color: 0x3b82f6 }] },
@@ -944,9 +946,33 @@ Deno.serve(async (request) => {
       return reply(request, { ok: true, result, routes: nextRoutes, failures: delivery.failures || [] });
     }
     if (action === 'channels') return reply(request, { ok: true, channels: await channels(db, guildId), routes: settings?.discord_channel_routes || {} });
+    if (action === 'module_access' || action === 'save_module_access') {
+      if (!selectedGuild.can_manage_access) return reply(request, { error: 'Acces permis doar administratorului serverului sau administratorului global.' }, 403);
+      const definitions = { ...mergeModuleDefinitions(MODULES, await readGlobalModules(db)), ...sanitizeCustomModules((await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle()).data?.custom_modules || {}) } as Record<string, any>;
+      const routeMap = settings?.discord_channel_routes || {};
+      const configuredKeys = new Set<string>(Object.keys(definitions).filter((key) => Boolean(routeMap[key]?.primary?.channel_id || definitions[key]?.log_key && routeMap[definitions[key].log_key]?.primary?.channel_id)));
+      const availableRoles = await guildRoles(db, guildId);
+      const roleIds = new Set(availableRoles.map((role: any) => String(role.id)));
+      if (action === 'save_module_access') {
+        const requested = body.access && typeof body.access === 'object' ? body.access : {};
+        const cleanAccess: Record<string, any> = {};
+        for (const key of configuredKeys) {
+          const item = requested[key] && typeof requested[key] === 'object' ? requested[key] : {};
+          const ids = (value: any) => [...new Set(Array.isArray(value) ? value.map(String).filter((idValue: string) => roleIds.has(idValue)).slice(0, 25) : [])];
+          cleanAccess[key] = { view_role_ids: ids(item.view_role_ids), use_role_ids: ids(item.use_role_ids), manage_role_ids: ids(item.manage_role_ids) };
+        }
+        const { error } = await db.from('discovery_app_settings').upsert({ organization_id: selectedGuild.organization_id, key: 'discord_activity_module_access', value: { guild_id: guildId, modules: cleanAccess }, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,key' });
+        if (error) throw error;
+        return reply(request, { ok: true, access: cleanAccess });
+      }
+      const { data: setting } = await db.from('discovery_app_settings').select('value').eq('organization_id', selectedGuild.organization_id).eq('key', 'discord_activity_module_access').maybeSingle();
+      const access = setting?.value?.modules && typeof setting.value.modules === 'object' ? setting.value.modules : {};
+      const modules = [...configuredKeys].map((key) => ({ key, label: definitions[key].label, premium: definitions[key].premium === true, active: definitions[key].active !== false, embed_channel_id: routeMap[key]?.primary?.channel_id || '', log_channel_id: definitions[key].log_key ? routeMap[definitions[key].log_key]?.primary?.channel_id || '' : '', access: access[key] || { view_role_ids: [], use_role_ids: [], manage_role_ids: [] } }));
+      return reply(request, { ok: true, guild_id: guildId, plan: selectedGuild.plan, roles: availableRoles, modules, access });
+    }
     if (action === 'admin_roles') {
       if (!selectedGuild.can_manage_access) return reply(request, { error: 'Doar ownerul serverului poate modifica rolurile care au acces la configurarea botului.' }, 403);
-      const [{ data: roles }, { data: setting }] = await Promise.all([
+      const [roles, { data: setting }] = await Promise.all([
         guildRoles(db, guildId),
         db.from('discovery_app_settings').select('value').eq('organization_id', selectedGuild.organization_id).eq('key', 'discord_bot_admin_roles').maybeSingle(),
       ]);
