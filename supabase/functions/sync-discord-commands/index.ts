@@ -51,8 +51,10 @@ Deno.serve(async (request) => {
     if (!/^\d{15,22}$/.test(applicationId)) return reply(request, { error: 'Discord Application ID nu este configurat.' }, 409);
     const { data: globalSettings, error: globalSettingsError } = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
     if (globalSettingsError) throw globalSettingsError;
+    const builtInNames = new Set(commands[0].options.map((option: any) => String(option.name || '').toLowerCase()));
+    const customNames = new Set<string>();
     const customCommands = Object.values(globalSettings?.custom_modules && typeof globalSettings.custom_modules === 'object' ? globalSettings.custom_modules : {})
-      .filter((module: any) => module?.active !== false && /^[a-z0-9_-]{1,32}$/.test(String(module?.command_name || '').trim().toLowerCase()))
+      .filter((module: any) => { const name = String(module?.command_name || '').trim().toLowerCase(); if (module?.active === false || !/^[a-z0-9_-]{1,32}$/.test(name) || builtInNames.has(name) || customNames.has(name)) return false; customNames.add(name); return true; })
       .slice(0, 10)
       .map((module: any) => ({ type: 1, name: String(module.command_name).trim().toLowerCase(), description: String(module.label || 'Modul Panel Pro').trim().slice(0, 100) }));
     const syncedCommands = [{ ...commands[0], options: [...commands[0].options, ...customCommands] }];
