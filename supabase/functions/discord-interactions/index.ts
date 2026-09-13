@@ -2545,12 +2545,13 @@ Deno.serve(async (request) => {
       const subcommand = String(commandSubcommand(interaction)?.name || '').trim().toLowerCase();
       const guildId = String(interaction?.guild_id || '').trim();
       if (subcommand === 'ticket') return reply(ticketModal());
+      if (subcommand === 'activitate') return reply({ type: 12 });
       if (subcommand === 'ajutor') { let override: any = {}; try { const key = serviceKey(); if (key) override = (await readGlobalModules(createClient(Deno.env.get('SUPABASE_URL')!, key))).panel_help || {}; } catch (_) {} return reply(interactionMessage('', { embeds: [{ title: override.title || '🧭 Ajutor Panel Pro', description: override.description || 'Poți configura embedurile cu butoane direct din Discord sau automat din dashboard.', color: Number.isInteger(override.color) ? override.color : 0x5865f2, fields: [
         { name: '⚙️ Configurare manuală în Discord', value: '1. Rulează `/panel config` și alege modulul, canalul pentru embed și, opțional, canalul de log.\n2. Rulează `/panel publica` și selectează modulul pe care vrei să îl publici.\n3. Rulează `/panel status` pentru a verifica toate canalele configurate.', inline: false },
         { name: '🚀 Configurare automată', value: 'Pentru instalarea canalelor, embedurilor, butoanelor și logurilor dintr-un singur loc, deschide dashboard-ul Panel Pro și folosește butonul **Configurează automat canale Discord**.', inline: false },
         { name: '🔐 Permisiuni necesare', value: 'Botul trebuie să fie online și să aibă permisiunea **Administrator** pe server. Pentru configurarea din Discord ai nevoie de Owner sau Manage Server.', inline: false },
       ], footer: { text: 'Panel Pro · /panel ajutor' } }], components: [{ type: 1, components: [{ type: 2, style: 5, label: '🌐 Deschide configurarea pe site', url: 'https://bot.panel-pro.ro/' }] }] })); }
-      if (subcommand && !['status', 'ajutor', 'publica', 'config', 'ticket'].includes(subcommand)) {
+      if (subcommand && !['status', 'ajutor', 'activitate', 'publica', 'config', 'ticket'].includes(subcommand)) {
         const key = serviceKey();
         if (!key) return reply(interactionMessage('Cheia secretă Supabase lipsește.'));
         const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
@@ -3516,4 +3517,5 @@ Deno.serve(async (request) => {
     return reply(interactionMessage(readableError(error, 'Acțiunea Pontaj nu a putut fi executată.')));
   }
 });
+
 

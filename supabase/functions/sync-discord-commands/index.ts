@@ -15,6 +15,7 @@ const commands = [{
   name: 'panel', description: 'Manage Panel Pro server tools', options: [
     { type: 1, name: 'status', description: 'Verifică toate canalele configurate' },
     { type: 1, name: 'ajutor', description: 'Ghid pentru configurarea embedurilor și butoanelor' },
+    { type: 1, name: 'activitate', description: 'Pornește Panel Pro Activity în canal' },
     { type: 1, name: 'ticket', description: 'Deschide un ticket privat pentru suport' },
     { type: 1, name: 'publica', description: 'Publică un embed cu butoane', options: [{ type: 3, name: 'modul', description: 'Embedul de publicat', required: true, choices: [['Anunțuri organizație', 'organization'], ['Anunțuri angajați', 'departments'], ['Pontaj', 'pontaj'], ['Învoiri organizație', 'requests_organization'], ['Învoiri angajați', 'requests_departments'], ['Contracte', 'contracts'], ['Marketplace', 'discovery_marketplace'], ['Marketplace ilegal', 'illegal_marketplace'], ['Evenimente și remindere', 'event_reminders'], ['Raport săptămânal pontaj', 'weekly_reports'], ['Raport săptămânal contracte', 'contract_identity_weekly'], ['Status live', 'status_live'], ['Stash', 'stash'], ['Cereri Stash', 'stash_requests'], ['Donații Stash', 'stash_donations']].map(([name, value]) => ({ name, value })) }] },
     { type: 1, name: 'config', description: 'Configurează embedul și canalul de log', options: [{ type: 3, name: 'modul', description: 'Modulul pentru canal', required: true, choices: routeChoices }, { type: 7, name: 'canal', description: 'Canalul pentru embedul cu butoane', required: true, channel_types: [0] }, { type: 7, name: 'canal_log', description: 'Canalul pentru rezultate și loguri', required: false, channel_types: [0] }] },
@@ -87,3 +88,4 @@ Deno.serve(async (request) => {
     return reply(request, { ok: true, application_id: applicationId, command_count: syncedCommands.length, custom_command_count: customCommands.length, guild_count: guildResults.length, failed_guilds: failedGuilds, scope: 'global_and_configured_guilds', message: `Comenzile botului Discovery (${applicationId}) au fost sincronizate global și pe ${guildResults.length} server${guildResults.length === 1 ? '' : 'e'} configurat${guildResults.length === 1 ? '' : 'e'}. Pe serverele configurate ar trebui să apară imediat.` });
   } catch (error) { return reply(request, { error: error instanceof Error ? error.message : 'Eroare internă.' }, 400); }
 });
+
