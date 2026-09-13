@@ -641,6 +641,48 @@ Deno.serve(async (request) => {
     // Este necesară doar în consola administratorului global; utilizatorii
     // obișnuiți trebuie să primească imediat serverele eligibile.
     const reconciliation = action === 'bootstrap' && platformAdmin && !personalView ? await reconcileInstallations(db) : null;
+    if (action === 'activity_catalog') {
+      const activityGuildId = clean(body.guild_id, 30);
+      if (!id(activityGuildId)) return reply(request, { error: 'Guild ID Activity invalid.' }, 400);
+      const guildsResponse = await fetch(`${DISCORD_API}/users/@me/guilds`, { headers: { Authorization: `Bearer ${accessToken}` } });
+      const oauthGuilds = guildsResponse.ok ? await guildsResponse.json().catch(() => []) : [];
+      const oauthGuild = (Array.isArray(oauthGuilds) ? oauthGuilds : []).find((guild: any) => String(guild?.id || '') === activityGuildId);
+      if (!oauthGuild && !platformAdmin) return reply(request, { error: 'Nu ai acces la acest server Discord.' }, 403);
+      const { data: linked, error: linkedError } = await db.from('discovery_guilds').select('organization_id,guild_name').eq('guild_id', activityGuildId).eq('enabled', true).maybeSingle();
+      if (linkedError) throw linkedError;
+      if (!linked?.organization_id) return reply(request, { error: 'Botul nu este instalat pe acest server.' }, 404);
+      const botToken = await getPlatformSecret(db, 'discord_bot_token');
+      if (!botToken) return reply(request, { error: 'Tokenul botului Discord nu este configurat.' }, 503);
+      const botGuildResponse = await fetch(`${DISCORD_API}/guilds/${activityGuildId}`, { headers: botHeaders(botToken) });
+      if (!botGuildResponse.ok) return reply(request, { error: 'Botul nu poate accesa acest server Discord.' }, 403);
+      const [{ data: org }, { data: entitlement }, { data: trialSetting }, { data: settings }, { data: globalSetting }] = await Promise.all([
+        db.from('discovery_organizations').select('name').eq('id', linked.organization_id).maybeSingle(),
+        db.from('discovery_guild_entitlements').select('ends_at').eq('guild_id', activityGuildId).eq('organization_id', linked.organization_id).eq('active', true).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
+        db.from('discovery_app_settings').select('value').eq('organization_id', linked.organization_id).eq('key', 'discord_trial').maybeSingle(),
+        db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', linked.organization_id).maybeSingle(),
+        db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle(),
+      ]);
+      const premium = Boolean(entitlement && (!entitlement.ends_at || Date.parse(String(entitlement.ends_at)) > Date.now()));
+      const trial = !premium && Date.parse(String(trialSetting?.value?.ends_at || '')) > Date.now();
+      const plan = premium ? 'premium' : trial ? 'trial' : 'free';
+      const definitions = { ...mergeModuleDefinitions(MODULES, await readGlobalModules(db)), ...sanitizeCustomModules(globalSetting?.custom_modules || {}) } as Record<string, any>;
+      const routes = settings?.discord_channel_routes || {};
+      const configuredKeys = Object.keys(definitions).filter((key) => Boolean(routes[key]?.primary?.channel_id || definitions[key]?.log_key && routes[definitions[key].log_key]?.primary?.channel_id));
+      const memberResponse = await fetch(`${DISCORD_API}/guilds/${activityGuildId}/members/${discord.id}`, { headers: botHeaders(botToken) });
+      const member = memberResponse.ok ? await memberResponse.json().catch(() => ({})) : {};
+      const memberRoles = new Set((Array.isArray(member?.roles) ? member.roles : []).map(String));
+      let administrator = platformAdmin;
+      try { administrator = administrator || (BigInt(String(oauthGuild?.permissions || '0')) & 8n) === 8n; } catch (_) {}
+      const { data: accessSetting } = await db.from('discovery_app_settings').select('value').eq('organization_id', linked.organization_id).eq('key', 'discord_activity_module_access').maybeSingle();
+      const rules = accessSetting?.value?.modules && typeof accessSetting.value.modules === 'object' ? accessSetting.value.modules : {};
+      const hasRole = (values: any) => { const ids = Array.isArray(values) ? values.map(String).filter(Boolean) : []; return !ids.length || ids.some((roleId: string) => memberRoles.has(roleId)); };
+      const modules = configuredKeys.map((key) => {
+        const definition = definitions[key]; const rule = rules[key] || {}; const planAllowed = plan !== 'free' || definition.premium !== true;
+        const visible = administrator || hasRole(rule.view_role_ids); const canUse = visible && planAllowed && hasRole(rule.use_role_ids); const canManage = administrator || (visible && hasRole(rule.manage_role_ids));
+        return { key, label: definition.label, title: definition.title, description: definition.description, premium: definition.premium === true, active: definition.active !== false && routes[key]?.primary?.enabled !== false, plan_allowed: planAllowed, visible, can_use: canUse, can_manage: canManage, embed_channel_id: routes[key]?.primary?.channel_id || '', log_channel_id: definition.log_key ? routes[definition.log_key]?.primary?.channel_id || '' : '', buttons: definition.buttons || [] };
+      }).filter((module) => module.visible);
+      return reply(request, { ok: true, guild_id: activityGuildId, guild_name: clean(botGuildResponse.ok ? (await botGuildResponse.clone().json().catch(() => ({})))?.name || linked.guild_name || activityGuildId : linked.guild_name || activityGuildId, organization_name: org?.name || linked.guild_name || activityGuildId, plan, modules, user: { id: String(discord.id), administrator } });
+    }
     // Operațiunile globale nu trebuie să depindă de scope-ul OAuth `guilds`.
     // Administratorul global poate deschide constructorul chiar dacă tokenul
     // Discord existent a fost emis înainte de adăugarea scope-ului.
