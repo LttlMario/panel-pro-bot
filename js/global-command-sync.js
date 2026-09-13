@@ -16,7 +16,7 @@
     try {
       const response = await fetch('https://zrjxlbkbctlapgupktxw.supabase.co/functions/v1/sync-discord-commands', { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: 'sb_publishable_LfngX7pwFruPw35_ZUdO4Q_MGAHoeW0' }, body: JSON.stringify({ access_token: sessionStorage.getItem('discovery_access_token') || sessionStorage.getItem('discord_bot_admin_token') || '', application_id: '1531023771211792384' }) });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || 'Comenzile Discord nu au putut fi sincronizate.');
+      if (!response.ok) throw new Error([data.error, data.details].filter(Boolean).join(' — ') || 'Comenzile Discord nu au putut fi sincronizate.');
       button.textContent = `✅ Comenzi sincronizate${data.guild_count ? ` · ${data.guild_count} servere` : ''}`;
     } catch (error) {
       button.disabled = false;
