@@ -1014,7 +1014,7 @@ Deno.serve(async (request) => {
       return reply(request, { ok: true, guild_id: guildId, guild_name: selectedGuild.name, plan: selectedGuild.plan, roles: availableRoles, modules, access });
     }
     if (action === 'admin_roles') {
-      if (!selectedGuild.can_manage_access) return reply(request, { error: 'Doar ownerul serverului poate modifica rolurile care au acces la configurarea botului.' }, 403);
+      if (!selectedGuild.can_manage_access) return reply(request, { error: 'Doar administratorul serverului, ownerul sau administratorul global poate modifica rolurile de acces.' }, 403);
       const [roles, { data: setting }] = await Promise.all([
         guildRoles(db, guildId),
         db.from('discovery_app_settings').select('value').eq('organization_id', selectedGuild.organization_id).eq('key', 'discord_bot_admin_roles').maybeSingle(),
@@ -1023,7 +1023,7 @@ Deno.serve(async (request) => {
       return reply(request, { ok: true, roles: roles || [], role_ids: Array.isArray(setting?.value?.role_ids) ? setting.value.role_ids.map(String) : [], member_ids: Array.isArray(memberSetting?.value?.discord_ids) ? memberSetting.value.discord_ids.map(String) : [] });
     }
     if (action === 'save_admin_roles') {
-      if (!selectedGuild.can_manage_access) return reply(request, { error: 'Doar ownerul serverului poate modifica rolurile care au acces la configurarea botului.' }, 403);
+      if (!selectedGuild.can_manage_access) return reply(request, { error: 'Doar administratorul serverului, ownerul sau administratorul global poate modifica rolurile de acces.' }, 403);
       const requestedRoleIds = Array.isArray(body.role_ids) ? [...new Set(body.role_ids.map((value: any) => String(value).trim()).filter((value: string) => id(value)))] : [];
       if (requestedRoleIds.length > 25) return reply(request, { error: 'Poți selecta maximum 25 de roluri.' }, 400);
       const availableRoleIds = new Set((await guildRoles(db, guildId)).map((role: any) => String(role.id)));
@@ -1033,7 +1033,7 @@ Deno.serve(async (request) => {
       return reply(request, { ok: true, role_ids: requestedRoleIds });
     }
     if (action === 'save_admin_members') {
-      if (!selectedGuild.can_manage_access) return reply(request, { error: 'Doar ownerul serverului poate modifica accesul individual.' }, 403);
+      if (!selectedGuild.can_manage_access) return reply(request, { error: 'Doar administratorul serverului, ownerul sau administratorul global poate modifica accesul individual.' }, 403);
       const requestedMemberIds = Array.isArray(body.member_ids) ? [...new Set(body.member_ids.map((value: any) => String(value).trim()).filter((value: string) => id(value)))] : [];
       if (requestedMemberIds.length > 50) return reply(request, { error: 'Poți acorda acces individual pentru maximum 50 de persoane.' }, 400);
       const botToken = await getPlatformSecret(db, 'discord_bot_token');
@@ -1046,7 +1046,7 @@ Deno.serve(async (request) => {
       return reply(request, { ok: true, member_ids: requestedMemberIds });
     }
     if (action === 'search_guild_members') {
-      if (!selectedGuild.can_manage_access) return reply(request, { error: 'Doar ownerul serverului poate căuta membri pentru acordarea accesului.' }, 403);
+      if (!selectedGuild.can_manage_access) return reply(request, { error: 'Doar administratorul serverului, ownerul sau administratorul global poate căuta membri pentru acordarea accesului.' }, 403);
       const query = clean(body.query, 80);
       const botToken = await getPlatformSecret(db, 'discord_bot_token');
       const members: any[] = [];
