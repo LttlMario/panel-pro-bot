@@ -1,0 +1,11 @@
+const fs = require('fs');
+const page = fs.readFileSync('configurare-acces.html','utf8');
+const manage = fs.readFileSync('supabase/functions/manage-discord-bot/index.ts','utf8');
+const premium = fs.readFileSync('supabase/functions/_shared/discord-premium.ts','utf8');
+if (!page.includes("action:'module_access'") || !page.includes("action:'save_module_access'")) throw new Error('Access page is not wired to module access actions');
+if (!manage.includes("action === 'module_access' || action === 'save_module_access'")) throw new Error('Missing module access backend action');
+if (!manage.includes('discord_activity_module_access')) throw new Error('Missing per-guild access persistence');
+if (!manage.includes('isGuildAdministrator')) throw new Error('Guild administrator gate missing');
+if (premium.includes("value === 'requests_organization'")) throw new Error('Organization requests must not be free');
+if (!premium.includes("value === 'requests_departments'")) throw new Error('Employee requests must remain free');
+console.log('activity-access checks passed');
