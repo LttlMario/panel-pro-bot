@@ -58,11 +58,16 @@ Deno.serve(async (request) => {
       .slice(0, 10)
       .map((module: any) => ({ type: 1, name: String(module.command_name).trim().toLowerCase(), description: String(module.label || 'Modul Panel Pro').trim().slice(0, 100) }));
     const syncedCommands = [{ ...commands[0], options: [...commands[0].options, ...customCommands] }];
-    const clearGlobalInit = { method: 'PUT', headers: { Authorization: `Bot ${botToken}`, 'Content-Type': 'application/json' }, body: '[]' };
-    const guildRequestInit = { method: 'PUT', headers: { Authorization: `Bot ${botToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(syncedCommands) };
-    // Comenzile sunt înregistrate pe servere pentru apariție imediată și
-    // pentru a evita dublurile dintre comenzile globale și guild-scoped.
-    const globalResponse = await fetch(`https://discord.com/api/v10/applications/${applicationId}/commands`, clearGlobalInit);
+    const discordHeaders = { Authorization: `Bot ${botToken}`, 'Content-Type': 'application/json' };
+    const guildRequestInit = { method: 'PUT', headers: discordHeaders, body: JSON.stringify(syncedCommands) };
+    // Entry Point-ul Activity nu poate fi șters prin bulk update. Îl păstrăm
+    // și actualizăm în aceeași operație doar comenzile Panel Pro.
+    const existingGlobalResponse = await fetch(`https://discord.com/api/v10/applications/${applicationId}/commands`, { headers: { Authorization: `Bot ${botToken}` } });
+    if (!existingGlobalResponse.ok) return reply(request, { error: `Discord nu a putut citi comenzile globale (HTTP ${existingGlobalResponse.status}).`, details: await existingGlobalResponse.text() }, 400);
+    const existingGlobalCommands = await existingGlobalResponse.json().catch(() => []);
+    const entryPointCommands = (Array.isArray(existingGlobalCommands) ? existingGlobalCommands : []).filter((command: any) => Number(command?.type) === 4);
+    const globalCommands = [...entryPointCommands, ...syncedCommands];
+    const globalResponse = await fetch(`https://discord.com/api/v10/applications/${applicationId}/commands`, { method: 'PUT', headers: discordHeaders, body: JSON.stringify(globalCommands) });
     if (!globalResponse.ok) return reply(request, { error: `Discord a respins comenzile globale (HTTP ${globalResponse.status}).`, details: await globalResponse.text() }, 400);
     const { data: guilds, error: guildsError } = await db.from('discovery_guilds').select('guild_id').eq('enabled', true);
     if (guildsError) throw guildsError;
