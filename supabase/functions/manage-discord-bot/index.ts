@@ -655,6 +655,7 @@ Deno.serve(async (request) => {
       if (!botToken) return reply(request, { error: 'Tokenul botului Discord nu este configurat.' }, 503);
       const botGuildResponse = await fetch(`${DISCORD_API}/guilds/${activityGuildId}`, { headers: botHeaders(botToken) });
       if (!botGuildResponse.ok) return reply(request, { error: 'Botul nu poate accesa acest server Discord.' }, 403);
+      const botGuild = await botGuildResponse.json().catch(() => ({}));
       const [{ data: org }, { data: entitlement }, { data: trialSetting }, { data: settings }, { data: globalSetting }] = await Promise.all([
         db.from('discovery_organizations').select('name').eq('id', linked.organization_id).maybeSingle(),
         db.from('discovery_guild_entitlements').select('ends_at').eq('guild_id', activityGuildId).eq('organization_id', linked.organization_id).eq('active', true).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
@@ -681,7 +682,7 @@ Deno.serve(async (request) => {
         const visible = administrator || hasRole(rule.view_role_ids); const canUse = visible && planAllowed && hasRole(rule.use_role_ids); const canManage = administrator || (visible && hasRole(rule.manage_role_ids));
         return { key, label: definition.label, title: definition.title, description: definition.description, premium: definition.premium === true, active: definition.active !== false && routes[key]?.primary?.enabled !== false, plan_allowed: planAllowed, visible, can_use: canUse, can_manage: canManage, embed_channel_id: routes[key]?.primary?.channel_id || '', log_channel_id: definition.log_key ? routes[definition.log_key]?.primary?.channel_id || '' : '', buttons: definition.buttons || [] };
       }).filter((module) => module.visible);
-      return reply(request, { ok: true, guild_id: activityGuildId, guild_name: clean(botGuildResponse.ok ? (await botGuildResponse.clone().json().catch(() => ({})))?.name || linked.guild_name || activityGuildId : linked.guild_name || activityGuildId, organization_name: org?.name || linked.guild_name || activityGuildId, plan, modules, user: { id: String(discord.id), administrator } });
+      return reply(request, { ok: true, guild_id: activityGuildId, guild_name: clean(botGuild?.name || linked.guild_name || activityGuildId), organization_name: org?.name || linked.guild_name || activityGuildId, plan, modules, user: { id: String(discord.id), administrator } });
     }
     // Operațiunile globale nu trebuie să depindă de scope-ul OAuth `guilds`.
     // Administratorul global poate deschide constructorul chiar dacă tokenul
