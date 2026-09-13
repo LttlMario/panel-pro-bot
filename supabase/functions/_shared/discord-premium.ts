@@ -39,10 +39,9 @@ export async function discordPremiumAccess(db: any, organizationId: string, inte
 
 export function discordPremiumModule(customIdOrRoute: string) {
   const value = String(customIdOrRoute || '').trim();
-  // Core Discord modules remain free: Pontaj and Învoiri.
-  // Opening a form must stay fast; the final submit remains protected by the
-  // entitlement check, so a free user can never save a Premium action.
-  if (value === 'pontaj' || value === 'requests_organization' || value === 'requests_departments' || value === 'panel:discovery:trial_activate' || value === 'panel:discovery:reminder_create' || value === 'panel:contracts:create' || value === 'panel:contracts:settings' || value === 'panel:stash:request' || value === 'panel:stash:donate' || value === 'panel:stash:create' || value.startsWith('panel:stash:decision_request:rejected:') || value === 'panel:marketplace:legal:create' || value === 'panel:marketplace:illegal:create' || value === 'panel:actions:organization:create' || value.startsWith('panel:pontaj:') || value.startsWith('panel:requests:')) return false;
+  // Singurele module gratuite sunt Pontaj și Învoiri angajați. Trial-ul este
+  // un flux de activare, nu un modul Premium, deci rămâne accesibil tuturor.
+  if (value === 'panel:discovery:trial_activate' || value === 'pontaj' || value === 'requests_departments' || value.startsWith('panel:pontaj:') || value.startsWith('panel:requests:departments:')) return false;
   return true;
 }
 
