@@ -40,6 +40,56 @@ Deno.serve(async (request) => {
     // primul client_id din organizații, deoarece poate aparține celuilalt bot.
     let applicationId = String(Deno.env.get('DISCORD_DISCOVERY_APPLICATION_ID') || Deno.env.get('DISCORD_APPLICATION_ID') || '1531023771211792384').trim();
     // Folosim aplicația asociată tokenului botului; Discord respinge comenzile dacă ID-ul nu corespunde tokenului.
-    const botIdentityResponse = await fetch('https://discord.com/api/v10/users/@me', { headers: { Authorization: Bot  } });
+    const botIdentityResponse = await fetch('https://discord.com/api/v10/users/@me', { headers: { Authorization: `Bot ${botToken}` } });
     const botIdentity = botIdentityResponse.ok ? await botIdentityResponse.json().catch(() => ({})) : {};
-    if (/^\\d{15,22}$/.test(String(botIdentity?.id || ''))) applicationId = String(botIdentity.id);
+    if (/^\d{15,22}$/.test(String(botIdentity?.id || ''))) applicationId = String(botIdentity.id);
+    if (!/^\d{15,22}$/.test(applicationId)) {
+      const { data: setting, error } = await db.from('discovery_settings').select('discord_client_id').not('discord_client_id', 'is', null).neq('discord_client_id', '').limit(1).maybeSingle();
+      if (error) throw error;
+      applicationId = String(setting?.discord_client_id || '').trim();
+    }
+    if (!/^\d{15,22}$/.test(applicationId)) return reply(request, { error: 'Discord Application ID nu este configurat.' }, 409);
+    const { data: globalSettings, error: globalSettingsError } = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
+    if (globalSettingsError) throw globalSettingsError;
+    const customCommands = Object.values(globalSettings?.custom_modules && typeof globalSettings.custom_modules === 'object' ? globalSettings.custom_modules : {})
+      .filter((module: any) => module?.active !== false && /^[a-z0-9_-]{1,32}$/.test(String(module?.command_name || '').trim().toLowerCase()))
+      .slice(0, 10)
+      .map((module: any) => ({ type: 1, name: String(module.command_name).trim().toLowerCase(), description: String(module.label || 'Modul Panel Pro').trim().slice(0, 100) }));
+    const syncedCommands = [{ ...commands[0], options: [...commands[0].options, ...customCommands] }];
+    const clearGlobalInit = { method: 'PUT', headers: { Authorization: `Bot ${botToken}`, 'Content-Type': 'application/json' }, body: '[]' };
+    const guildRequestInit = { method: 'PUT', headers: { Authorization: `Bot ${botToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(syncedCommands) };
+    // Comenzile sunt înregistrate pe servere pentru apariție imediată și
+    // pentru a evita dublurile dintre comenzile globale și guild-scoped.
+    const globalResponse = await fetch(`https://discord.com/api/v10/applications/${applicationId}/commands`, clearGlobalInit);
+    if (!globalResponse.ok) return reply(request, { error: `Discord a respins comenzile globale (HTTP ${globalResponse.status}).`, details: await globalResponse.text() }, 400);
+    const { data: guilds, error: guildsError } = await db.from('discovery_guilds').select('guild_id').eq('enabled', true);
+    if (guildsError) throw guildsError;
+    const guildResults = [];
+    const syncedGuildIds = new Set<string>();
+    for (const guild of guilds || []) {
+      const guildId = String(guild.guild_id || '').trim();
+      if (!/^\d{15,22}$/.test(guildId)) continue;
+      const response = await fetch(`https://discord.com/api/v10/applications/${applicationId}/guilds/${guildId}/commands`, guildRequestInit);
+      guildResults.push({ guild_id: guildId, ok: response.ok, status: response.status });
+      syncedGuildIds.add(guildId);
+    }
+    // Actualizează și serverele în care botul este instalat, chiar dacă încă
+    // nu au fost asociate unei organizații în Supabase. Astfel o comandă de
+    // server veche nu mai suprascrie lista globală actualizată.
+    const botGuildsResponse = await fetch('https://discord.com/api/v10/users/@me/guilds', { headers: { Authorization: `Bot ${botToken}` } });
+    if (botGuildsResponse.ok) {
+      const botGuilds = await botGuildsResponse.json().catch(() => []);
+      for (const guild of Array.isArray(botGuilds) ? botGuilds : []) {
+        const guildId = String(guild?.id || '').trim();
+        if (!/^\d{15,22}$/.test(guildId) || syncedGuildIds.has(guildId)) continue;
+        const response = await fetch(`https://discord.com/api/v10/applications/${applicationId}/guilds/${guildId}/commands`, guildRequestInit);
+        guildResults.push({ guild_id: guildId, ok: response.ok, status: response.status });
+        syncedGuildIds.add(guildId);
+      }
+    }
+    if (session.organization_id) await db.from('discovery_audit_log').insert({ organization_id: session.organization_id, actor_discord_id: session.discord_id, action: 'discord_commands_synced', target_type: 'discord_application', target_id: applicationId, details: { command_count: syncedCommands.length, custom_command_count: customCommands.length, scope: 'global_and_configured_guilds', guild_count: guildResults.length } });
+    const failedGuilds = guildResults.filter((item) => !item.ok).length;
+    return reply(request, { ok: true, application_id: applicationId, command_count: syncedCommands.length, custom_command_count: customCommands.length, guild_count: guildResults.length, failed_guilds: failedGuilds, scope: 'global_and_configured_guilds', message: `Comenzile botului Discovery (${applicationId}) au fost sincronizate global și pe ${guildResults.length} server${guildResults.length === 1 ? '' : 'e'} configurat${guildResults.length === 1 ? '' : 'e'}. Pe serverele configurate ar trebui să apară imediat.` });
+  } catch (error) { return reply(request, { error: error instanceof Error ? error.message : 'Eroare internă.' }, 400); }
+});
+
