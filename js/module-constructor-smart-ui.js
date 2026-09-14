@@ -45,6 +45,7 @@
   $('smart-duplicate').onclick = () => { const source = read(); if (!$('new')) return; $('new').click(); setTimeout(() => { const suffix = Date.now().toString().slice(-5); $('key').value = `custom_${(source.key || 'modul').replace(/^custom_/, '')}_${suffix}`; $('label').value = `${source.label || 'Modul'} · copie`; $('title').value = source.title; $('description').value = source.description; $('color').value = source.color; const list = $('button-list'); if (list) list.innerHTML = source.buttons.map((b, i) => `<div class="button-row"><input data-blabel="${i}" value="${esc(b.label)}" placeholder="Numele butonului"><select data-bstyle="${i}"><option value="1" ${String(b.style)==='1'?'selected':''}>Albastru</option><option value="2" ${String(b.style)==='2'?'selected':''}>Gri</option><option value="3" ${String(b.style)==='3'?'selected':''}>Verde</option><option value="4" ${String(b.style)==='4'?'selected':''}>Roșu</option></select></div>`).join(''); enhanceButtonRows(); renderPreview(); const s=$('status'); if(s){s.textContent='A fost creată o copie editabilă. Salvează pentru a o păstra.';s.className='status ok';} }, 60); };
   root.addEventListener('input', () => { pushHistory(); renderPreview(); snapshot(); }); root.addEventListener('change', () => { pushHistory(); renderPreview(); });
   const publish = $('publish');
+  const focusFirstInvalid = () => { const m=read(); const target = !m.key || !/^[a-z0-9_]+$/.test(m.key) ? $('key') : !m.label ? $('label') : !m.title || m.title.length > 256 ? $('title') : !m.description || m.description.length > 4096 ? $('description') : root.querySelector('#button-list input'); if(target){target.focus();target.scrollIntoView({behavior:'smooth',block:'center'});} };
   if (publish && typeof publish.onclick === 'function') {
     const originalPublish = publish.onclick;
     publish.onclick = (event) => {
@@ -52,6 +53,7 @@
         event.preventDefault();
         const s = $('status'); if (s) { s.textContent = 'Completează câmpurile marcate înainte de publicare.'; s.className = 'status error'; }
         $('smart-preview-box').hidden = false;
+        focusFirstInvalid();
         return;
       }
       publish.disabled = true; publish.textContent = '⏳ Se publică…'; const result = originalPublish.call(publish, event); Promise.resolve(result).finally(() => { publish.disabled = false; publish.textContent = '📌 Salvează și publică pe Discord'; }); return result;
