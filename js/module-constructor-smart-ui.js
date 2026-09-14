@@ -94,6 +94,23 @@
       publish.disabled = true; publish.setAttribute('aria-busy','true'); publish.textContent = '⏳ Se publică…'; const slowTimer = setTimeout(() => { const s=$('status'); if(s && !s.className.includes('error')) { s.textContent='⏳ Discord răspunde mai lent. Cererea este încă în procesare…'; s.className='status'; } }, 12000); const result = originalPublish.call(publish, event); Promise.resolve(result).finally(() => { clearTimeout(slowTimer); publish.disabled = false; publish.removeAttribute('aria-busy'); publish.textContent = '📌 Salvează și publică pe Discord'; }); return result;
     };
   }
+  const testModule = $('test-module');
+  if (testModule && typeof testModule.onclick === 'function') {
+    const originalTest = testModule.onclick;
+    testModule.onclick = (event) => {
+      if (!checks()) {
+        event.preventDefault();
+        const s = $('status'); if (s) { s.textContent = 'Completează câmpurile marcate înainte de testare.'; s.className = 'status error'; }
+        $('smart-preview-box').hidden = false;
+        focusFirstInvalid();
+        return;
+      }
+      testModule.disabled = true; testModule.setAttribute('aria-busy','true'); testModule.textContent = '⏳ Se testează…';
+      const result = originalTest.call(testModule, event);
+      Promise.resolve(result).finally(() => { testModule.disabled = false; testModule.removeAttribute('aria-busy'); testModule.textContent = '🧪 Testează în canal'; });
+      return result;
+    };
+  }
   document.addEventListener('keydown', (event) => { if (event.key === '/' && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)) { event.preventDefault(); document.getElementById('smart-module-search')?.focus(); return; } if (event.key === 'Escape' && !$('smart-preview-box').hidden) { $('smart-preview-box').hidden=true; $('smart-preview')?.setAttribute('aria-expanded','false'); return; } if (!(event.ctrlKey || event.metaKey)) return; const key = event.key.toLowerCase(); if (key === 's') { event.preventDefault(); $('save-all')?.click(); } if (key === 'enter') { event.preventDefault(); $('publish')?.click(); } if (key === 'n' && event.shiftKey) { event.preventDefault(); $('new')?.click(); } if (key === 'z' && !event.shiftKey) { event.preventDefault(); undo(); } if (key === 'y' || (key === 'z' && event.shiftKey)) { event.preventDefault(); redo(); } });
   pushHistory(); renderPreview(); lastCommitted = snapshotEditor(); dirty = false; snapshot();
   try { const saved=JSON.parse(localStorage.getItem('panel-pro-module-draft')||'null'); if(saved?.saved_at){ const date=new Date(saved.saved_at); const s=$('status'); if(s){s.textContent=`Există un draft local din ${date.toLocaleString('ro-RO')}. Îl poți restaura din bara de instrumente.`;s.className='status';} } } catch (_) {}
