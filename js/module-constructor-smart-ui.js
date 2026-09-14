@@ -33,6 +33,9 @@
   const history = { past: [], future: [], applying: false };
   let lastCommitted = '';
   let dirty = false;
+  const confirmDiscard = (event) => { if (!dirty) return; if (confirm('Există modificări nesalvate. Continui și le pierzi?')) return; event.preventDefault(); event.stopImmediatePropagation(); };
+  list.addEventListener('click', (event) => { if (event.target.closest('[data-select]')) confirmDiscard(event); }, true);
+  $('new')?.addEventListener('click', confirmDiscard, true);
   const updateHistoryButtons = () => { const undoButton=$('smart-undo'), redoButton=$('smart-redo'); if(undoButton){undoButton.disabled=history.past.length<2;undoButton.setAttribute('aria-disabled',String(undoButton.disabled));} if(redoButton){redoButton.disabled=!history.future.length;redoButton.setAttribute('aria-disabled',String(redoButton.disabled));} };
   const snapshotEditor = () => JSON.stringify(read());
   const pushHistory = () => { if (history.applying) return; const value = snapshotEditor(); if (history.past[history.past.length - 1] !== value) { history.past.push(value); if (history.past.length > 40) history.past.shift(); history.future = []; } updateHistoryButtons(); };
