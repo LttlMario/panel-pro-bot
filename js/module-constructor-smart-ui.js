@@ -60,6 +60,6 @@
       publish.disabled = true; publish.textContent = '⏳ Se publică…'; const result = originalPublish.call(publish, event); Promise.resolve(result).finally(() => { publish.disabled = false; publish.textContent = '📌 Salvează și publică pe Discord'; }); return result;
     };
   }
-  document.addEventListener('keydown', (event) => { if (!(event.ctrlKey || event.metaKey)) return; const key = event.key.toLowerCase(); if (key === 's') { event.preventDefault(); $('save-all')?.click(); } if (key === 'z' && !event.shiftKey) { event.preventDefault(); undo(); } if (key === 'y' || (key === 'z' && event.shiftKey)) { event.preventDefault(); redo(); } });
+  document.addEventListener('keydown', (event) => { if (event.key === '/' && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)) { event.preventDefault(); document.getElementById('smart-module-search')?.focus(); return; } if (event.key === 'Escape' && !$('smart-preview-box').hidden) { $('smart-preview-box').hidden=true; return; } if (!(event.ctrlKey || event.metaKey)) return; const key = event.key.toLowerCase(); if (key === 's') { event.preventDefault(); $('save-all')?.click(); } if (key === 'z' && !event.shiftKey) { event.preventDefault(); undo(); } if (key === 'y' || (key === 'z' && event.shiftKey)) { event.preventDefault(); redo(); } });
   pushHistory(); renderPreview();
 })();
