@@ -379,6 +379,8 @@ async function provisionOfficialServer(db: any, guildId: string) {
   for (const [name, body] of Object.entries(messages)) { const id=channelIds[name]; if(!id) continue; const existingMessages=await fetch(DISCORD_API + '/channels/' + id + '/messages?limit=50',{headers}).then((r)=>r.ok?r.json():[]).catch(()=>[]); const title=String(body?.embeds?.[0]?.title||''); const current=Array.isArray(existingMessages)&&existingMessages.find((m:any)=>(m.embeds||[]).some((e:any)=>String(e.title||'')===title)); if(current?.id){ const r=await fetch(DISCORD_API + '/channels/' + id + '/messages/'+current.id,{method:'PATCH',headers,body:JSON.stringify({allowed_mentions:{parse:[]},...body})}); if(!r.ok && r.status!==429) console.error('[provision update]',name,r.status); continue; } const r=await fetch(DISCORD_API + '/channels/' + id + '/messages',{method:'POST',headers,body:JSON.stringify({allowed_mentions:{parse:[]},...body})}); if(!r.ok && r.status!==429) console.error('[provision]',name,r.status); }
   let routeConfiguration: any = null;
   let demoConfiguration: any = null;
+  let statisticsConfiguration: any = null;
+  try { statisticsConfiguration = await updateOfficialStatistics(db, guildId); } catch (error) { console.error('[provision statistics]', error); }
   try {
     const linked = await db.from('discovery_guilds').select('organization_id').eq('guild_id', guildId).eq('enabled', true).maybeSingle();
     if (linked.data?.organization_id) {
@@ -390,7 +392,7 @@ async function provisionOfficialServer(db: any, guildId: string) {
     }
   } catch (error) { console.error('[provision routes]', error); }
   try { demoConfiguration = await provisionDemoCategory(db, guildId); } catch (error) { console.error('[provision demo]', error); }
-  return { roles: roleNames.length, categories: categories.length, channels: Object.values(groups).flat().length + Object.values(voiceGroups).flat().length, voice_channels: Object.values(voiceGroups).flat(), created_channels: created, role_ids: roleIds, route_configuration: routeConfiguration, demo_configuration: demoConfiguration };
+  return { roles: roleNames.length, categories: categories.length, channels: Object.values(groups).flat().length + Object.values(voiceGroups).flat(), voice_channels: Object.values(voiceGroups).flat(), created_channels: created, role_ids: roleIds, route_configuration: routeConfiguration, statistics: statisticsConfiguration, demo_configuration: demoConfiguration };
 }
 async function syncOfficialRoles(db: any, guildId: string) {
   const token = await getPlatformSecret(db, 'discord_bot_token');
@@ -427,6 +429,80 @@ async function announceExistingCommunity(db: any, guildId: string) {
   const response = await fetch(`${DISCORD_API}/channels/${welcome.id}/messages`, { method: 'POST', headers, body: JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [{ title: '👋 Bun venit comunității existente!', description, fields: [{ name: 'Comunitate', value: members ? `${members} membri` : 'Membrii existenți ai serverului', inline: true }, { name: 'Ce urmează', value: 'Mesajele automate sunt active pentru evenimentele noi.', inline: true }], color: 0x22d3ee, footer: { text: 'Panel Pro · mesaj pentru comunitatea existentă' }, timestamp: new Date().toISOString() }] }) });
   if (!response.ok) throw new Error(`Mesajul nu a putut fi trimis (HTTP ${response.status}).`);
   return { channel_id: String(welcome.id), members: members ? Number(members) : null };
+}
+
+/** Publish the real, public-safe statistics in the official community channel.
+ *  This deliberately uses database counts and never exposes member names or
+ *  private organization data. It is restricted to the official guild.
+ */
+async function updateOfficialStatistics(db: any, guildId: string) {
+  if (guildId !== OFFICIAL_GUILD_ID) throw new Error('Statisticile publice sunt disponibile doar pe serverul oficial Panel Pro.');
+  const token = await getPlatformSecret(db, 'discord_bot_token');
+  const headers = { ...botHeaders(token), 'Content-Type': 'application/json' };
+  const channelsResponse = await fetch(`${DISCORD_API}/guilds/${guildId}/channels`, { headers });
+  const channelList = await channelsResponse.json().catch(() => []);
+  if (!channelsResponse.ok) throw new Error(`Discord API /guilds/${guildId}/channels HTTP ${channelsResponse.status}`);
+  const channel = (Array.isArray(channelList) ? channelList : []).find((item: any) => Number(item.type) === 0 && String(item.name || '') === '📈・statistici-bot');
+  if (!channel?.id) throw new Error('Canalul 📈・statistici-bot nu există. Rulează mai întâi configurarea serverului oficial.');
+
+  const linked = await db.from('discovery_guilds').select('organization_id').eq('guild_id', guildId).eq('enabled', true).maybeSingle();
+  if (linked.error) throw linked.error;
+  const organizationId = String(linked.data?.organization_id || '');
+  const count = async (table: string, filter: (query: any) => any = (query: any) => query) => {
+    try {
+      let query = db.from(table).select('id', { count: 'exact', head: true });
+      query = filter(query);
+      const result = await query;
+      return result.error ? null : Number(result.count || 0);
+    } catch (_) { return null; }
+  };
+  const weekStart = new Date(); weekStart.setUTCHours(0, 0, 0, 0); weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
+  const org = (query: any) => organizationId ? query.eq('organization_id', organizationId) : query;
+  const today = new Date().toISOString().slice(0, 10);
+  const [installed, configured, members, employees, contracts, activeShifts, weeklyShifts, pendingAbsences, upcomingEvents, actions] = await Promise.all([
+    count('discovery_bot_installations', (q: any) => q.eq('status', 'active')),
+    count('discovery_guilds', (q: any) => q.eq('enabled', true)),
+    count('discovery_members', (q: any) => org(q).eq('active', true)),
+    count('discovery_employees', (q: any) => org(q).eq('active', true)),
+    count('discovery_contracts', org),
+    count('discovery_shifts', (q: any) => org(q).in('status', ['active', 'paused']).is('end_time', null)),
+    count('discovery_shifts', (q: any) => org(q).gte('created_at', weekStart.toISOString())),
+    count('discovery_absences', (q: any) => org(q).eq('status', 'pending')),
+    count('discovery_events', (q: any) => org(q).gte('event_date', today)),
+    count('discovery_actions', (q: any) => org(q).gte('created_at', weekStart.toISOString())),
+  ]);
+  const value = (number: number | null) => number === null ? '—' : String(number);
+  const now = new Date();
+  const embed = {
+    title: '📈 Statistici reale Panel Pro',
+    description: 'Date calculate automat din activitatea botului și din serverul oficial. Nu sunt afișate date personale.',
+    color: 0x06b6d4,
+    fields: [
+      { name: '🌐 Comunitate Panel Pro', value: `Servere cu bot activ: **${value(installed)}**\nServere configurate: **${value(configured)}**`, inline: true },
+      { name: '👥 Serverul oficial', value: `Membri Panel Pro sincronizați: **${value(members)}**\nAngajați activi: **${value(employees)}**`, inline: true },
+      { name: '🕒 Activitate', value: `Pontaje active: **${value(activeShifts)}**\nPontaje în această săptămână: **${value(weeklyShifts)}**`, inline: true },
+      { name: '📋 Administrare', value: `Contracte: **${value(contracts)}**\nÎnvoiri în așteptare: **${value(pendingAbsences)}**`, inline: true },
+      { name: '📅 Comunitate', value: `Evenimente viitoare: **${value(upcomingEvents)}**\nAcțiuni în această săptămână: **${value(actions)}**`, inline: true },
+    ],
+    footer: { text: 'Panel Pro · statistici actualizate automat' },
+    timestamp: now.toISOString(),
+  };
+  const messagesResponse = await fetch(`${DISCORD_API}/channels/${channel.id}/messages?limit=50`, { headers });
+  const messageList = await messagesResponse.json().catch(() => []);
+  const matching = (Array.isArray(messageList) ? messageList : []).filter((message: any) => (message.embeds || []).some((item: any) => String(item.title || '').startsWith('📈 Statistici reale Panel Pro')));
+  for (const duplicate of matching.slice(1)) await fetch(`${DISCORD_API}/channels/${channel.id}/messages/${duplicate.id}`, { method: 'DELETE', headers }).catch(() => null);
+  const body = { allowed_mentions: { parse: [] }, embeds: [embed] };
+  const target = matching[0];
+  const response = await fetch(`${DISCORD_API}/channels/${channel.id}/messages${target?.id ? `/${target.id}` : ''}`, { method: target?.id ? 'PATCH' : 'POST', headers, body: JSON.stringify(body) });
+  if (!response.ok) throw new Error(`Statisticile nu au putut fi publicate (HTTP ${response.status}).`);
+  const message = await response.json().catch(() => ({}));
+  if (organizationId) {
+    const settings = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', organizationId).maybeSingle();
+    const routes = { ...(settings.data?.discord_channel_routes || {}) } as Record<string, any>;
+    routes.statistics = { primary: { ...(routes.statistics?.primary || {}), channel_id: String(channel.id), guild_id: guildId, enabled: true, message_id: String(message?.id || target?.id || '') } };
+    await db.from('discovery_settings').update({ discord_channel_routes: routes, updated_at: now.toISOString() }).eq('organization_id', organizationId);
+  }
+  return { channel_id: String(channel.id), message_id: String(message?.id || target?.id || ''), updated_at: now.toISOString(), values: { installed, configured, members, employees, contracts, activeShifts, weeklyShifts, pendingAbsences, upcomingEvents, actions } };
 }
 
 async function autoConfigureGuild(db: any, guildId: string, organizationId: string, plan: string) {
@@ -626,7 +702,7 @@ Deno.serve(async (request) => {
     const action = clean(body.action, 30) || 'bootstrap';
     const personalView = clean(body.view_scope, 30) === 'personal';
     const diagnostics: Record<string, any> = {};
-    if (action === 'provision_official_server' || action === 'sync_official_roles' || action === 'announce_existing_community') { if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate configura serverul oficial.' }, 403); const target=clean(body.guild_id,30); if (target !== '1544703486384537603') return reply(request,{error:'Serverul oficial nu este valid.'},400); const result=action === 'provision_official_server' ? await provisionOfficialServer(db,target) : action === 'sync_official_roles' ? await syncOfficialRoles(db,target) : await announceExistingCommunity(db,target); return reply(request,{ok:true,guild_id:target,result}); }
+    if (action === 'provision_official_server' || action === 'sync_official_roles' || action === 'announce_existing_community' || action === 'update_official_statistics') { if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate configura serverul oficial.' }, 403); const target=clean(body.guild_id,30); if (target !== '1544703486384537603') return reply(request,{error:'Serverul oficial nu este valid.'},400); const result=action === 'provision_official_server' ? await provisionOfficialServer(db,target) : action === 'sync_official_roles' ? await syncOfficialRoles(db,target) : action === 'announce_existing_community' ? await announceExistingCommunity(db,target) : await updateOfficialStatistics(db,target); return reply(request,{ok:true,guild_id:target,result}); }
     if (action === 'bootstrap') {
       const discoveryBotToken = await getPlatformSecret(db, 'discord_bot_token');
       const botIdentityResponse = discoveryBotToken
@@ -687,7 +763,7 @@ Deno.serve(async (request) => {
     // Operațiunile globale nu trebuie să depindă de scope-ul OAuth `guilds`.
     // Administratorul global poate deschide constructorul chiar dacă tokenul
     // Discord existent a fost emis înainte de adăugarea scope-ului.
-    const globalOnlyAction = ['custom_modules', 'save_custom_modules', 'global_config', 'save_global_config', 'assistant_catalog', 'assistant_schema_check', 'provision_official_server', 'sync_official_roles', 'announce_existing_community'].includes(action);
+    const globalOnlyAction = ['custom_modules', 'save_custom_modules', 'global_config', 'save_global_config', 'assistant_catalog', 'assistant_schema_check', 'provision_official_server', 'sync_official_roles', 'announce_existing_community', 'update_official_statistics'].includes(action);
     const guilds = globalOnlyAction
       ? []
       : await ownedGuilds(db, { ...discord, access_token: accessToken }, applicationId, platformAdmin || !personalView, diagnostics);
