@@ -1,0 +1,38 @@
+(() => {
+  const root = document.getElementById('editor');
+  const list = document.getElementById('list');
+  if (!root || !list || document.getElementById('smart-constructor-tools')) return;
+  const $ = (id) => document.getElementById(id);
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const css = document.createElement('style');
+  css.textContent = `#smart-constructor-tools{margin:0 0 14px;padding:12px;border:1px solid #36516f;border-radius:12px;background:#081426}#smart-constructor-tools .smart-actions{display:flex;gap:7px;flex-wrap:wrap}#smart-constructor-tools button{border:1px solid #36516f;border-radius:8px;background:#12243a;color:#e2e8f0;padding:8px 10px;font-size:11px;font-weight:800;cursor:pointer}#smart-constructor-tools button.active,#smart-constructor-tools button:hover{border-color:#22d3ee;background:#0e3545}.smart-hint{font-size:11px;color:#9fb0c5;margin:7px 0 0}.smart-preview{margin-top:14px;padding:14px;border:1px solid #36516f;border-radius:12px;background:#07101f}.smart-preview-card{border-left:4px solid #5865f2;border-radius:8px;background:#111827;padding:13px}.smart-preview-card h3{margin:0 0 7px;color:#f8fafc;font-size:15px}.smart-preview-card p{margin:0;color:#cbd5e1;font-size:12px;white-space:pre-wrap}.smart-preview-buttons{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}.smart-preview-buttons span{border-radius:5px;padding:6px 9px;color:#fff;background:#5865f2;font-size:10px}.smart-checks{display:grid;gap:4px;margin-top:10px;font-size:11px}.smart-checks .bad{color:#fda4af}.smart-checks .good{color:#6ee7b7}`;
+  document.head.appendChild(css);
+  const tools = document.createElement('section'); tools.id = 'smart-constructor-tools';
+  tools.innerHTML = `<div class="smart-actions"><button id="smart-preview" type="button">👁️ Previzualizare live</button><button id="smart-local-save" type="button">💾 Salvează draft local</button><button id="smart-local-load" type="button">↩️ Restaurează draft</button><button id="smart-clear" type="button">🧹 Curăță formularul</button></div><p class="smart-hint">Modificările sunt verificate înainte de publicare. Draftul local rămâne doar în acest browser.</p><div id="smart-checks" class="smart-checks"></div><div id="smart-preview-box" class="smart-preview" hidden><strong>Previzualizare Discord</strong><div id="smart-preview-card" style="margin-top:9px"></div></div>`;
+  root.prepend(tools);
+  const read = () => { const rows = [...root.querySelectorAll('#button-list .button-row')]; return { key: $('key')?.value.trim() || '', label: $('label')?.value.trim() || '', title: $('title')?.value.trim() || '', description: $('description')?.value || '', color: $('color')?.value || '#5865f2', buttons: rows.map((row) => ({ label: row.querySelector('input')?.value.trim() || '', style: row.querySelector('select')?.value || '1' })).filter((x) => x.label) }; };
+  const checks = () => { const m = read(); const rows = []; const add = (ok, text) => rows.push(`<span class="${ok ? 'good' : 'bad'}">${ok ? '✓' : '!' } ${esc(text)}</span>`); add(Boolean(m.key), 'Cheia internă este completată'); add(/^[a-z0-9_]+$/.test(m.key), 'Cheia folosește doar litere mici, cifre și _'); add(Boolean(m.label), 'Numele modulului este completat'); add(Boolean(m.title), 'Titlul embedului este completat'); add(Boolean(m.description), 'Descrierea embedului este completată'); add(m.buttons.length <= 5, 'Există maximum 5 butoane'); add(new Set(m.buttons.map((x) => x.label.toLowerCase())).size === m.buttons.length, 'Butoanele nu sunt duplicate'); $('smart-checks').innerHTML = rows.join(''); return rows.every((row) => row.includes('good')); };
+  const renderPreview = () => { const m = read(); $('smart-preview-card').innerHTML = `<div class="smart-preview-card" style="border-color:${esc(m.color)}"><h3>${esc(m.title || m.label || 'Titlu modul')}</h3><p>${esc(m.description || 'Descrierea modulului va apărea aici.')}</p><div class="smart-preview-buttons">${m.buttons.map((b) => `<span>${esc(b.label)}</span>`).join('') || '<span style="background:#334155">Fără butoane</span>'}</div></div>`; checks(); };
+  const snapshot = () => { const m = read(); localStorage.setItem('panel-pro-module-draft', JSON.stringify({...m, saved_at:new Date().toISOString()})); };
+  const restore = () => { try { const m = JSON.parse(localStorage.getItem('panel-pro-module-draft') || 'null'); if (!m) return; if ($('key')) $('key').value=m.key||''; if ($('label')) $('label').value=m.label||''; if ($('title')) $('title').value=m.title||''; if ($('description')) $('description').value=m.description||''; if ($('color')) $('color').value=m.color||'#5865f2'; const buttonList=$('button-list'); if(buttonList){buttonList.innerHTML=(m.buttons||[]).map((b,i)=>`<div class="button-row"><input data-blabel="${i}" value="${esc(b.label)}" placeholder="Numele butonului"><select data-bstyle="${i}"><option value="1" ${String(b.style)==='1'?'selected':''}>Albastru</option><option value="2" ${String(b.style)==='2'?'selected':''}>Gri</option><option value="3" ${String(b.style)==='3'?'selected':''}>Verde</option><option value="4" ${String(b.style)==='4'?'selected':''}>Roșu</option></select></div>`).join('');} renderPreview(); const s=$('status'); if(s){s.textContent='Draftul local a fost restaurat.';s.className='status ok';} } catch (_) {} };
+  $('smart-preview').onclick = () => { $('smart-preview-box').hidden = !$('smart-preview-box').hidden; renderPreview(); };
+  $('smart-local-save').onclick = () => { snapshot(); const s=$('status'); if(s){s.textContent='Draft salvat local în acest browser.';s.className='status ok';} };
+  $('smart-local-load').onclick = restore;
+  $('smart-clear').onclick = () => { if(confirm('Ștergi conținutul formularului curent?')) { $('label').value='';$('title').value='';$('description').value='';$('button-list').innerHTML='';renderPreview(); } };
+  root.addEventListener('input', () => { renderPreview(); snapshot(); }); root.addEventListener('change', renderPreview);
+  const publish = $('publish');
+  if (publish && typeof publish.onclick === 'function') {
+    const originalPublish = publish.onclick;
+    publish.onclick = (event) => {
+      if (!checks()) {
+        event.preventDefault();
+        const s = $('status'); if (s) { s.textContent = 'Completează câmpurile marcate înainte de publicare.'; s.className = 'status error'; }
+        $('smart-preview-box').hidden = false;
+        return;
+      }
+      return originalPublish.call(publish, event);
+    };
+  }
+  document.addEventListener('keydown', (event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase()==='s') { event.preventDefault(); $('save-all')?.click(); } });
+  renderPreview();
+})();
