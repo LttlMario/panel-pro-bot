@@ -47,7 +47,7 @@
         $('smart-preview-box').hidden = false;
         return;
       }
-      return originalPublish.call(publish, event);
+      publish.disabled = true; publish.textContent = '⏳ Se publică…'; const result = originalPublish.call(publish, event); Promise.resolve(result).finally(() => { publish.disabled = false; publish.textContent = '📌 Salvează și publică pe Discord'; }); return result;
     };
   }
   document.addEventListener('keydown', (event) => { if (!(event.ctrlKey || event.metaKey)) return; const key = event.key.toLowerCase(); if (key === 's') { event.preventDefault(); $('save-all')?.click(); } if (key === 'z' && !event.shiftKey) { event.preventDefault(); undo(); } if (key === 'y' || (key === 'z' && event.shiftKey)) { event.preventDefault(); redo(); } });
