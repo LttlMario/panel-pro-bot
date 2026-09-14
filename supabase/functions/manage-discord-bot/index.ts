@@ -316,8 +316,13 @@ async function provisionOfficialServer(db: any, guildId: string) {
   const voiceGroups: Record<string,string[]> = { '🛠️ SUPORT':['🔊・așteptare-support','🔊・support-1','🔊・support-2'], '🌐 COMUNITATE':['🔊・comunitate-1','🔊・comunitate-2'], '💎 PREMIUM':['💎・premium-voice-1','💎・premium-voice-2','💎・premium-voice-3'], '🔒 STAFF':['🔒・staff-voice'] };
   const readOnly=new Set(['👋・bun-venit','🚪・plecări','📈・avansări','🎉・mulțumim-clienților','📖・ghid-panel-pro','✅・cum-incepi','📜・reguli','🔐・confidențialitate','📢・anunțuri-oficiale','🆕・noutăți','📘・documentație','⚙️・configurare-bot','🧩・module-disponibile','🎛️・permisiuni','📝・exemple-module','❓・întrebări-frecvente','🔗・comenzi-disponibile','💎・preturi-si-premium','🟢・status-servicii']); let created=0;
   for (const cat of Object.keys(groups)) for (const name of groups[cat]) { const aliases = name === '📜・reguli' ? ['📜・reguli','rules'] : name === '🧩・module-disponibile' ? ['🧩・module-disponibile','module-disponibile','module disponibile'] : [name]; const existingChannel=(Array.isArray(existing)?existing:[]).find((c:any)=>Number(c.type)===0&&aliases.includes(String(c.name))); const overwrites:any[]=[]; if(readOnly.has(name)) overwrites.push({id:guildId,type:0,allow:'1024',deny:'2048'}); if(botUserId) overwrites.push({id:botUserId,type:1,allow:'68608'}); if(cat==='🔒 STAFF') { overwrites.push({id:guildId,type:0,allow:'0',deny:'1024'}); overwrites.push({id:roleIds.Staff,type:0,allow:'68608'}); overwrites.push({id:roleIds.Support,type:0,allow:'68608'}); } if(cat==='💎 PREMIUM' && name!=='💎・preturi-si-premium') { overwrites.push({id:guildId,type:0,allow:'0',deny:'1024'}); overwrites.push({id:roleIds.Premium,type:0,allow:'68608'}); } if(existingChannel){channelIds[name]=String(existingChannel.id); if(name==='📜・reguli') channelIds.rules=String(existingChannel.id); if(name==='🧩・module-disponibile') { channelIds['module-disponibile']=String(existingChannel.id); channelIds['module disponibile']=String(existingChannel.id); } if(readOnly.has(name) || cat==='🔒 STAFF' || (cat==='💎 PREMIUM' && name!=='💎・preturi-si-premium')) await fetch(`${DISCORD_API}/channels/${existingChannel.id}`,{method:'PATCH',headers,body:JSON.stringify({permission_overwrites:overwrites})}); continue;} const made=await api('/channels',{name,type:0,parent_id:categoryIds[cat],permission_overwrites:overwrites}); channelIds[name]=String(made.id); created++; }
-  for (const cat of Object.keys(voiceGroups)) for (const name of voiceGroups[cat]) { const existingChannel=(Array.isArray(existing)?existing:[]).find((c:any)=>Number(c.type)===2&&String(c.name)===name); const waiting=name.includes('așteptare'); const premiumVoice=cat==='💎 PREMIUM'; const staffVoice=cat==='🔒 STAFF'; const supportVoice=cat==='🛠️ SUPORT'; const overwrites:any[] = staffVoice ? [{id:guildId,type:0,allow:'0',deny:'1024'},{id:roleIds.Staff,type:0,allow:'19923968'},{id:roleIds.Support,type:0,allow:'19923968'}] : premiumVoice ? [{id:guildId,type:0,allow:'0',deny:'1049600'},{id:roleIds.Premium,type:0,allow:'3146752'},{id:roleIds.Staff,type:0,allow:'19923968'},{id:roleIds.Support,type:0,allow:'19923968'}] : supportVoice ? [{id:guildId,type:0,allow:waiting?'1024':'2098176',deny:waiting?'2097152':'1048576'},{id:roleIds.Staff,type:0,allow:'19923968'},{id:roleIds.Support,type:0,allow:'19923968'}] : [{id:guildId,type:0,allow:'3146752',deny:'0'},{id:roleIds.Staff,type:0,allow:'19923968'},{id:roleIds.Support,type:0,allow:'19923968'}]; if(botUserId) overwrites.push({id:botUserId,type:1,allow:'25166848'}); if(existingChannel){channelIds[name]=String(existingChannel.id); await fetch(`${DISCORD_API}/channels/${existingChannel.id}`,{method:'PATCH',headers,body:JSON.stringify({permission_overwrites:overwrites})}); continue;} const made=await api('/channels',{name,type:2,parent_id:categoryIds[cat],permission_overwrites:overwrites}); channelIds[name]=String(made.id); created++; }
-  const messages: Record<string, any> = {
+   for (const cat of Object.keys(voiceGroups)) for (const name of voiceGroups[cat]) { const existingChannel=(Array.isArray(existing)?existing:[]).find((c:any)=>Number(c.type)===2&&String(c.name)===name); const waiting=name.includes('așteptare'); const premiumVoice=cat==='💎 PREMIUM'; const staffVoice=cat==='🔒 STAFF'; const supportVoice=cat==='🛠️ SUPORT'; const overwrites:any[] = staffVoice ? [{id:guildId,type:0,allow:'0',deny:'1024'},{id:roleIds.Staff,type:0,allow:'19923968'},{id:roleIds.Support,type:0,allow:'19923968'}] : premiumVoice ? [{id:guildId,type:0,allow:'0',deny:'1049600'},{id:roleIds.Premium,type:0,allow:'3146752'},{id:roleIds.Staff,type:0,allow:'19923968'},{id:roleIds.Support,type:0,allow:'19923968'}] : supportVoice ? [{id:guildId,type:0,allow:waiting?'1024':'2098176',deny:waiting?'2097152':'1048576'},{id:roleIds.Staff,type:0,allow:'19923968'},{id:roleIds.Support,type:0,allow:'19923968'}] : [{id:guildId,type:0,allow:'3146752',deny:'0'},{id:roleIds.Staff,type:0,allow:'19923968'},{id:roleIds.Support,type:0,allow:'19923968'}]; if(botUserId) overwrites.push({id:botUserId,type:1,allow:'25166848'}); if(existingChannel){channelIds[name]=String(existingChannel.id); await fetch(`${DISCORD_API}/channels/${existingChannel.id}`,{method:'PATCH',headers,body:JSON.stringify({permission_overwrites:overwrites})}); continue;} const made=await api('/channels',{name,type:2,parent_id:categoryIds[cat],permission_overwrites:overwrites}); channelIds[name]=String(made.id); created++; }
+   const freeGamesExisting = (Array.isArray(existing) ? existing : []).find((channel: any) => Number(channel.type) === 0 && String(channel.name) === '🎁・jocuri-gratuite');
+   const freeGamesChannel = freeGamesExisting || await api('/channels', { name: '🎁・jocuri-gratuite', type: 0, topic: 'Panel Pro · jocuri gratuite verificate automat', permission_overwrites: [{ id: guildId, type: 0, allow: '1024' }, ...(botUserId ? [{ id: botUserId, type: 1, allow: '68608' }] : [])] });
+   if (!freeGamesExisting) created++;
+   await fetch(`${DISCORD_API}/guilds/${guildId}/channels`, { method: 'PATCH', headers, body: JSON.stringify([{ id: String(freeGamesChannel.id), position: 0 }]) }).catch(() => null);
+   channelIds['🎁・jocuri-gratuite'] = String(freeGamesChannel.id);
+   const messages: Record<string, any> = {
     '👋・bun-venit': { embeds: [{ title: '👋 Bun venit pe Panel Pro Bot', description: 'Administrare Discord mai simplă, într-un singur loc.\n\n🌐 Panoul oficial: https://bot.panel-pro.ro\n\nÎncepe cu canalul 📖・ghid-panel-pro.', color: 0x5865f2 }] },
     '🚪・plecări': { embeds: [{ title: '🚪 Plecări', description: 'Aici apar mesajele elegante atunci când un membru părăsește comunitatea.', color: 0xef4444 }] },
     '🎉・mulțumim-clienților': { embeds: [{ title: '🎉 Mulțumim că ești alături de Panel Pro', description: 'Activările de Trial, Premium și planul gratuit vor fi confirmate aici automat.', color: 0x22d3ee }] },
@@ -380,6 +385,8 @@ async function provisionOfficialServer(db: any, guildId: string) {
   let routeConfiguration: any = null;
   let demoConfiguration: any = null;
   let statisticsConfiguration: any = null;
+  let freeGamesConfiguration: any = null;
+  try { freeGamesConfiguration = await syncOfficialFreeGames(db, guildId); } catch (error) { console.error('[provision free games]', error); }
   try { statisticsConfiguration = await updateOfficialStatistics(db, guildId); } catch (error) { console.error('[provision statistics]', error); }
   try {
     const linked = await db.from('discovery_guilds').select('organization_id').eq('guild_id', guildId).eq('enabled', true).maybeSingle();
@@ -392,7 +399,7 @@ async function provisionOfficialServer(db: any, guildId: string) {
     }
   } catch (error) { console.error('[provision routes]', error); }
   try { demoConfiguration = await provisionDemoCategory(db, guildId); } catch (error) { console.error('[provision demo]', error); }
-  return { roles: roleNames.length, categories: categories.length, channels: Object.values(groups).flat().length + Object.values(voiceGroups).flat(), voice_channels: Object.values(voiceGroups).flat(), created_channels: created, role_ids: roleIds, route_configuration: routeConfiguration, statistics: statisticsConfiguration, demo_configuration: demoConfiguration };
+  return { roles: roleNames.length, categories: categories.length, channels: Object.values(groups).flat().length + Object.values(voiceGroups).flat().length + 1, voice_channels: Object.values(voiceGroups).flat(), created_channels: created, role_ids: roleIds, free_games: freeGamesConfiguration, route_configuration: routeConfiguration, statistics: statisticsConfiguration, demo_configuration: demoConfiguration };
 }
 async function syncOfficialRoles(db: any, guildId: string) {
   const token = await getPlatformSecret(db, 'discord_bot_token');
@@ -503,6 +510,35 @@ async function updateOfficialStatistics(db: any, guildId: string) {
     await db.from('discovery_settings').update({ discord_channel_routes: routes, updated_at: now.toISOString() }).eq('organization_id', organizationId);
   }
   return { channel_id: String(channel.id), message_id: String(message?.id || target?.id || ''), updated_at: now.toISOString(), values: { installed, configured, members, employees, contracts, activeShifts, weeklyShifts, pendingAbsences, upcomingEvents, actions } };
+}
+
+async function syncOfficialFreeGames(db: any, guildId: string) {
+  if (guildId !== OFFICIAL_GUILD_ID) throw new Error('Ofertele sunt disponibile doar pe serverul oficial Panel Pro.');
+  const token = await getPlatformSecret(db, 'discord_bot_token');
+  const headers = { ...botHeaders(token), 'Content-Type': 'application/json' };
+  const channelsResponse = await fetch(`${DISCORD_API}/guilds/${guildId}/channels`, { headers });
+  const channelList = await channelsResponse.json().catch(() => []);
+  if (!channelsResponse.ok) throw new Error(`Discord API /guilds/${guildId}/channels HTTP ${channelsResponse.status}`);
+  const channel = (Array.isArray(channelList) ? channelList : []).find((item: any) => Number(item.type) === 0 && String(item.name || '') === '🎁・jocuri-gratuite');
+  if (!channel?.id) throw new Error('Canalul 🎁・jocuri-gratuite nu există. Rulează configurarea serverului oficial.');
+  const source = await fetch('https://www.gamerpower.com/api/giveaways', { headers: { Accept: 'application/json' } });
+  const giveaways = await source.json().catch(() => []);
+  if (!source.ok || !Array.isArray(giveaways)) throw new Error('Sursa ofertelor gratuite nu a răspuns.');
+  const allowed = giveaways.filter((item: any) => item?.status === 'Active' && String(item?.giveaway_type || '').toLowerCase() === 'free' && item?.open_giveaway_url && item?.title).slice(0, 8);
+  const existingResponse = await fetch(`${DISCORD_API}/channels/${channel.id}/messages?limit=100`, { headers });
+  const existing = await existingResponse.json().catch(() => []);
+  const titles = new Set((Array.isArray(existing) ? existing : []).flatMap((message: any) => (message.embeds || []).map((embed: any) => String(embed.title || '').replace(/^🎁\s*/, '').trim())));
+  let published = 0;
+  for (const item of allowed) {
+    const title = String(item.title).trim();
+    if (titles.has(title)) continue;
+    const platform = String(item.platforms || 'PC');
+    const end = item.end_date && String(item.end_date).toLowerCase() !== 'n/a' ? `\n⏳ Expiră: **${item.end_date}**` : '';
+    const body = { allowed_mentions: { parse: [] }, embeds: [{ title: `🎁 ${title}`, url: String(item.open_giveaway_url), description: `${String(item.description || 'Joc disponibil gratuit, în limita perioadei promoției.').slice(0, 900)}\n\n🎮 Platformă: **${platform}**${end}`, color: 0x22c55e, image: item.thumbnail ? { url: String(item.thumbnail) } : undefined, footer: { text: 'Panel Pro · ofertă verificată automat' }, timestamp: new Date().toISOString() }], components: [{ type: 1, components: [{ type: 2, style: 5, label: '🔗 Revendică oferta', url: String(item.open_giveaway_url) }] }] };
+    const response = await fetch(`${DISCORD_API}/channels/${channel.id}/messages`, { method: 'POST', headers, body: JSON.stringify(body) });
+    if (response.ok) { published++; titles.add(title); }
+  }
+  return { channel_id: String(channel.id), checked: allowed.length, published, source: 'GamerPower' };
 }
 
 async function autoConfigureGuild(db: any, guildId: string, organizationId: string, plan: string) {
@@ -702,7 +738,7 @@ Deno.serve(async (request) => {
     const action = clean(body.action, 30) || 'bootstrap';
     const personalView = clean(body.view_scope, 30) === 'personal';
     const diagnostics: Record<string, any> = {};
-    if (action === 'provision_official_server' || action === 'sync_official_roles' || action === 'announce_existing_community' || action === 'update_official_statistics') { if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate configura serverul oficial.' }, 403); const target=clean(body.guild_id,30); if (target !== '1544703486384537603') return reply(request,{error:'Serverul oficial nu este valid.'},400); const result=action === 'provision_official_server' ? await provisionOfficialServer(db,target) : action === 'sync_official_roles' ? await syncOfficialRoles(db,target) : action === 'announce_existing_community' ? await announceExistingCommunity(db,target) : await updateOfficialStatistics(db,target); return reply(request,{ok:true,guild_id:target,result}); }
+    if (action === 'provision_official_server' || action === 'sync_official_roles' || action === 'announce_existing_community' || action === 'update_official_statistics' || action === 'sync_official_free_games') { if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate configura serverul oficial.' }, 403); const target=clean(body.guild_id,30); if (target !== '1544703486384537603') return reply(request,{error:'Serverul oficial nu este valid.'},400); const result=action === 'provision_official_server' ? await provisionOfficialServer(db,target) : action === 'sync_official_roles' ? await syncOfficialRoles(db,target) : action === 'announce_existing_community' ? await announceExistingCommunity(db,target) : action === 'update_official_statistics' ? await updateOfficialStatistics(db,target) : await syncOfficialFreeGames(db,target); return reply(request,{ok:true,guild_id:target,result}); }
     if (action === 'bootstrap') {
       const discoveryBotToken = await getPlatformSecret(db, 'discord_bot_token');
       const botIdentityResponse = discoveryBotToken
@@ -763,7 +799,7 @@ Deno.serve(async (request) => {
     // Operațiunile globale nu trebuie să depindă de scope-ul OAuth `guilds`.
     // Administratorul global poate deschide constructorul chiar dacă tokenul
     // Discord existent a fost emis înainte de adăugarea scope-ului.
-    const globalOnlyAction = ['custom_modules', 'save_custom_modules', 'global_config', 'save_global_config', 'assistant_catalog', 'assistant_schema_check', 'provision_official_server', 'sync_official_roles', 'announce_existing_community', 'update_official_statistics'].includes(action);
+    const globalOnlyAction = ['custom_modules', 'save_custom_modules', 'global_config', 'save_global_config', 'assistant_catalog', 'assistant_schema_check', 'provision_official_server', 'sync_official_roles', 'announce_existing_community', 'update_official_statistics', 'sync_official_free_games'].includes(action);
     const guilds = globalOnlyAction
       ? []
       : await ownedGuilds(db, { ...discord, access_token: accessToken }, applicationId, platformAdmin || !personalView, diagnostics);
