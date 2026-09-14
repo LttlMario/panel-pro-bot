@@ -72,6 +72,6 @@
     };
   }
   document.addEventListener('keydown', (event) => { if (event.key === '/' && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)) { event.preventDefault(); document.getElementById('smart-module-search')?.focus(); return; } if (event.key === 'Escape' && !$('smart-preview-box').hidden) { $('smart-preview-box').hidden=true; return; } if (!(event.ctrlKey || event.metaKey)) return; const key = event.key.toLowerCase(); if (key === 's') { event.preventDefault(); $('save-all')?.click(); } if (key === 'z' && !event.shiftKey) { event.preventDefault(); undo(); } if (key === 'y' || (key === 'z' && event.shiftKey)) { event.preventDefault(); redo(); } });
-  pushHistory(); renderPreview();
+  pushHistory(); renderPreview(); lastCommitted = snapshotEditor(); dirty = false; snapshot();
   try { const saved=JSON.parse(localStorage.getItem('panel-pro-module-draft')||'null'); if(saved?.saved_at){ const date=new Date(saved.saved_at); const s=$('status'); if(s){s.textContent=`Există un draft local din ${date.toLocaleString('ro-RO')}. Îl poți restaura din bara de instrumente.`;s.className='status';} } } catch (_) {}
 })();
