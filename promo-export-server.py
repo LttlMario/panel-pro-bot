@@ -1,10 +1,11 @@
 """Local-only WebM to MP4 converter for the advertisement preview."""
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
-import tempfile, subprocess, json
+import tempfile, subprocess, json, os, shutil
 import imageio_ffmpeg
 
 ROOT = Path(__file__).resolve().parent
+USE_NVENC = os.environ.get('PANEL_PRO_USE_NVENC', 'auto').lower() != '0' and shutil.which('nvidia-smi') is not None
 class Handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(204)
@@ -28,10 +29,15 @@ class Handler(BaseHTTPRequestHandler):
             source = Path(directory)/'recording.webm'
             target = Path(directory)/'advert.mp4'
             source.write_bytes(self.rfile.read(size))
+            video_codec = ['-c:v', 'h264_nvenc', '-preset', 'p5', '-rc:v', 'vbr', '-cq:v', '20', '-b:v', '0'] if USE_NVENC else ['-c:v', 'libx264', '-preset', 'fast', '-crf', '20']
             result = subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), '-y', '-i', str(source),
-                '-c:v', 'libx264', '-preset', 'fast', '-crf', '20', '-pix_fmt', 'yuv420p',
-                '-r', '30', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', str(target)],
+                *video_codec, '-pix_fmt', 'yuv420p', '-r', '30', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', str(target)],
                 capture_output=True, timeout=180)
+            if result.returncode and USE_NVENC:
+                result = subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), '-y', '-i', str(source),
+                    '-c:v', 'libx264', '-preset', 'fast', '-crf', '20', '-pix_fmt', 'yuv420p',
+                    '-r', '30', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', str(target)],
+                    capture_output=True, timeout=180)
             if result.returncode:
                 self.send_error(500, 'Conversion failed'); return
             data = target.read_bytes()
