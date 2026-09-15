@@ -88,7 +88,10 @@ const PANEL_PRO_API = window.PANEL_PRO_VOICEOVER_API ?? 'http://127.0.0.1:8770';
   }
 
   async function importFiles(files) {
-    if (files.length) checkpoint();
+    const existing = new Set(state.media.map(item => `${item.name}|${item.file?.size || 0}|${item.file?.lastModified || 0}`));
+    files = files.filter(file => { const key = `${file.name}|${file.size}|${file.lastModified}`; if (existing.has(key)) return false; existing.add(key); return true; });
+    if (!files.length) return setStatus('Fișierele selectate există deja în bibliotecă');
+    checkpoint();
     for (const file of files) {
       try {
         const item = { id: uid(), file, url: URL.createObjectURL(file), name: file.name,
