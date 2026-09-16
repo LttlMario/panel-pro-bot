@@ -61,12 +61,6 @@ async function prefixMessage(message) {
     content: `${prefix}${body.slice(0, Math.max(1, 2000 - prefix.length))}`,
     allowedMentions: { parse: [] }
   });
-
-  if (String(process.env.DISCORD_PREFIX_KEEP_ORIGINAL || '').trim() !== '1') {
-    await message.delete().catch((error) => {
-      console.error('[prefix] Copia a fost trimisă, dar mesajul original nu a putut fi șters:', error.message);
-    });
-  }
 }
 
 const client = new Client({

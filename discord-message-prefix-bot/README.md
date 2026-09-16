@@ -1,6 +1,6 @@
 # Panel Pro direct message bot
 
-Acest proces Gateway ascultă mesajele normale din Discord și le republică în formatul `Nume: mesaj` numai în canalele bifate în administrarea organizației din `panel-pro.ro`, apoi șterge mesajul original. `DISCORD_PREFIX_KEEP_ORIGINAL=1` poate fi folosit temporar pentru a păstra originalul.
+Acest proces Gateway ascultă mesajele normale din Discord și trimite o copie cu formatul `Nume: mesaj` numai în canalele bifate în administrarea organizației din `panel-pro.ro`. Mesajul original nu este șters.
 
 Pornire:
 
@@ -12,4 +12,4 @@ $env:SUPABASE_SERVICE_ROLE_KEY="CHEIA_SERVICE_ROLE"
 npm start
 ```
 
-Botul trebuie să aibă permisiunile `View Channel`, `Read Message History`, `Send Messages` și `Manage Messages`, iar în Discord Developer Portal trebuie activat `Message Content Intent`.
+Botul trebuie să aibă permisiunile `View Channel`, `Read Message History` și `Send Messages`, iar în Discord Developer Portal trebuie activat `Message Content Intent`.
