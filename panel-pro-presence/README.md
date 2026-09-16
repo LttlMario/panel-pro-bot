@@ -15,3 +15,15 @@ Aplicația reafișează activitatea la fiecare 2,5 secunde și include linkurile
 4. Rulează `npm install`, apoi `npm start`.
 
 Aplicația nu citește tokenuri, parole sau date din servere.
+
+## Prefixare automată a mesajelor Discord
+
+`discord-proof-forwarder.js` poate monitoriza canalele selectate în administrarea organizației și poate trimite o copie a mesajului în formatul `Nume: mesaj`. Mesajul original rămâne în canal.
+
+Pentru sincronizarea automată cu Panel Pro, configurează pe serverul unde rulează botul:
+
+- `DISCORD_BOT_TOKEN` — tokenul botului;
+- `SUPABASE_URL` — URL-ul proiectului Supabase;
+- `SUPABASE_SERVICE_ROLE_KEY` — cheia secretă a serverului, niciodată în GitHub sau în frontend.
+
+Dacă Supabase nu este configurat, poți folosi temporar `DISCORD_PREFIX_CHANNEL_IDS` cu ID-uri de canale separate prin virgulă. `DISCORD_PREFIX_DELETE_ORIGINAL=1` șterge mesajul original după republicare; implicit este dezactivat.
