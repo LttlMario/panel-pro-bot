@@ -240,7 +240,8 @@ Deno.serve(async (request) => {
           },
         ];
 
-        const delivery = await deliverDiscordRoute(db, settings, 'weekly_reports', JSON.stringify({ allowed_mentions: { parse: [] }, embeds }));
+        const reportRoute = routeCandidates(settings, 'log_weekly_reports').some((item) => item.candidates.length) ? 'log_weekly_reports' : 'weekly_reports';
+        const delivery = await deliverDiscordRoute(db, settings, reportRoute, JSON.stringify({ allowed_mentions: { parse: [] }, embeds }));
         const failures: string[] = delivery.failures || [];
         if (!delivery.results.length) throw new Error(failures.join(' | ') || 'Discord nu a acceptat raportul.');
         await finishRun(db, runId, 'sent', failures.length ? `Unele canale Discord au eșuat: ${failures.join(' | ')}` : null);

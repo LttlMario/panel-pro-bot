@@ -62,14 +62,14 @@ const commandOptions = (interaction: any) => Array.isArray(commandSubcommand(int
 const commandOption = (interaction: any, name: string) => commandOptions(interaction).find((option: any) => option?.name === name)?.value;
 const PANEL_ROUTE_LABELS: Record<string, string> = {
   organization: 'Anunțuri organizație', departments: 'Anunțuri angajați', pontaj: 'Pontaj', log_pontaj: 'Log pontaj',
-  requests_organization: 'Învoiri organizație', requests_departments: 'Învoiri angajați', log_requests_organization: 'Log învoiri organizație', log_requests_departments: 'Log învoiri angajați',
+  requests_organization: 'Învoiri organizație', requests_departments: 'Învoiri angajați', log_requests_organization: 'Log învoiri organizație', log_requests_departments: 'Log învoiri angajați', log_weekly_reports: 'Log raport săptămânal pontaj',
   contracts: 'Contracte', log_contracts: 'Log contracte', marketplace: 'Marketplace', log_marketplace: 'Log Marketplace', illegal_marketplace: 'Marketplace ilegal', log_illegal_marketplace: 'Log Marketplace ilegal', actions_organization: 'Acțiuni organizație', log_actions_organization: 'Log acțiuni organizație', actions_organization_weekly: 'Log acțiuni', weekly_reports: 'Raport săptămânal pontaj', status_live: 'Status live',
   stash: 'Stash', log_stash: 'Log Stash', stash_requests: 'Cereri Stash', log_stash_requests: 'Log cereri Stash', stash_donations: 'Donații Stash', log_stash_donations: 'Log donații Stash', event_reminders: 'Evenimente și remindere', contract_identity_weekly: 'Raport săptămânal contracte', log_contract_identity_weekly: 'Log raport săptămânal contracte',
 };
 const panelRouteKeys = Object.keys(PANEL_ROUTE_LABELS);
 const PANEL_LOG_ROUTES: Record<string, string> = {
   organization: 'log_announcements_organization', departments: 'log_announcements_departments', pontaj: 'log_pontaj',
-  requests_organization: 'log_requests_organization', requests_departments: 'log_requests_departments', contracts: 'log_contracts', marketplace: 'log_marketplace', illegal_marketplace: 'log_illegal_marketplace',
+  requests_organization: 'log_requests_organization', requests_departments: 'log_requests_departments', contracts: 'log_contracts', marketplace: 'log_marketplace', illegal_marketplace: 'log_illegal_marketplace', weekly_reports: 'log_weekly_reports',
   actions_organization: 'log_actions_organization', stash: 'log_stash', stash_requests: 'log_stash_requests', stash_donations: 'log_stash_donations', event_reminders: 'log_event_reminders', contract_identity_weekly: 'log_contract_identity_weekly',
 };
 const isDiscordManager = (interaction: any) => {
