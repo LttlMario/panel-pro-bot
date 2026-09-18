@@ -114,7 +114,7 @@ function shiftEmbedDescription(shifts: any[], label: string, maxLength = 3500) {
   return `${header}\n\n\`\`\`text\n${content || 'Nicio tură în această categorie.'}\n\`\`\``;
 }
 
-async function claimRun(db: any, organizationId: string, periodStart: string, periodEnd: string) {
+async function claimRun(db: any, organizationId: string, periodStart: string, periodEnd: string, force = false) {
   const now = new Date().toISOString();
   const base = {
     report_key: 'weekly_shift_report',
@@ -141,7 +141,7 @@ async function claimRun(db: any, organizationId: string, periodStart: string, pe
     return null;
   }
 
-  if (['sent', 'skipped'].includes(existing.status)) return null;
+  if (['sent', 'skipped'].includes(existing.status) && !force) return null;
   const updatedAt = Date.parse(String(existing.updated_at || ''));
   if (Number.isFinite(updatedAt) && Date.now() - updatedAt < 10 * 60 * 1000) return null;
 
@@ -192,7 +192,7 @@ Deno.serve(async (request) => {
 
     const results = [];
     for (const organization of organizations || []) {
-      const runId = await claimRun(db, String(organization.id), period.start, period.end);
+      const runId = await claimRun(db, String(organization.id), period.start, period.end, forced);
       if (!runId) {
         results.push({ organization_id: organization.id, status: 'already_processed' });
         continue;
