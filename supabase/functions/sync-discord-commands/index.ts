@@ -10,7 +10,7 @@ const routeChoices = [
   ['Învoiri organizație', 'requests_organization'], ['Învoiri angajați', 'requests_departments'], ['Log învoiri organizație', 'log_requests_organization'], ['Log învoiri angajați', 'log_requests_departments'],
   ['Contracte', 'contracts'], ['Log contracte', 'log_contracts'], ['Marketplace', 'discovery_marketplace'], ['Log Marketplace', 'log_marketplace'], ['Marketplace ilegal', 'illegal_marketplace'], ['Log Marketplace ilegal', 'log_illegal_marketplace'], ['Acțiuni organizație', 'actions_organization'], ['Log acțiuni organizație', 'log_actions_organization'], ['Evenimente și remindere', 'event_reminders'], ['Raport săptămânal pontaj', 'weekly_reports'], ['Raport săptămânal contracte', 'contract_identity_weekly'], ['Status live', 'status_live'],
   ['Stash', 'stash'], ['Log Stash', 'log_stash'], ['Cereri Stash', 'stash_requests'], ['Log cereri Stash', 'log_stash_requests'], ['Donații Stash', 'stash_donations'], ['Log donații Stash', 'log_stash_donations'],
-].map(([name, value]) => ({ name, value }));
+].map(([name, value]) => ({ name, value })).slice(0, 25);
 const commands = [{
   name: 'panel', description: 'Manage Panel Pro server tools', options: [
     { type: 1, name: 'status', description: 'Verifică toate canalele configurate' },
