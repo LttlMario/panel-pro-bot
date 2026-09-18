@@ -143,7 +143,7 @@ async function claimRun(db: any, organizationId: string, periodStart: string, pe
 
   if (['sent', 'skipped'].includes(existing.status) && !force) return null;
   const updatedAt = Date.parse(String(existing.updated_at || ''));
-  if (Number.isFinite(updatedAt) && Date.now() - updatedAt < 10 * 60 * 1000) return null;
+  if (!force && Number.isFinite(updatedAt) && Date.now() - updatedAt < 10 * 60 * 1000) return null;
 
   const { data: reclaimed, error: reclaimError } = await db
     .from('discovery_scheduled_report_runs')
