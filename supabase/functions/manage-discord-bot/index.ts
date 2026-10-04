@@ -1001,7 +1001,7 @@ Deno.serve(async (request) => {
       const canUse = visible && planAllowed && (administrator || hasRole(rule.use_role_ids));
       if (!visible) return reply(request, { error: 'Nu ai acces la această pagină pentru rolurile Discord actuale.' }, 403);
       if (!planAllowed) return reply(request, { error: 'Acest modul necesită Premium pentru serverul selectat.' }, 402);
-      const response: any = { key: moduleKey, label: definition.label, title: definition.title, description: definition.description, plan: selectedGuild.plan, can_use: canUse, can_manage: administrator || hasRole(rule.manage_role_ids), embed_channel_id: routes[moduleKey]?.primary?.channel_id || '', log_channel_id: definition.log_key ? routes[definition.log_key]?.primary?.channel_id || '' : '', data: {} };
+      const response: any = { key: moduleKey, label: definition.label, title: definition.title, description: definition.description, plan: selectedGuild.plan, can_use: canUse, can_manage: administrator || hasRole(rule.manage_role_ids), can_configure: administrator, embed_channel_id: routes[moduleKey]?.primary?.channel_id || '', log_channel_id: definition.log_key ? routes[definition.log_key]?.primary?.channel_id || '' : '', data: {} };
       if (moduleKey === 'pontaj' || moduleKey === 'weekly_reports' || moduleKey === 'status_live') {
         const [{ data: shifts }, { data: members }] = await Promise.all([
           db.from('discovery_shifts').select('id,discord_id,colleague_name,date,shift_type,status,start_time,end_time,duration,duration_ms,started_at,ended_at,paused_seconds').eq('organization_id', selectedGuild.organization_id).order('created_at', { ascending: false }).limit(200),
@@ -1155,11 +1155,53 @@ Deno.serve(async (request) => {
       return reply(request, { ok: true, result, routes: nextRoutes, failures: delivery.failures || [] });
     }
     if (action === 'channels') return reply(request, { ok: true, channels: await channels(db, guildId), routes: settings?.discord_channel_routes || {} });
+    if (action === 'module_settings' || action === 'save_module_settings') {
+      if (!selectedGuild.can_manage_access) return reply(request, { error: 'Doar ownerul, administratorul serverului sau administratorul global poate modifica setările modulelor.' }, 403);
+      const customSetting = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
+      if (customSetting.error) throw customSetting.error;
+      const definitions = { ...mergeModuleDefinitions(MODULES, await readGlobalModules(db)), ...sanitizeCustomModules(customSetting.data?.custom_modules || {}) } as Record<string, any>;
+      const moduleKey = clean(body.module_key, 60);
+      const definition = definitions[moduleKey];
+      if (!definition || definition.active === false || moduleKey === 'status_live') return reply(request, { error: 'Modulul selectat nu există sau nu poate fi configurat.' }, 404);
+      const routeMap = { ...(settings?.discord_channel_routes || {}) } as Record<string, any>;
+      const accessSetting = await db.from('discovery_app_settings').select('value').eq('organization_id', selectedGuild.organization_id).eq('key', 'discord_activity_module_access').maybeSingle();
+      if (accessSetting.error) throw accessSetting.error;
+      const currentAccess = accessSetting.data?.value?.modules && typeof accessSetting.data.value.modules === 'object' ? accessSetting.data.value.modules : {};
+      const currentRule = currentAccess[moduleKey] || { view_role_ids: [], use_role_ids: [], manage_role_ids: [] };
+      if (action === 'module_settings') {
+        const [channelList, availableRoles] = await Promise.all([channels(db, guildId), guildRoles(db, guildId)]);
+        return reply(request, { ok: true, guild_id: guildId, module: { key: moduleKey, label: definition.label, title: definition.title, premium: definition.premium === true, embed_channel_id: routeMap[moduleKey]?.primary?.channel_id || '', log_channel_id: definition.log_key ? routeMap[definition.log_key]?.primary?.channel_id || '' : '', log_key: definition.log_key || '', access: currentRule }, channels: channelList, roles: availableRoles });
+      }
+      const channelList = await channels(db, guildId);
+      const availableChannels = new Set(channelList.map((channel: any) => String(channel.id)));
+      const embedChannelId = clean(body.embed_channel_id, 30);
+      const logChannelId = clean(body.log_channel_id, 30);
+      if (embedChannelId && (!validDiscordChannelId(embedChannelId) || !availableChannels.has(embedChannelId))) return reply(request, { error: 'Canalul principal selectat nu există pe server.' }, 400);
+      if (logChannelId && (!validDiscordChannelId(logChannelId) || !availableChannels.has(logChannelId))) return reply(request, { error: 'Canalul de log selectat nu există pe server.' }, 400);
+      if (embedChannelId) routeMap[moduleKey] = { ...(routeMap[moduleKey] || {}), primary: { ...(routeMap[moduleKey]?.primary || {}), channel_id: embedChannelId, guild_id: guildId, enabled: true } };
+      else delete routeMap[moduleKey];
+      const logKey = definition.log_key || LOG_ROUTES[moduleKey];
+      if (logKey) {
+        if (logChannelId) routeMap[logKey] = { ...(routeMap[logKey] || {}), primary: { ...(routeMap[logKey]?.primary || {}), channel_id: logChannelId, guild_id: guildId, enabled: true } };
+        else delete routeMap[logKey];
+      }
+      const availableRoleIds = new Set((await guildRoles(db, guildId)).map((role: any) => String(role.id)));
+      const roleIds = (value: any) => [...new Set(Array.isArray(value) ? value.map(String).filter((roleId: string) => availableRoleIds.has(roleId)).slice(0, 25) : [])];
+      const nextRule = { view_role_ids: roleIds(body.view_role_ids), use_role_ids: roleIds(body.use_role_ids), manage_role_ids: roleIds(body.manage_role_ids) };
+      const nextAccess = { ...currentAccess, [moduleKey]: nextRule };
+      const [routeSave, accessSave] = await Promise.all([
+        db.from('discovery_settings').update({ discord_channel_routes: routeMap, updated_at: new Date().toISOString(), updated_by_discord_id: String(discord.id) }).eq('organization_id', selectedGuild.organization_id),
+        db.from('discovery_app_settings').upsert({ organization_id: selectedGuild.organization_id, key: 'discord_activity_module_access', value: { guild_id: guildId, modules: nextAccess }, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,key' }),
+      ]);
+      if (routeSave.error) throw routeSave.error;
+      if (accessSave.error) throw accessSave.error;
+      return reply(request, { ok: true, module: { key: moduleKey, embed_channel_id: embedChannelId, log_channel_id: logChannelId, access: nextRule }, routes: routeMap });
+    }
     if (action === 'module_access' || action === 'save_module_access') {
       if (!selectedGuild.can_manage_access) return reply(request, { error: 'Acces permis doar administratorului serverului sau administratorului global.' }, 403);
       const definitions = { ...mergeModuleDefinitions(MODULES, await readGlobalModules(db)), ...sanitizeCustomModules((await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle()).data?.custom_modules || {}) } as Record<string, any>;
       const routeMap = settings?.discord_channel_routes || {};
-      const configuredKeys = new Set<string>(Object.keys(definitions).filter((key) => Boolean(routeMap[key]?.primary?.channel_id || definitions[key]?.log_key && routeMap[definitions[key].log_key]?.primary?.channel_id)));
+      const configuredKeys = new Set<string>(Object.keys(definitions).filter((key) => definitions[key]?.active !== false && key !== 'status_live'));
       const availableRoles = await guildRoles(db, guildId);
       const roleIds = new Set(availableRoles.map((role: any) => String(role.id)));
       if (action === 'save_module_access') {
