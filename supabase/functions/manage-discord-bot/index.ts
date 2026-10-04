@@ -744,6 +744,29 @@ Deno.serve(async (request) => {
     if (!key) throw new Error('Cheia Supabase lipsește.');
     const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
     const body = await request.json().catch(() => ({}));
+    const action = clean(body.action, 40) || 'bootstrap';
+    // Snapshot-ul public este singura rută fără autentificare Discord. Tokenul
+    // este generat de administrator și oferă doar statistici agregate, fără
+    // nume, mesaje sau date personale.
+    if (action === 'public_dashboard_snapshot') {
+      const guildId = clean(body.guild_id, 30);
+      const publicToken = clean(body.public_token, 160);
+      if (!id(guildId) || !publicToken) return reply(request, { error: 'Dashboard public invalid.' }, 400);
+      const { data: linked, error: linkedError } = await db.from('discovery_guilds').select('organization_id,guild_name,enabled').eq('guild_id', guildId).eq('enabled', true).maybeSingle();
+      if (linkedError) throw linkedError;
+      if (!linked?.organization_id) return reply(request, { error: 'Serverul nu are dashboard public activ.' }, 404);
+      const { data: setting, error: settingError } = await db.from('discovery_app_settings').select('value').eq('organization_id', linked.organization_id).eq('key', 'public_dashboard').maybeSingle();
+      if (settingError) throw settingError;
+      if (String(setting?.value?.token || '') !== publicToken || setting?.value?.enabled !== true) return reply(request, { error: 'Dashboard public dezactivat sau token invalid.' }, 403);
+      const [{ count: shiftsCount }, { count: activeShifts }, { count: absencesCount }, { count: membersCount }, { count: submissionsCount }] = await Promise.all([
+        db.from('discovery_shifts').select('id', { count: 'exact', head: true }).eq('organization_id', linked.organization_id),
+        db.from('discovery_shifts').select('id', { count: 'exact', head: true }).eq('organization_id', linked.organization_id).in('status', ['active', 'paused']),
+        db.from('discovery_absences').select('id', { count: 'exact', head: true }).eq('organization_id', linked.organization_id),
+        db.from('discovery_members').select('discord_id', { count: 'exact', head: true }).eq('organization_id', linked.organization_id).eq('active', true),
+        db.from('discovery_custom_module_submissions').select('id', { count: 'exact', head: true }).eq('organization_id', linked.organization_id).eq('guild_id', guildId),
+      ]);
+      return reply(request, { ok: true, guild_id: guildId, guild_name: clean(linked.guild_name || guildId, 120), generated_at: new Date().toISOString(), statistics: { shifts: shiftsCount || 0, active_shifts: activeShifts || 0, absences: absencesCount || 0, active_members: membersCount || 0, operational_records: submissionsCount || 0 } });
+    }
     const accessToken = clean(body.access_token, 500);
     if (!accessToken) return reply(request, { error: 'Conectarea Discord este necesară.' }, 401);
     const discord = await discordUser(accessToken);
@@ -758,7 +781,6 @@ Deno.serve(async (request) => {
       }
     }
     const applicationId = id(body.application_id) ? String(body.application_id) : '1531023771211792384';
-    const action = clean(body.action, 30) || 'bootstrap';
     const personalView = clean(body.view_scope, 30) === 'personal';
     const diagnostics: Record<string, any> = {};
     if (action === 'provision_official_server' || action === 'sync_official_roles' || action === 'announce_existing_community' || action === 'update_official_statistics' || action === 'sync_official_free_games') { if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate configura serverul oficial.' }, 403); const target=clean(body.guild_id,30); if (target !== '1544703486384537603') return reply(request,{error:'Serverul oficial nu este valid.'},400); const result=action === 'provision_official_server' ? await provisionOfficialServer(db,target) : action === 'sync_official_roles' ? await syncOfficialRoles(db,target) : action === 'announce_existing_community' ? await announceExistingCommunity(db,target) : action === 'update_official_statistics' ? await updateOfficialStatistics(db,target) : await syncOfficialFreeGames(db,target); return reply(request,{ok:true,guild_id:target,result}); }
@@ -1006,6 +1028,23 @@ Deno.serve(async (request) => {
         return { key, label: definition.label, title: definition.title, description: definition.description, premium: definition.premium === true, active: definition.active !== false && routes[key]?.primary?.enabled !== false, plan_allowed: planAllowed, visible, can_use: canUse, can_manage: administrator || hasRole(rule.manage_role_ids), embed_channel_id: routes[key]?.primary?.channel_id || '', log_channel_id: definition.log_key ? routes[definition.log_key]?.primary?.channel_id || '' : '', buttons: definition.buttons || [] };
       }).filter((module: any) => module.visible && module.plan_allowed);
       return reply(request, { ok: true, guild_id: guildId, guild_name: selectedGuild.name, plan: selectedGuild.plan, modules });
+    }
+    if (action === 'enable_public_dashboard' || action === 'disable_public_dashboard') {
+      if (!selectedGuild.can_manage_access) return reply(request, { error: 'Doar administratorul serverului sau administratorul global poate configura dashboardul public.' }, 403);
+      const settingKey = 'public_dashboard';
+      const current = await db.from('discovery_app_settings').select('value').eq('organization_id', selectedGuild.organization_id).eq('key', settingKey).maybeSingle();
+      if (current.error) throw current.error;
+      if (action === 'disable_public_dashboard') {
+        const value = { ...(current.data?.value || {}), enabled: false, disabled_at: new Date().toISOString() };
+        const { error } = await db.from('discovery_app_settings').upsert({ organization_id: selectedGuild.organization_id, key: settingKey, value, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,key' });
+        if (error) throw error;
+        return reply(request, { ok: true, enabled: false });
+      }
+      const token = String(current.data?.value?.token || '') || `${crypto.randomUUID().replace(/-/g, '')}${crypto.randomUUID().replace(/-/g, '')}`;
+      const value = { token, enabled: true, enabled_at: current.data?.value?.enabled_at || new Date().toISOString() };
+      const { error } = await db.from('discovery_app_settings').upsert({ organization_id: selectedGuild.organization_id, key: settingKey, value, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,key' });
+      if (error) throw error;
+      return reply(request, { ok: true, enabled: true, url: `https://bot.panel-pro.ro/dashboard-public.html?guild_id=${encodeURIComponent(guildId)}&token=${encodeURIComponent(token)}` });
     }
     if (action === 'module_dashboard') {
       const moduleKey = clean(body.module_key, 60);
