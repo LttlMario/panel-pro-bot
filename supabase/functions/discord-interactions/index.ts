@@ -2787,10 +2787,24 @@ Deno.serve(async (request) => {
     const user = interaction.member?.user || interaction.user || {};
     const displayName = String(interaction.member?.nick || user.global_name || user.username || user.id || 'Utilizator Discord').slice(0, 120);
     const storageKey = `custom_${moduleKey}`.slice(0, 40);
-    const { error } = await db.from('discovery_custom_module_submissions').insert({ organization_id: context.organizationId, guild_id: String(interaction.guild_id || ''), module_key: storageKey, submitted_by_discord_id: String(user.id || ''), submitted_by_name: displayName, handler: moduleKey, subject: title, details, status: 'pending' });
+    const { data: saved, error } = await db.from('discovery_custom_module_submissions').insert({ organization_id: context.organizationId, guild_id: String(interaction.guild_id || ''), module_key: storageKey, submitted_by_discord_id: String(user.id || ''), submitted_by_name: displayName, handler: moduleKey, subject: title, details, status: 'pending' }).select('id').single();
     if (error) throw error;
+    const { data: settings } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', context.organizationId).maybeSingle();
+    if (saved?.id && settings?.discord_channel_routes?.[moduleKey]?.primary?.channel_id) {
+      const embed = { allowed_mentions: { parse: [] }, embeds: [{ title: `🧩 ${operationalModuleLabels[moduleKey]} nou`, description: details || 'A fost trimisă o înregistrare nouă.', color: 0x5865f2, fields: [{ name: 'Titlu', value: title, inline: false }, { name: 'Trimis de', value: `${displayName} (<@${user.id}>)`, inline: true }, { name: 'Status', value: 'În așteptare', inline: true }], footer: { text: `Panel Pro · ${moduleKey}` }, timestamp: new Date().toISOString() }], components: [{ type: 1, components: [{ type: 2, style: 3, label: 'Aprobă', custom_id: `panel:operations:decision:${moduleKey}:${saved.id}:approved` }, { type: 2, style: 4, label: 'Respinge', custom_id: `panel:operations:decision:${moduleKey}:${saved.id}:rejected` }] }] };
+      await deliverDiscordRoute(db, settings, moduleKey, JSON.stringify(embed), { postOnly: true });
+    }
     return interactionMessage(`Înregistrarea **${title}** a fost trimisă și salvată în modulul **${operationalModuleLabels[moduleKey]}**.`);
   }, 'Înregistrarea modulului nu a putut fi salvată.');
+  if (isOperations && customId.startsWith('panel:operations:decision:')) return runBackgroundAcknowledgedCommand(interaction, async () => {
+    if (!isDiscordManager(interaction)) return interactionMessage('Doar ownerul sau administratorul serverului poate aproba această înregistrare.');
+    const parts = customId.split(':'); const moduleKey = String(parts[3] || '').trim(); const itemId = String(parts[4] || '').trim(); const decision = String(parts[5] || '').trim();
+    if (!operationalModuleLabels[moduleKey] || !/^[0-9a-f-]{20,40}$/i.test(itemId) || !['approved', 'rejected'].includes(decision)) return interactionMessage('Acțiunea de aprobare nu este validă.');
+    const db = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey()); const context = await ensureDiscordOnlyOrganization(db, interaction);
+    const { error } = await db.from('discovery_custom_module_submissions').update({ status: decision, reviewed_by_discord_id: String(interaction.member?.user?.id || interaction.user?.id || ''), updated_at: new Date().toISOString() }).eq('id', itemId).eq('organization_id', context.organizationId).eq('guild_id', String(interaction.guild_id || '')).eq('module_key', `custom_${moduleKey}`.slice(0, 40));
+    if (error) throw error;
+    return interactionMessage(`Înregistrarea a fost marcată ca **${decision === 'approved' ? 'aprobată' : 'respinsă'}**.`);
+  }, 'Statusul înregistrării nu a putut fi schimbat.');
   if (isBilling && isModalSubmit && customId === 'panel:billing:proof_submit') return runBackgroundAcknowledgedCommand(interaction, async () => {
     if (String(interaction.guild_id || '') !== PAYMENT_PROOF_GUILD_ID) return interactionMessage('Formularul poate fi folosit doar în serverul oficial Panel Pro.');
     const values = modalValues(interaction);
