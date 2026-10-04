@@ -1045,6 +1045,31 @@ Deno.serve(async (request) => {
       }
       return reply(request, { ok: true, guild_id: guildId, guild_name: selectedGuild.name, organization_id: selectedGuild.organization_id, module: response });
     }
+    if (action === 'module_export') {
+      if (!selectedGuild.can_manage_access) return reply(request, { error: 'Exporturile sunt disponibile doar pentru administratorul serverului sau administratorul global.' }, 403);
+      const moduleKey = clean(body.module_key, 60);
+      const rows: any[] = [];
+      if (moduleKey === 'pontaj' || moduleKey === 'weekly_reports' || moduleKey === 'presence_activity' || moduleKey === 'performance' || moduleKey === 'statistics_comparison') {
+        const { data, error } = await db.from('discovery_shifts').select('colleague_name,discord_id,date,shift_type,status,duration,started_at,ended_at').eq('organization_id', selectedGuild.organization_id).order('created_at', { ascending: false }).limit(2000); if (error) throw error; rows.push(...(data || []));
+      } else if (moduleKey === 'requests_departments' || moduleKey === 'requests_organization') {
+        const { data, error } = await db.from('discovery_absences').select('colleague_name,discord_id,notice_type,reason,start_date,end_date,status,created_at').eq('organization_id', selectedGuild.organization_id).eq('request_audience', moduleKey === 'requests_organization' ? 'organization' : 'departments').order('created_at', { ascending: false }).limit(2000); if (error) throw error; rows.push(...(data || []));
+      } else {
+        const storageKey = `custom_${moduleKey}`.slice(0, 40); const { data, error } = await db.from('discovery_custom_module_submissions').select('subject,details,status,submitted_by_name,created_at,updated_at').eq('organization_id', selectedGuild.organization_id).eq('guild_id', guildId).eq('module_key', storageKey).order('updated_at', { ascending: false }).limit(2000); if (error) throw error; rows.push(...(data || []));
+      }
+      const columns = [...new Set(rows.flatMap((row: any) => Object.keys(row)))]; const csvCell = (value: any) => `"${String(value ?? '').replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`; const csv = [columns.join(','), ...rows.map((row: any) => columns.map((column) => csvCell(row[column])).join(','))].join('\n');
+      return reply(request, { ok: true, module_key: moduleKey, filename: `panel-pro-${moduleKey}-${new Date().toISOString().slice(0, 10)}.csv`, csv, count: rows.length });
+    }
+    if (action === 'module_backup' || action === 'restore_module_backup') {
+      if (!selectedGuild.can_manage_access) return reply(request, { error: 'Backupurile sunt disponibile doar pentru administratorul serverului sau administratorul global.' }, 403);
+      const accessSetting = await db.from('discovery_app_settings').select('value').eq('organization_id', selectedGuild.organization_id).eq('key', 'discord_activity_module_access').maybeSingle(); if (accessSetting.error) throw accessSetting.error;
+      if (action === 'module_backup') return reply(request, { ok: true, backup: { version: 1, created_at: new Date().toISOString(), guild_id: guildId, routes: settings?.discord_channel_routes || {}, access: accessSetting.data?.value || { guild_id: guildId, modules: {} } } });
+      const backup = body.backup && typeof body.backup === 'object' ? body.backup : {}; const availableChannels = new Set((await channels(db, guildId)).map((channel: any) => String(channel.id))); const routesInput = backup.routes && typeof backup.routes === 'object' ? backup.routes : {}; const safeRoutes: Record<string, any> = {};
+      for (const [key, route] of Object.entries(routesInput)) { const channelId = clean((route as any)?.primary?.channel_id, 30); if (channelId && validDiscordChannelId(channelId) && availableChannels.has(channelId)) safeRoutes[key] = { ...(route as any), primary: { ...((route as any)?.primary || {}), channel_id: channelId, guild_id: guildId } }; }
+      const accessInput = backup.access?.modules && typeof backup.access.modules === 'object' ? backup.access.modules : {}; const availableRoleIds = new Set((await guildRoles(db, guildId)).map((role: any) => String(role.id))); const safeModules: Record<string, any> = {};
+      for (const [key, item] of Object.entries(accessInput)) { const ids = (value: any) => [...new Set(Array.isArray(value) ? value.map(String).filter((roleId: string) => availableRoleIds.has(roleId)).slice(0, 25) : [])]; safeModules[key] = { view_role_ids: ids((item as any)?.view_role_ids), use_role_ids: ids((item as any)?.use_role_ids), manage_role_ids: ids((item as any)?.manage_role_ids) }; }
+      const [routeSave, accessSave] = await Promise.all([db.from('discovery_settings').update({ discord_channel_routes: safeRoutes, updated_at: new Date().toISOString(), updated_by_discord_id: String(discord.id) }).eq('organization_id', selectedGuild.organization_id), db.from('discovery_app_settings').upsert({ organization_id: selectedGuild.organization_id, key: 'discord_activity_module_access', value: { guild_id: guildId, modules: safeModules }, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,key' })]); if (routeSave.error) throw routeSave.error; if (accessSave.error) throw accessSave.error;
+      return reply(request, { ok: true, routes: safeRoutes, access: { guild_id: guildId, modules: safeModules } });
+    }
     if (action === 'module_items' || action === 'save_module_item' || action === 'delete_module_item') {
       if (!selectedGuild.can_manage_access) return reply(request, { error: 'Doar ownerul, administratorul serverului sau administratorul global poate gestiona înregistrările acestui modul.' }, 403);
       const moduleKey = clean(body.module_key, 60);
