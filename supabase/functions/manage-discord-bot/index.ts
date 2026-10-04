@@ -1023,7 +1023,8 @@ Deno.serve(async (request) => {
       const canUse = visible && planAllowed && (administrator || hasRole(rule.use_role_ids));
       if (!visible) return reply(request, { error: 'Nu ai acces la această pagină pentru rolurile Discord actuale.' }, 403);
       if (!planAllowed) return reply(request, { error: 'Acest modul necesită Premium pentru serverul selectat.' }, 402);
-      const response: any = { key: moduleKey, label: definition.label, title: definition.title, description: definition.description, plan: selectedGuild.plan, can_use: canUse, can_manage: administrator || hasRole(rule.manage_role_ids), can_configure: administrator, embed_channel_id: routes[moduleKey]?.primary?.channel_id || '', log_channel_id: definition.log_key ? routes[definition.log_key]?.primary?.channel_id || '' : '', data: {} };
+      const canConfigure = administrator || (Array.isArray(rule.manage_role_ids) && rule.manage_role_ids.length > 0 && rule.manage_role_ids.some((roleId: any) => userRoleIds.has(String(roleId))));
+      const response: any = { key: moduleKey, label: definition.label, title: definition.title, description: definition.description, plan: selectedGuild.plan, can_use: canUse, can_manage: administrator || hasRole(rule.manage_role_ids), can_configure: canConfigure, embed_channel_id: routes[moduleKey]?.primary?.channel_id || '', log_channel_id: definition.log_key ? routes[definition.log_key]?.primary?.channel_id || '' : '', data: {} };
       if (moduleKey === 'pontaj' || moduleKey === 'weekly_reports' || moduleKey === 'status_live' || moduleKey === 'presence_activity' || moduleKey === 'performance' || moduleKey === 'leader_dashboard' || moduleKey === 'statistics_comparison') {
         const [{ data: shifts }, { data: members }] = await Promise.all([
           db.from('discovery_shifts').select('id,discord_id,colleague_name,date,shift_type,status,start_time,end_time,duration,duration_ms,started_at,ended_at,paused_seconds').eq('organization_id', selectedGuild.organization_id).order('created_at', { ascending: false }).limit(200),
@@ -1079,10 +1080,16 @@ Deno.serve(async (request) => {
       return reply(request, { ok: true, routes: safeRoutes, access: { guild_id: guildId, modules: safeModules } });
     }
     if (action === 'module_items' || action === 'save_module_item' || action === 'delete_module_item') {
-      if (!selectedGuild.can_manage_access) return reply(request, { error: 'Doar ownerul, administratorul serverului sau administratorul global poate gestiona înregistrările acestui modul.' }, 403);
       const moduleKey = clean(body.module_key, 60);
       const operationalKeys = new Set(['tasks', 'internal_requests', 'employee_profiles', 'schedules', 'payroll', 'inventory', 'recruitment', 'support_tickets', 'forms', 'exports', 'backup_restore', 'public_dashboard', 'dm_notifications']);
       if (!operationalKeys.has(moduleKey)) return reply(request, { error: 'Modulul nu folosește înregistrări operaționale.' }, 400);
+      let canManageItems = selectedGuild.can_manage_access;
+      if (!canManageItems) {
+        const [roleIds, configuredAccess] = await Promise.all([memberRoleIds(db, guildId, String(discord.id)), db.from('discovery_app_settings').select('value').eq('organization_id', selectedGuild.organization_id).eq('key', 'discord_activity_module_access').maybeSingle()]);
+        const configuredRoles = configuredAccess.data?.value?.modules?.[moduleKey]?.manage_role_ids;
+        canManageItems = Array.isArray(configuredRoles) && configuredRoles.map(String).some((roleId: string) => roleIds.includes(roleId));
+      }
+      if (!canManageItems) return reply(request, { error: 'Nu ai rolul Discord desemnat pentru administrarea acestui modul.' }, 403);
       const storageKey = `custom_${moduleKey}`.slice(0, 40);
       const baseQuery = db.from('discovery_custom_module_submissions').select('id,subject,details,status,submitted_by_discord_id,submitted_by_name,created_at,updated_at,review_note').eq('organization_id', selectedGuild.organization_id).eq('guild_id', guildId).eq('module_key', storageKey);
       if (action === 'module_items') {
@@ -1249,7 +1256,13 @@ Deno.serve(async (request) => {
     }
     if (action === 'channels') return reply(request, { ok: true, channels: await channels(db, guildId), routes: settings?.discord_channel_routes || {} });
     if (action === 'module_settings' || action === 'save_module_settings') {
-      if (!selectedGuild.can_manage_access) return reply(request, { error: 'Doar ownerul, administratorul serverului sau administratorul global poate modifica setările modulelor.' }, 403);
+      let canConfigureModule = selectedGuild.can_manage_access;
+      if (!canConfigureModule) {
+        const [roleIds, configuredAccess] = await Promise.all([memberRoleIds(db, guildId, String(discord.id)), db.from('discovery_app_settings').select('value').eq('organization_id', selectedGuild.organization_id).eq('key', 'discord_activity_module_access').maybeSingle()]);
+        const configuredRoles = configuredAccess.data?.value?.modules?.[clean(body.module_key, 60)]?.manage_role_ids;
+        canConfigureModule = Array.isArray(configuredRoles) && configuredRoles.map(String).some((roleId: string) => roleIds.includes(roleId));
+      }
+      if (!canConfigureModule) return reply(request, { error: 'Nu ai rolul Discord desemnat pentru modificarea acestui modul.' }, 403);
       const customSetting = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
       if (customSetting.error) throw customSetting.error;
       const definitions = { ...mergeModuleDefinitions(MODULES, await readGlobalModules(db)), ...sanitizeCustomModules(customSetting.data?.custom_modules || {}) } as Record<string, any>;
