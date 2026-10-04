@@ -1083,6 +1083,7 @@ Deno.serve(async (request) => {
       const moduleKey = clean(body.module_key, 60);
       const operationalKeys = new Set(['tasks', 'internal_requests', 'employee_profiles', 'schedules', 'payroll', 'inventory', 'recruitment', 'support_tickets', 'forms', 'exports', 'backup_restore', 'public_dashboard', 'dm_notifications']);
       if (!operationalKeys.has(moduleKey)) return reply(request, { error: 'Modulul nu folosește înregistrări operaționale.' }, 400);
+      if (selectedGuild.plan === 'free') return reply(request, { error: 'Acest modul necesită Premium sau Trial activ.' }, 402);
       let canManageItems = selectedGuild.can_manage_access;
       if (!canManageItems) {
         const [roleIds, configuredAccess] = await Promise.all([memberRoleIds(db, guildId, String(discord.id)), db.from('discovery_app_settings').select('value').eq('organization_id', selectedGuild.organization_id).eq('key', 'discord_activity_module_access').maybeSingle()]);
@@ -1269,6 +1270,7 @@ Deno.serve(async (request) => {
       const moduleKey = clean(body.module_key, 60);
       const definition = definitions[moduleKey];
       if (!definition || definition.active === false || moduleKey === 'status_live') return reply(request, { error: 'Modulul selectat nu există sau nu poate fi configurat.' }, 404);
+      if (definition.premium === true && selectedGuild.plan === 'free') return reply(request, { error: 'Acest modul necesită Premium sau Trial activ.' }, 402);
       const routeMap = { ...(settings?.discord_channel_routes || {}) } as Record<string, any>;
       const accessSetting = await db.from('discovery_app_settings').select('value').eq('organization_id', selectedGuild.organization_id).eq('key', 'discord_activity_module_access').maybeSingle();
       if (accessSetting.error) throw accessSetting.error;
