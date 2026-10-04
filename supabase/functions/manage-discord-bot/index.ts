@@ -1049,7 +1049,15 @@ Deno.serve(async (request) => {
       if (!selectedGuild.can_manage_access) return reply(request, { error: 'Exporturile sunt disponibile doar pentru administratorul serverului sau administratorul global.' }, 403);
       const moduleKey = clean(body.module_key, 60);
       const rows: any[] = [];
-      if (moduleKey === 'pontaj' || moduleKey === 'weekly_reports' || moduleKey === 'presence_activity' || moduleKey === 'performance' || moduleKey === 'statistics_comparison') {
+      if (moduleKey === 'exports') {
+        const [shiftResult, absenceResult, itemResult] = await Promise.all([
+          db.from('discovery_shifts').select('colleague_name,discord_id,date,shift_type,status,duration,started_at,ended_at').eq('organization_id', selectedGuild.organization_id).order('created_at', { ascending: false }).limit(2000),
+          db.from('discovery_absences').select('colleague_name,discord_id,notice_type,reason,start_date,end_date,status,created_at').eq('organization_id', selectedGuild.organization_id).order('created_at', { ascending: false }).limit(2000),
+          db.from('discovery_custom_module_submissions').select('subject,details,status,submitted_by_name,created_at,updated_at').eq('organization_id', selectedGuild.organization_id).eq('guild_id', guildId).order('updated_at', { ascending: false }).limit(2000),
+        ]);
+        if (shiftResult.error) throw shiftResult.error; if (absenceResult.error) throw absenceResult.error; if (itemResult.error) throw itemResult.error;
+        rows.push(...(shiftResult.data || []).map((item: any) => ({ source: 'pontaj', ...item })), ...(absenceResult.data || []).map((item: any) => ({ source: 'învoiri', ...item })), ...(itemResult.data || []).map((item: any) => ({ source: 'module', ...item })));
+      } else if (moduleKey === 'pontaj' || moduleKey === 'weekly_reports' || moduleKey === 'presence_activity' || moduleKey === 'performance' || moduleKey === 'statistics_comparison') {
         const { data, error } = await db.from('discovery_shifts').select('colleague_name,discord_id,date,shift_type,status,duration,started_at,ended_at').eq('organization_id', selectedGuild.organization_id).order('created_at', { ascending: false }).limit(2000); if (error) throw error; rows.push(...(data || []));
       } else if (moduleKey === 'requests_departments' || moduleKey === 'requests_organization') {
         const { data, error } = await db.from('discovery_absences').select('colleague_name,discord_id,notice_type,reason,start_date,end_date,status,created_at').eq('organization_id', selectedGuild.organization_id).eq('request_audience', moduleKey === 'requests_organization' ? 'organization' : 'departments').order('created_at', { ascending: false }).limit(2000); if (error) throw error; rows.push(...(data || []));
