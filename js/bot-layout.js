@@ -88,8 +88,8 @@
                 </a>
 
                 <a
-                    class="${page === 'administrare-boturi-discord.html' ? 'active' : ''}"
-                    href="administrare-boturi-discord.html"
+                    class="${page === 'administrare-servere.html' || page === 'administrare-boturi-discord.html' ? 'active' : ''}"
+                    href="administrare-servere.html"
                 >
                     🛠️ Administrare servere
                 </a>
