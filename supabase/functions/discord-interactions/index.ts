@@ -2137,7 +2137,17 @@ async function updateControlPanel(db: any, context: any, message: any, actionLab
   if (!embed) return;
   const fields = Array.isArray(embed.fields) ? embed.fields.filter((field: any) => String(field.name || '') !== 'Ultima acțiune') : [];
   fields.push({ name: 'Ultima acțiune', value: `${context.displayName} · ${actionLabel}`, inline: false });
-  const payload = { allowed_mentions: { parse: [] }, embeds: [{ ...embed, fields, timestamp: new Date().toISOString() }] };
+  const legacyPontaj = Array.isArray(message?.components) && message.components.some((row: any) => Array.isArray(row?.components) && row.components.some((component: any) => ['panel:pontaj:shift_day', 'panel:pontaj:shift_night'].includes(String(component?.custom_id || ''))));
+  const payload = {
+    allowed_mentions: { parse: [] },
+    embeds: [{ ...embed, fields, timestamp: new Date().toISOString() }],
+    ...(legacyPontaj ? { components: [{ type: 1, components: [
+      { type: 2, style: 3, label: 'Start', custom_id: 'panel:pontaj:start' },
+      { type: 2, style: 2, label: 'Pauză', custom_id: 'panel:pontaj:pause' },
+      { type: 2, style: 4, label: 'Stop', custom_id: 'panel:pontaj:stop' },
+      { type: 2, style: 1, label: 'Pontajul meu', custom_id: 'panel:pontaj:my_stats' },
+    ] }] } : {}),
+  };
   try {
     await requestDiscordTarget(db, { target: context.target, transport: 'bot', channel_id: context.channelId }, JSON.stringify(payload), { method: 'PATCH', messageId });
   } catch (error) {
