@@ -210,7 +210,7 @@ const controlPayload = async (db: any, routeKey: string, trialText = '', include
   const definitions: Record<string, { title: string; description: string; color: number; buttons: any[] }> = {
     organization: { title: '📢 Anunțuri · Organizație', description: 'Publică anunțuri, întrebări, sondaje, avertismente și sancțiuni pentru organizație.', color: 0x8b5cf6, buttons: [{ label: 'Publică anunț', style: 1, id: 'panel:announcements:organization:create:announcement' }, { label: 'Pune întrebare', style: 2, id: 'panel:announcements:organization:create:question' }, { label: 'Creează sondaj', style: 3, id: 'panel:announcements:organization:create:poll' }, { label: 'Avertisment', style: 4, id: 'panel:announcements:organization:create:warning' }, { label: 'Sancțiune', style: 4, id: 'panel:announcements:organization:create:sanction' }, { label: 'Istoric avertismente / sancțiuni', style: 2, id: 'panel:discipline:organization:history' }] },
     departments: { title: '📢 Anunțuri · Angajați', description: 'Publică anunțuri, întrebări, sondaje, avertismente și sancțiuni pentru angajați.', color: 0x8b5cf6, buttons: [{ label: 'Publică anunț', style: 1, id: 'panel:announcements:departments:create:announcement' }, { label: 'Pune întrebare', style: 2, id: 'panel:announcements:departments:create:question' }, { label: 'Creează sondaj', style: 3, id: 'panel:announcements:departments:create:poll' }, { label: 'Avertisment', style: 4, id: 'panel:announcements:departments:create:warning' }, { label: 'Sancțiune', style: 4, id: 'panel:announcements:departments:create:sanction' }, { label: 'Istoric avertismente / sancțiuni', style: 2, id: 'panel:discipline:departments:history' }] },
-    pontaj: { title: '🕒 Pontaj · Panel Pro', description: 'Alege tura și folosește butoanele pentru Start, Pauză și Stop.', color: 0x22c55e, buttons: [{ label: 'Tura de zi', style: 1, id: 'panel:pontaj:shift_day' }, { label: 'Tura de noapte', style: 1, id: 'panel:pontaj:shift_night' }, { label: 'Start', style: 3, id: 'panel:pontaj:start' }, { label: 'Pauză', style: 2, id: 'panel:pontaj:pause' }, { label: 'Stop', style: 4, id: 'panel:pontaj:stop' }, { label: 'Pontajul meu', style: 1, id: 'panel:pontaj:my_stats' }] },
+    pontaj: { title: '🕒 Pontaj · Panel Pro', description: 'Apasă Start pentru a începe automat tura potrivită după ora României. Noapte: 20:00–23:00; zi: în rest.', color: 0x22c55e, buttons: [{ label: 'Start', style: 3, id: 'panel:pontaj:start' }, { label: 'Pauză', style: 2, id: 'panel:pontaj:pause' }, { label: 'Stop', style: 4, id: 'panel:pontaj:stop' }, { label: 'Pontajul meu', style: 1, id: 'panel:pontaj:my_stats' }] },
     requests_organization: { title: '📝 Învoiri · Organizație', description: 'Trimite și consultă învoirile organizației.', color: 0xf59e0b, buttons: [{ label: 'Trimite învoire', style: 1, id: 'panel:requests:organization:new' }, { label: 'Învoirile mele', style: 2, id: 'panel:requests:organization:mine' }] },
     requests_departments: { title: '📝 Învoiri · Angajați', description: 'Trimite și consultă învoirile angajaților.', color: 0xf59e0b, buttons: [{ label: 'Trimite învoire', style: 1, id: 'panel:requests:departments:new' }, { label: 'Învoirile mele', style: 2, id: 'panel:requests:departments:mine' }] },
     contracts: { title: '📄 Contracte · Panel Pro', description: 'Generează și trimite contracte folosind șablonul organizației.', color: 0x14b8a6, buttons: [{ label: 'Creează contract', style: 1, id: 'panel:contracts:create' }, { label: 'Informații necesare', style: 2, id: 'panel:contracts:info' }, { label: 'Setează contractul', style: 2, id: 'panel:contracts:settings' }, { label: 'Setează adresa', style: 2, id: 'panel:contracts:address' }] },
@@ -487,6 +487,12 @@ function shiftAllowed(shiftType: string, now = new Date()) {
   if (shiftType === 'zi') return current > 2300 || current < 1959;
   if (shiftType === 'noapte') return current >= 2000 && current < 2300;
   return false;
+}
+
+function automaticShiftType(now = new Date()) {
+  const parts = romanianParts(now);
+  const minutes = parts.hour * 60 + parts.minute;
+  return minutes >= 20 * 60 && minutes < 23 * 60 ? 'noapte' : 'zi';
 }
 
 function workedSeconds(shift: any, now = new Date()) {
@@ -2192,16 +2198,14 @@ async function handleButton(db: any, interaction: any, context: any, action: str
   const current = await activeShift(db, orgId, context.discordId);
   if (action === 'start') {
     if (current) return interactionMessage('Ai deja o tură activă. Folosește **Pauză** sau **Stop**.');
-    const shiftType = await selectedShift(db, context);
-    if (!shiftType) return interactionMessage('Selectează mai întâi **Tura de zi** sau **Tura de noapte**.');
-    if (!shiftAllowed(shiftType)) return interactionMessage(shiftType === 'noapte' ? 'Tura de noapte poate fi pornită între **20:00 și 23:00**.' : 'Tura de zi nu poate fi pornită în intervalul configurat pentru tura de noapte.');
     const now = new Date();
+    const shiftType = automaticShiftType(now);
     const { data: created, error } = await db.from('discovery_shifts').insert({ organization_id: orgId, discord_id: context.discordId, colleague_name: context.displayName, date: romanianDate(now), start_time: romanianTime(now), end_time: null, duration: '00:00:00', duration_ms: 0, shift_type: shiftType, status: 'active', started_at: now.toISOString(), auto_stop_at: shiftDeadline(shiftType, now).toISOString(), paused_seconds: 0, paused_at: null, stop_reason: null, created_at: now.toISOString(), updated_at: now.toISOString() }).select('*').single();
     if (error) throw error;
     const logResult = await sendActionNotification(db, context.settings, shiftLogEmbed(created, context, 'started', now));
     if (logResult?.messageIds) await saveLogMessageIds(db, orgId, String(created.id), logResult.messageIds);
     await updateControlPanel(db, context, interaction.message, `a pornit tura de ${shiftType}`);
-    return interactionMessage(`Pontaj pornit: tura de **${shiftType}**.\nSe oprește automat la ora configurată în panel.${logResult?.error ? `\n⚠️ Logul Discord nu a fost trimis: ${logResult.error}` : ''}`);
+    return interactionMessage(`Pontaj pornit automat: tura de **${shiftType}**, conform orei României.\nSe oprește automat la ora configurată în panel.${logResult?.error ? `\n⚠️ Logul Discord nu a fost trimis: ${logResult.error}` : ''}`);
   }
   if (!current) return interactionMessage('Nu există o tură activă pentru contul tău.');
   if (action === 'pause') {

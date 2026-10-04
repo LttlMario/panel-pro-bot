@@ -125,20 +125,16 @@
     allowed_mentions: { parse: [] },
     embeds: [{
       title: 'Pontaj · Panel Pro',
-      description: 'Alege tura, apoi folosește comenzile de mai jos. Regulile și programul sunt cele configurate în panel pentru organizația activă.',
+      description: 'Apasă Start pentru a începe automat tura potrivită după ora României. Noapte: 20:00–23:00; zi: în rest. Pauza și oprirea rămân disponibile în timpul turei.',
       color: 0x22d3ee,
       fields: [
-        { name: 'Tura selectată', value: 'Neselectată', inline: true },
+        { name: 'Tura', value: 'Se stabilește automat la apăsarea butonului Start', inline: true },
         { name: 'Status', value: 'Oprit', inline: true },
         { name: 'Program', value: 'Conform configurației din panel', inline: false },
       ],
       footer: { text: 'Panel Pro · Pontaj' },
     }],
     components: [
-      { type: 1, components: [
-        { type: 2, style: 1, label: 'Tura de zi', custom_id: 'panel:pontaj:shift_day' },
-        { type: 2, style: 1, label: 'Tura de noapte', custom_id: 'panel:pontaj:shift_night' },
-      ] },
       { type: 1, components: [
         { type: 2, style: 3, label: 'Start', custom_id: 'panel:pontaj:start' },
         { type: 2, style: 2, label: 'Pauză', custom_id: 'panel:pontaj:pause' },
