@@ -121,6 +121,12 @@ function discoveryReminderModal() {
   const input = (custom_id: string, label: string, style: number, required: boolean, placeholder: string, max_length: number, value = '') => ({ type: 4, custom_id, label, style, required, placeholder, max_length, ...(value ? { value } : {}) });
   return { type: 9, data: { custom_id: 'panel:discovery:reminder_submit', title: 'Adaugă eveniment și reminder', components: [input('title', 'Titlu eveniment', 1, true, 'Ex: Car Meet', 160), input('event_date', 'Data (zz.ll.aaaa)', 1, true, '20.09.2026', 10, romanianDisplayDate()), input('reminder_days', 'Durata reminderului în zile', 1, false, '14', 4), input('details', 'Detalii / notițe', 2, false, 'Locație, oră și informații utile', 1200)].map((field) => ({ type: 1, components: [field] })) } };
 }
+const operationalModuleLabels: Record<string, string> = { tasks: 'Sarcină', internal_requests: 'Cerere internă', employee_profiles: 'Dosar angajat', schedules: 'Programare / tură', payroll: 'Salariu / bonus', inventory: 'Articol inventar', recruitment: 'Candidat recrutare', support_tickets: 'Ticket intern', forms: 'Formular', exports: 'Export', backup_restore: 'Backup', public_dashboard: 'Actualizare dashboard public', dm_notifications: 'Notificare' };
+function operationalModal(moduleKey: string) {
+  const label = operationalModuleLabels[moduleKey] || 'Înregistrare Panel Pro';
+  const input = (custom_id: string, labelText: string, style: number, required: boolean, placeholder: string, max_length: number) => ({ type: 4, custom_id, label: labelText.slice(0, 45), style, required, placeholder: placeholder.slice(0, 100), max_length });
+  return { type: 9, data: { custom_id: `panel:operations:submit:${moduleKey}`, title: `${label} · Panel Pro`.slice(0, 45), components: [input('title', 'Titlu', 1, true, `Ex: ${label}`, 160), input('details', 'Detalii', 2, false, 'Descriere, termen sau informații suplimentare', 1800)].map((field) => ({ type: 1, components: [field] })) } };
+}
 function discoveryDisplayDate(value: string) {
   const raw = String(value || '').trim();
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
@@ -225,6 +231,7 @@ const controlPayload = async (db: any, routeKey: string, trialText = '', include
     weekly_reports: { title: '📊 Raport săptămânal pontaj', description: 'Trimite zilele lucrate, orele pe fiecare membru și totalul săptămânal.', color: 0x06b6d4, premium: false, buttons: [{ label: 'Generează raport pontaj', style: 1, id: 'panel:discovery:weekly_shift_report' }] },
     contract_identity_weekly: { title: '📋 Raport săptămânal contracte', description: 'Generează exportul săptămânal cu numele și CNP-ul angajaților.', color: 0x14b8a6, buttons: [{ label: 'Generează raport', style: 1, id: 'panel:discovery:weekly_report' }, { label: 'Info raport', style: 2, id: 'panel:discovery:report_info' }] },
   };
+  for (const [key, label] of Object.entries(operationalModuleLabels)) definitions[key] = { title: `🧩 ${label}`, description: `Gestionează ${label.toLowerCase()} direct din Discord sau din dashboard.`, color: 0x5865f2, buttons: [{ label: label.slice(0, 70), style: 1, id: `panel:operations:${key}:open` }] };
   const base = definitions[routeKey] || { title: `⚙️ ${PANEL_ROUTE_LABELS[routeKey] || 'Panel Pro'}`, description: 'Embed de administrare Panel Pro.', color: 0x5865f2, buttons: [] };
   const override = (await readGlobalModules(db))[routeKey] || {};
   const definition = { ...base, ...override, buttons: Array.isArray(override.buttons) ? override.buttons.map((button: any, index: number) => ({ ...base.buttons[index], ...button })).filter((button: any) => button?.id) : base.buttons };
@@ -2754,14 +2761,36 @@ Deno.serve(async (request) => {
   const isBotAccess = customId.startsWith('panel:bot_access:');
   const isBilling = customId.startsWith('panel:billing:');
   const isDiscovery = customId.startsWith('panel:discovery:');
+  const isOperations = customId.startsWith('panel:operations:');
   const isTicket = customId === 'panel:ticket:open' || customId === 'panel:ticket:submit' || customId.startsWith('panel:ticket:claim:') || customId.startsWith('panel:ticket:close:') || customId.startsWith('panel:ticket:notify:') || customId.startsWith('panel:ticket:transcript:') || customId.startsWith('panel:ticket:add_member:') || customId.startsWith('panel:ticket:add_member_submit:') || customId.startsWith('panel:ticket:add_member_select:') || customId.startsWith('panel:ticket:reopen:');
   const isCustom = customId.startsWith('panel:custom:') || customId.startsWith('panel:custom_submit:') || customId.startsWith('panel:custom_review:') || customId.startsWith('panel:custom_reason:');
   if (!isComponent && !isModalSubmit) return reply(interactionMessage('Acest tip de interacțiune nu este disponibil.'));
-  if (!isPontaj && !isRequests && !isContracts && !isAnnouncements && !isDiscipline && !isActions && !isStash && !isMarketplace && !isBotAccess && !isDiscovery && !isBilling && !isCustom && !isTicket) return reply(interactionMessage('Acest buton nu aparține unui modul Panel Pro.'));
+  if (!isPontaj && !isRequests && !isContracts && !isAnnouncements && !isDiscipline && !isActions && !isStash && !isMarketplace && !isBotAccess && !isDiscovery && !isBilling && !isOperations && !isCustom && !isTicket) return reply(interactionMessage('Acest buton nu aparține unui modul Panel Pro.'));
   // Modalul trebuie returnat imediat; orice acces la DB înainte de răspuns poate depăși limita Discord de 3 secunde.
   if (isTicket && isButton && customId === 'panel:ticket:open') return reply(ticketModal());
   if (isTicket && isButton && customId.startsWith('panel:ticket:add_member:')) { const id = customId.slice('panel:ticket:add_member:'.length); if (!/^[0-9a-f-]{20,40}$/i.test(id)) return reply(interactionMessage('Ticketul nu este valid.')); return reply(interactionMessage('Alege membrul care trebuie adăugat în ticket.', { components: [{ type: 1, components: [{ type: 5, custom_id: `panel:ticket:add_member_select:${id}`, placeholder: 'Selectează un membru', min_values: 1, max_values: 1 }] }] })); }
   if (isBilling && isButton && customId === 'panel:billing:proof') return reply(billingProofModal());
+  if (isOperations && isButton && customId.endsWith(':open')) {
+    const moduleKey = String(customId.split(':')[2] || '').trim();
+    if (!operationalModuleLabels[moduleKey]) return reply(interactionMessage('Modulul operațional nu este valid.'));
+    return reply(operationalModal(moduleKey));
+  }
+  if (isOperations && isModalSubmit && customId.startsWith('panel:operations:submit:')) return runBackgroundAcknowledgedCommand(interaction, async () => {
+    const moduleKey = String(customId.split(':')[3] || '').trim();
+    if (!operationalModuleLabels[moduleKey]) return interactionMessage('Modulul operațional nu este valid.');
+    const context = await ensureDiscordOnlyOrganization(createClient(Deno.env.get('SUPABASE_URL')!, serviceKey()), interaction);
+    const values = modalValues(interaction);
+    const title = String(values.title || '').trim().slice(0, 160);
+    const details = String(values.details || '').trim().slice(0, 1800);
+    if (title.length < 2) return interactionMessage('Completează un titlu valid.');
+    const db = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey());
+    const user = interaction.member?.user || interaction.user || {};
+    const displayName = String(interaction.member?.nick || user.global_name || user.username || user.id || 'Utilizator Discord').slice(0, 120);
+    const storageKey = `custom_${moduleKey}`.slice(0, 40);
+    const { error } = await db.from('discovery_custom_module_submissions').insert({ organization_id: context.organizationId, guild_id: String(interaction.guild_id || ''), module_key: storageKey, submitted_by_discord_id: String(user.id || ''), submitted_by_name: displayName, handler: moduleKey, subject: title, details, status: 'pending' });
+    if (error) throw error;
+    return interactionMessage(`Înregistrarea **${title}** a fost trimisă și salvată în modulul **${operationalModuleLabels[moduleKey]}**.`);
+  }, 'Înregistrarea modulului nu a putut fi salvată.');
   if (isBilling && isModalSubmit && customId === 'panel:billing:proof_submit') return runBackgroundAcknowledgedCommand(interaction, async () => {
     if (String(interaction.guild_id || '') !== PAYMENT_PROOF_GUILD_ID) return interactionMessage('Formularul poate fi folosit doar în serverul oficial Panel Pro.');
     const values = modalValues(interaction);
