@@ -1901,6 +1901,33 @@ async function sendAbsenceLog(db: any, context: any, absence: any, title = 'Înv
   }
 }
 
+async function refreshRequestControlPanel(db: any, context: any) {
+  const routes = context.settings?.discord_channel_routes || {};
+  const route = routes?.[context.routeKey]?.[context.target];
+  const channelId = String(route?.channel_id || '').trim();
+  if (!/^\d{15,22}$/.test(channelId)) return { error: 'Canalul panoului de învoiri nu este configurat.', messageId: '' };
+  const previousMessageId = String(route?.message_id || '').trim();
+  try {
+    if (/^\d{15,22}$/.test(previousMessageId)) {
+      await requestDiscordTarget(db, { target: context.target, transport: 'bot', channel_id: channelId }, null, { method: 'DELETE', messageId: previousMessageId }).catch(() => null);
+    }
+    const payload = await controlPayload(db, context.routeKey, '', false, false, false);
+    const delivery = await deliverDiscordRoute(db, context.settings, context.routeKey, JSON.stringify(payload), { postOnly: true });
+    const delivered = delivery.results?.find((item: any) => item.target === context.target && item.id) || delivery.results?.find((item: any) => item.id);
+    const messageId = String(delivered?.id || '').trim();
+    if (!messageId) return { error: delivery.failures?.join(' | ') || 'Panoul de învoiri nu a putut fi republicat.', messageId: '' };
+    const nextRoutes = { ...routes, [context.routeKey]: { ...(routes?.[context.routeKey] || {}), [context.target]: { ...route, channel_id: channelId, message_id: messageId, enabled: route?.enabled !== false } } };
+    const { error } = await db.from('discovery_settings').update({ discord_channel_routes: nextRoutes, updated_at: new Date().toISOString() }).eq('organization_id', context.organization.id);
+    if (error) throw error;
+    if (context.settings) context.settings.discord_channel_routes = nextRoutes;
+    else context.settings = { discord_channel_routes: nextRoutes };
+    return { error: '', messageId };
+  } catch (error) {
+    console.error('[discord-interactions] request control panel refresh failed', error);
+    return { error: error instanceof Error ? error.message : 'Panoul de învoiri nu a putut fi republicat.', messageId: '' };
+  }
+}
+
 async function myRequests(db: any, context: any) {
   const { data, error } = await db.from('discovery_absences').select('notice_type,start_date,end_at,reason,created_at').eq('organization_id', context.organization.id).eq('discord_id', context.discordId).eq('request_audience', context.audience).order('created_at', { ascending: false }).limit(10);
   if (error) throw error;
@@ -1926,7 +1953,8 @@ async function handleRequestSubmit(db: any, context: any, interaction: any, valu
   const { data: created, error } = await db.from('discovery_absences').insert(absence).select('*').single();
   if (error) throw error;
   const logResult = await sendAbsenceLog(db, context, created, 'Învoire nouă');
-  return interactionMessage(`Învoirea a fost înregistrată pentru **${startDate.split('-').reverse().join('.')} – ${endDate.split('-').reverse().join('.')}**.${logResult.error ? `\n⚠️ Logul Discord nu a fost trimis: ${logResult.error}` : ''}`);
+  const panelResult = await refreshRequestControlPanel(db, context);
+  return interactionMessage(`Învoirea a fost înregistrată pentru **${startDate.split('-').reverse().join('.')} – ${endDate.split('-').reverse().join('.')}**.${logResult.error ? `\n⚠️ Logul Discord nu a fost trimis: ${logResult.error}` : ''}${panelResult.error ? `\n⚠️ Embedul de învoiri nu a putut fi mutat la final: ${panelResult.error}` : ''}`);
 }
 
 async function handleAnnouncementSubmit(db: any, context: any, interaction: any, postType: 'announcement' | 'question' | 'poll', values: Record<string, string>, postId = '') {
