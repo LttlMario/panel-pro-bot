@@ -972,12 +972,12 @@ Deno.serve(async (request) => {
       if (customSetting.error) throw customSetting.error;
       const definitions = { ...mergeModuleDefinitions(MODULES, await readGlobalModules(db)), ...sanitizeCustomModules(customSetting.data?.custom_modules || {}) } as Record<string, any>;
       const routes = settings?.discord_channel_routes || {};
-      const userRoleIds = new Set(await memberRoleIds(db, guildId, String(discord.id)));
+      const administrator = platformAdmin || selectedGuild.can_manage_access === true;
+      const userRoleIds = new Set(administrator ? [] : await memberRoleIds(db, guildId, String(discord.id)));
       const { data: accessSetting } = await db.from('discovery_app_settings').select('value').eq('organization_id', selectedGuild.organization_id).eq('key', 'discord_activity_module_access').maybeSingle();
       const rules = accessSetting?.value?.modules && typeof accessSetting.value.modules === 'object' ? accessSetting.value.modules : {};
       const hasRole = (values: any) => { const ids = Array.isArray(values) ? values.map(String).filter(Boolean) : []; return !ids.length || ids.some((roleId: string) => userRoleIds.has(roleId)); };
-      const administrator = platformAdmin || selectedGuild.can_manage_access === true;
-      const modules = Object.entries(definitions).filter(([key, definition]: [string, any]) => key !== 'status_live' && Boolean(routes[key]?.primary?.channel_id || definition.log_key && routes[definition.log_key]?.primary?.channel_id)).map(([key, definition]: [string, any]) => {
+      const modules = Object.entries(definitions).filter(([key, definition]: [string, any]) => key !== 'status_live' && definition.active !== false).map(([key, definition]: [string, any]) => {
         const rule = rules[key] || {}; const planAllowed = selectedGuild.plan !== 'free' || definition.premium !== true; const visible = administrator || hasRole(rule.view_role_ids); const canUse = visible && planAllowed && (administrator || hasRole(rule.use_role_ids));
         return { key, label: definition.label, title: definition.title, description: definition.description, premium: definition.premium === true, active: definition.active !== false && routes[key]?.primary?.enabled !== false, plan_allowed: planAllowed, visible, can_use: canUse, can_manage: administrator || hasRole(rule.manage_role_ids), embed_channel_id: routes[key]?.primary?.channel_id || '', log_channel_id: definition.log_key ? routes[definition.log_key]?.primary?.channel_id || '' : '', buttons: definition.buttons || [] };
       }).filter((module: any) => module.visible && module.plan_allowed);
