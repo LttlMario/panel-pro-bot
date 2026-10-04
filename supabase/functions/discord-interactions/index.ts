@@ -2794,6 +2794,13 @@ Deno.serve(async (request) => {
       const embed = { allowed_mentions: { parse: [] }, embeds: [{ title: `🧩 ${operationalModuleLabels[moduleKey]} nou`, description: details || 'A fost trimisă o înregistrare nouă.', color: 0x5865f2, fields: [{ name: 'Titlu', value: title, inline: false }, { name: 'Trimis de', value: `${displayName} (<@${user.id}>)`, inline: true }, { name: 'Status', value: 'În așteptare', inline: true }], footer: { text: `Panel Pro · ${moduleKey}` }, timestamp: new Date().toISOString() }], components: [{ type: 1, components: [{ type: 2, style: 3, label: 'Aprobă', custom_id: `panel:operations:decision:${moduleKey}:${saved.id}:approved` }, { type: 2, style: 4, label: 'Respinge', custom_id: `panel:operations:decision:${moduleKey}:${saved.id}:rejected` }] }] };
       await deliverDiscordRoute(db, settings, moduleKey, JSON.stringify(embed), { postOnly: true });
     }
+    if (moduleKey === 'dm_notifications' && user.id) {
+      const botToken = await getPlatformSecret(db, 'discord_bot_token');
+      if (botToken) {
+        const dmChannel = await fetch(`${DISCORD_API}/users/@me/channels`, { method: 'POST', headers: { Authorization: `Bot ${botToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ recipient_id: String(user.id) }) }).then((response) => response.ok ? response.json().catch(() => ({})) : null);
+        if (dmChannel?.id) await fetch(`${DISCORD_API}/channels/${dmChannel.id}/messages`, { method: 'POST', headers: { Authorization: `Bot ${botToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ content: `✉️ Panel Pro a înregistrat notificarea **${title}** pentru serverul tău.` }) }).catch(() => null);
+      }
+    }
     return interactionMessage(`Înregistrarea **${title}** a fost trimisă și salvată în modulul **${operationalModuleLabels[moduleKey]}**.`);
   }, 'Înregistrarea modulului nu a putut fi salvată.');
   if (isOperations && customId.startsWith('panel:operations:decision:')) return runBackgroundAcknowledgedCommand(interaction, async () => {
