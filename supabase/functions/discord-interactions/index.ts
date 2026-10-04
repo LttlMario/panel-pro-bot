@@ -1901,30 +1901,50 @@ async function sendAbsenceLog(db: any, context: any, absence: any, title = 'Înv
   }
 }
 
-async function refreshRequestControlPanel(db: any, context: any) {
+function absenceLogPanelPayload(rows: any[], context: any) {
+  const audience = context.audience === 'organization' ? 'Organizație' : 'Angajați';
+  const visible = rows.slice(0, 25);
+  const fields = visible.map((absence: any) => {
+    const name = String(absence.colleague_name || absence.discord_id || 'Utilizator').slice(0, 240);
+    const start = String(absence.start_date || absence.start_at || '').slice(0, 10);
+    const end = String(absence.end_date || absence.end_at || '').slice(0, 10) || start;
+    const status = String(absence.status || 'pending').toLowerCase() === 'approved' ? 'Aprobată' : 'În așteptare';
+    const value = [`📅 ${requestDateLabel(start)} → ${requestDateLabel(end, true)}`, `📌 ${String(absence.notice_type || 'Învoire').slice(0, 200)}`, `💬 ${String(absence.reason || absence.notes || 'Fără motiv').slice(0, 500)}`, `📍 Status: ${status}`].join('\n');
+    return { name: `👤 ${name}`, value: value.slice(0, 1024), inline: false };
+  });
+  if (rows.length > visible.length) fields.push({ name: '…', value: `Încă ${rows.length - visible.length} învoiri active.`, inline: false });
+  return { allowed_mentions: { parse: [] }, embeds: [{ title: `📋 Învoiri active · ${audience}`, description: rows.length ? 'Acest embed se actualizează automat la fiecare învoire nouă și păstrează doar învoirile care nu au expirat.' : 'Nu există învoiri active în acest moment.', color: 0xf59e0b, fields, footer: { text: `Panel Pro · Log învoiri · ${audience}` }, timestamp: new Date().toISOString() }] };
+}
+
+async function refreshAbsenceLogPanel(db: any, context: any) {
   const routes = context.settings?.discord_channel_routes || {};
-  const route = routes?.[context.routeKey]?.[context.target];
+  const route = routes?.[context.logRouteKey]?.[context.target];
   const channelId = String(route?.channel_id || '').trim();
-  if (!/^\d{15,22}$/.test(channelId)) return { error: 'Canalul panoului de învoiri nu este configurat.', messageId: '' };
-  const previousMessageId = String(route?.message_id || '').trim();
+  if (!/^\d{15,22}$/.test(channelId)) return { error: 'Canalul de log pentru învoiri nu este configurat.', messageId: '' };
   try {
-    if (/^\d{15,22}$/.test(previousMessageId)) {
-      await requestDiscordTarget(db, { target: context.target, transport: 'bot', channel_id: channelId }, null, { method: 'DELETE', messageId: previousMessageId }).catch(() => null);
-    }
-    const payload = await controlPayload(db, context.routeKey, '', false, false, false);
-    const delivery = await deliverDiscordRoute(db, context.settings, context.routeKey, JSON.stringify(payload), { postOnly: true });
+    const { data, error } = await db.from('discovery_absences').select('id,discord_id,colleague_name,notice_type,reason,notes,start_date,end_date,start_at,end_at,status,created_at').eq('organization_id', context.organization.id).eq('request_audience', context.audience).order('end_at', { ascending: true }).limit(100);
+    if (error) throw error;
+    const now = Date.now();
+    const rows = (data || []).filter((absence: any) => {
+      const status = String(absence.status || 'pending').toLowerCase();
+      if (['rejected', 'cancelled', 'canceled', 'expired', 'completed'].includes(status)) return false;
+      const endAt = Date.parse(String(absence.end_at || absence.end_date || ''));
+      return !Number.isFinite(endAt) || endAt > now;
+    });
+    const previousMessageId = String(route?.message_id || '').trim();
+    if (/^\d{15,22}$/.test(previousMessageId)) await requestDiscordTarget(db, { target: context.target, transport: 'bot', channel_id: channelId }, null, { method: 'DELETE', messageId: previousMessageId }).catch(() => null);
+    const delivery = await deliverDiscordRoute(db, context.settings, context.logRouteKey, JSON.stringify(absenceLogPanelPayload(rows, context)), { postOnly: true });
     const delivered = delivery.results?.find((item: any) => item.target === context.target && item.id) || delivery.results?.find((item: any) => item.id);
     const messageId = String(delivered?.id || '').trim();
-    if (!messageId) return { error: delivery.failures?.join(' | ') || 'Panoul de învoiri nu a putut fi republicat.', messageId: '' };
-    const nextRoutes = { ...routes, [context.routeKey]: { ...(routes?.[context.routeKey] || {}), [context.target]: { ...route, channel_id: channelId, message_id: messageId, enabled: route?.enabled !== false } } };
-    const { error } = await db.from('discovery_settings').update({ discord_channel_routes: nextRoutes, updated_at: new Date().toISOString() }).eq('organization_id', context.organization.id);
-    if (error) throw error;
+    if (!messageId) return { error: delivery.failures?.join(' | ') || 'Embedul agregat nu a putut fi publicat.', messageId: '' };
+    const nextRoutes = { ...routes, [context.logRouteKey]: { ...(routes?.[context.logRouteKey] || {}), [context.target]: { ...route, channel_id: channelId, message_id: messageId, enabled: route?.enabled !== false } } };
+    const { error: settingsError } = await db.from('discovery_settings').update({ discord_channel_routes: nextRoutes, updated_at: new Date().toISOString() }).eq('organization_id', context.organization.id);
+    if (settingsError) throw settingsError;
     if (context.settings) context.settings.discord_channel_routes = nextRoutes;
-    else context.settings = { discord_channel_routes: nextRoutes };
     return { error: '', messageId };
   } catch (error) {
-    console.error('[discord-interactions] request control panel refresh failed', error);
-    return { error: error instanceof Error ? error.message : 'Panoul de învoiri nu a putut fi republicat.', messageId: '' };
+    console.error('[discord-interactions] absence aggregate refresh failed', error);
+    return { error: error instanceof Error ? error.message : 'Embedul agregat nu a putut fi actualizat.', messageId: '' };
   }
 }
 
@@ -1953,8 +1973,8 @@ async function handleRequestSubmit(db: any, context: any, interaction: any, valu
   const { data: created, error } = await db.from('discovery_absences').insert(absence).select('*').single();
   if (error) throw error;
   const logResult = await sendAbsenceLog(db, context, created, 'Învoire nouă');
-  const panelResult = await refreshRequestControlPanel(db, context);
-  return interactionMessage(`Învoirea a fost înregistrată pentru **${startDate.split('-').reverse().join('.')} – ${endDate.split('-').reverse().join('.')}**.${logResult.error ? `\n⚠️ Logul Discord nu a fost trimis: ${logResult.error}` : ''}${panelResult.error ? `\n⚠️ Embedul de învoiri nu a putut fi mutat la final: ${panelResult.error}` : ''}`);
+  const panelResult = await refreshAbsenceLogPanel(db, context);
+  return interactionMessage(`Învoirea a fost înregistrată pentru **${startDate.split('-').reverse().join('.')} – ${endDate.split('-').reverse().join('.')}**.${logResult.error ? `\n⚠️ Logul individual nu a fost trimis: ${logResult.error}` : ''}${panelResult.error ? `\n⚠️ Embedul agregat din log nu a putut fi actualizat: ${panelResult.error}` : ''}`);
 }
 
 async function handleAnnouncementSubmit(db: any, context: any, interaction: any, postType: 'announcement' | 'question' | 'poll', values: Record<string, string>, postId = '') {
