@@ -968,9 +968,12 @@ Deno.serve(async (request) => {
     const { data: settings, error: settingsError } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', selectedGuild.organization_id).maybeSingle();
     if (settingsError) throw settingsError;
     if (action === 'module_catalog') {
-      const customSetting = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
+      const [customSetting, globalModules] = await Promise.all([
+        db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle(),
+        readGlobalModules(db),
+      ]);
       if (customSetting.error) throw customSetting.error;
-      const definitions = { ...mergeModuleDefinitions(MODULES, await readGlobalModules(db)), ...sanitizeCustomModules(customSetting.data?.custom_modules || {}) } as Record<string, any>;
+      const definitions = { ...mergeModuleDefinitions(MODULES, globalModules), ...sanitizeCustomModules(customSetting.data?.custom_modules || {}) } as Record<string, any>;
       const routes = settings?.discord_channel_routes || {};
       const administrator = platformAdmin || selectedGuild.can_manage_access === true;
       const userRoleIds = new Set(administrator ? [] : await memberRoleIds(db, guildId, String(discord.id)));
