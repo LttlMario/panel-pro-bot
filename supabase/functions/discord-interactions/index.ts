@@ -2793,6 +2793,8 @@ Deno.serve(async (request) => {
     if (saved?.id && settings?.discord_channel_routes?.[moduleKey]?.primary?.channel_id) {
       const embed = { allowed_mentions: { parse: [] }, embeds: [{ title: `🧩 ${operationalModuleLabels[moduleKey]} nou`, description: details || 'A fost trimisă o înregistrare nouă.', color: 0x5865f2, fields: [{ name: 'Titlu', value: title, inline: false }, { name: 'Trimis de', value: `${displayName} (<@${user.id}>)`, inline: true }, { name: 'Status', value: 'În așteptare', inline: true }], footer: { text: `Panel Pro · ${moduleKey}` }, timestamp: new Date().toISOString() }], components: [{ type: 1, components: [{ type: 2, style: 3, label: 'Aprobă', custom_id: `panel:operations:decision:${moduleKey}:${saved.id}:approved` }, { type: 2, style: 4, label: 'Respinge', custom_id: `panel:operations:decision:${moduleKey}:${saved.id}:rejected` }] }] };
       await deliverDiscordRoute(db, settings, moduleKey, JSON.stringify(embed), { postOnly: true });
+      const logRoute = `log_${moduleKey}`;
+      if (settings?.discord_channel_routes?.[logRoute]?.primary?.channel_id) await deliverDiscordRoute(db, settings, logRoute, JSON.stringify({ ...embed, components: [] }), { postOnly: true });
     }
     if (moduleKey === 'dm_notifications' && user.id) {
       const botToken = await getPlatformSecret(db, 'discord_bot_token');
