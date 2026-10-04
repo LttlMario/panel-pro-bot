@@ -967,6 +967,42 @@ Deno.serve(async (request) => {
     }
     const { data: settings, error: settingsError } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', selectedGuild.organization_id).maybeSingle();
     if (settingsError) throw settingsError;
+    if (action === 'module_dashboard') {
+      const moduleKey = clean(body.module_key, 60);
+      const customSetting = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
+      if (customSetting.error) throw customSetting.error;
+      const definitions = { ...mergeModuleDefinitions(MODULES, await readGlobalModules(db)), ...sanitizeCustomModules(customSetting.data?.custom_modules || {}) } as Record<string, any>;
+      const definition = definitions[moduleKey];
+      if (!definition) return reply(request, { error: 'Modulul selectat nu există.' }, 404);
+      const routes = settings?.discord_channel_routes || {};
+      const planAllowed = selectedGuild.plan !== 'free' || definition.premium !== true;
+      const userRoleIds = new Set(await memberRoleIds(db, guildId, String(discord.id)));
+      const { data: accessSetting } = await db.from('discovery_app_settings').select('value').eq('organization_id', selectedGuild.organization_id).eq('key', 'discord_activity_module_access').maybeSingle();
+      const rule = accessSetting?.value?.modules?.[moduleKey] || {};
+      const hasRole = (values: any) => { const ids = Array.isArray(values) ? values.map(String).filter(Boolean) : []; return !ids.length || ids.some((roleId: string) => userRoleIds.has(roleId)); };
+      const administrator = platformAdmin || selectedGuild.can_manage_access === true;
+      const visible = administrator || hasRole(rule.view_role_ids);
+      const canUse = visible && planAllowed && (administrator || hasRole(rule.use_role_ids));
+      if (!visible) return reply(request, { error: 'Nu ai acces la această pagină pentru rolurile Discord actuale.' }, 403);
+      if (!planAllowed) return reply(request, { error: 'Acest modul necesită Premium pentru serverul selectat.' }, 402);
+      const response: any = { key: moduleKey, label: definition.label, title: definition.title, description: definition.description, plan: selectedGuild.plan, can_use: canUse, can_manage: administrator || hasRole(rule.manage_role_ids), embed_channel_id: routes[moduleKey]?.primary?.channel_id || '', log_channel_id: definition.log_key ? routes[definition.log_key]?.primary?.channel_id || '' : '', data: {} };
+      if (moduleKey === 'pontaj' || moduleKey === 'weekly_reports' || moduleKey === 'status_live') {
+        const [{ data: shifts }, { data: members }] = await Promise.all([
+          db.from('discovery_shifts').select('id,discord_id,colleague_name,date,shift_type,status,start_time,end_time,duration,duration_ms,started_at,ended_at,paused_seconds').eq('organization_id', selectedGuild.organization_id).order('created_at', { ascending: false }).limit(200),
+          db.from('discovery_members').select('discord_id,panel_role,active').eq('organization_id', selectedGuild.organization_id).eq('active', true),
+        ]);
+        response.data.shifts = shifts || [];
+        response.data.members = members || [];
+        response.data.active = (shifts || []).filter((item: any) => ['active', 'paused'].includes(String(item.status)));
+      } else if (moduleKey === 'requests_departments' || moduleKey === 'requests_organization') {
+        const { data: absences } = await db.from('discovery_absences').select('id,discord_id,colleague_name,notice_type,reason,start_date,end_date,start_at,end_at,status,proof_url,created_at,updated_at').eq('organization_id', selectedGuild.organization_id).eq('request_audience', moduleKey === 'requests_organization' ? 'organization' : 'departments').order('created_at', { ascending: false }).limit(200);
+        response.data.absences = absences || [];
+      } else {
+        const { data: activity } = await db.from('discovery_audit_log').select('id,action,target_type,target_id,created_at,details').eq('organization_id', selectedGuild.organization_id).order('created_at', { ascending: false }).limit(50);
+        response.data.activity = activity || [];
+      }
+      return reply(request, { ok: true, guild_id: guildId, guild_name: selectedGuild.name, organization_id: selectedGuild.organization_id, module: response });
+    }
     if (action === 'dashboard_overview' || action === 'repair_guild' || action === 'auto_configure_routes' || action === 'auto_configure_guild' || action === 'set_module_enabled' || action === 'test_setup' || action === 'reset_routes') {
       const customSetting = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
       if (customSetting.error) throw customSetting.error;

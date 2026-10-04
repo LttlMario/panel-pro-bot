@@ -81,10 +81,17 @@
             >
 
                 <a
+                    class="${page === 'dashboard.html' ? 'active' : ''}"
+                    href="dashboard.html"
+                >
+                    📊 Dashboard server
+                </a>
+
+                <a
                     class="${page === 'administrare-boturi-discord.html' ? 'active' : ''}"
                     href="administrare-boturi-discord.html"
                 >
-                    📊 Dashboard
+                    🛠️ Administrare servere
                 </a>
 
                 <a
