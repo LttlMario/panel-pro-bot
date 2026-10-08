@@ -952,3 +952,13 @@
         .catch(() => {});
 
 })();
+// Încarcă tema la final, după stilurile specifice paginii, pentru ca regulile
+// comune să fie aplicate consecvent pe toate paginile Discovery.
+(() => {
+    if (document.querySelector('link[data-discovery-panel-theme]')) return;
+    const themeLink = document.createElement('link');
+    themeLink.rel = 'stylesheet';
+    themeLink.href = 'css/discovery-panel-theme.css?v=20261008-panel-ui';
+    themeLink.dataset.discoveryPanelTheme = 'true';
+    document.head.appendChild(themeLink);
+})();
