@@ -127,6 +127,13 @@ async function ensureDiscordOrganization(db: any, user: any, guild: any, applica
   const { data: linked, error: linkedError } = await db.from('discovery_guilds').select('organization_id,kind').eq('guild_id', guildId).eq('enabled', true).maybeSingle();
   if (linkedError) throw linkedError;
   if (linked?.organization_id) {
+    let botToken = String(Deno.env.get('DISCORD_BOT_TOKEN') || '').trim();
+    if (!botToken) {
+      try { botToken = await getPlatformSecret(db, 'discord_bot_token'); } catch (_) { return null; }
+    }
+    if (!botToken) return null;
+    const botGuildResponse = await fetch(`${DISCORD_API}/guilds/${guildId}`, { headers: botHeaders(botToken) });
+    if (!botGuildResponse.ok) return null;
     const { data: linkedOrganization, error: linkedOrganizationError } = await db.from('discovery_organizations').select('access_mode,slug').eq('id', linked.organization_id).maybeSingle();
     if (linkedOrganizationError) throw linkedOrganizationError;
     if (linkedOrganization?.access_mode === 'discord_only' || String(linkedOrganization?.slug || '').startsWith('discord-')) {
