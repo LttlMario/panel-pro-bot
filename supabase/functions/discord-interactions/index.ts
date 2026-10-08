@@ -834,7 +834,9 @@ async function publishPresenceEvent(db: any, interaction: any) {
   return interactionMessage(`Evenimentul **${title}** a fost creat și publicat în <#${context.log.channel_id}>.`);
 }
 async function updatePresenceMessage(db: any, event: any, participants: any[], closed: boolean) {
-  if (!event.discord_channel_id || !event.discord_message_id) return;
+  // Participanții modifică mesajul deja publicat în canalul de log. Nu publicăm
+  // un al doilea embed pentru fiecare înscriere.
+  if (!event.discord_channel_id || !event.discord_message_id) throw new Error('Mesajul evenimentului din canalul de log nu mai este disponibil.');
   await discordBotJson(db, 'PATCH', `${DISCORD_API}/channels/${event.discord_channel_id}/messages/${event.discord_message_id}`, presenceEventEmbed(event, participants, closed));
 }
 async function handlePresenceEvent(db: any, interaction: any, customId: string, isButton: boolean, isModalSubmit: boolean) {
