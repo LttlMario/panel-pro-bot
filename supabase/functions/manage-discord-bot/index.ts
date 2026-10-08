@@ -757,7 +757,9 @@ Deno.serve(async (request) => {
         ? configuredSecret
         : Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || configuredSecret;
     if (!key) throw new Error('Cheia Supabase lipsește.');
-    const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
+    const db = createClient(Deno.env.get('SUPABASE_URL')!, key, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
     const body = await request.json().catch(() => ({}));
     const action = clean(body.action, 40) || 'bootstrap';
     // Snapshot-ul public este singura rută fără autentificare Discord. Tokenul
