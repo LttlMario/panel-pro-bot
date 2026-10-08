@@ -759,6 +759,9 @@ function payload(moduleKey: string, donation: boolean, definitions = MODULES) {
 }
 
 Deno.serve(async (request) => {
+  let requestedAction = '';
+  let requestedAccessToken = '';
+  let authenticatedDiscordUser: any = null;
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: headersFor(request) });
   try {
     const rawSecretKeys = String(Deno.env.get('SUPABASE_SECRET_KEYS') || '').trim();
@@ -777,6 +780,7 @@ Deno.serve(async (request) => {
     const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
     const body = await request.json().catch(() => ({}));
     const action = clean(body.action, 40) || 'bootstrap';
+    requestedAction = action;
     // Snapshot-ul public este singura rută fără autentificare Discord. Tokenul
     // este generat de administrator și oferă doar statistici agregate, fără
     // nume, mesaje sau date personale.
@@ -800,8 +804,10 @@ Deno.serve(async (request) => {
       return reply(request, { ok: true, guild_id: guildId, guild_name: clean(linked.guild_name || guildId, 120), generated_at: new Date().toISOString(), statistics: { shifts: shiftsCount || 0, active_shifts: activeShifts || 0, absences: absencesCount || 0, active_members: membersCount || 0, operational_records: submissionsCount || 0 } });
     }
     const accessToken = clean(body.access_token, 500);
+    requestedAccessToken = accessToken;
     if (!accessToken) return reply(request, { error: 'Conectarea Discord este necesară.' }, 401);
     const discord = await discordUser(accessToken);
+    authenticatedDiscordUser = discord;
     let platformAdmin = false;
     try { platformAdmin = await isPlatformAdminAccount(db, discord.id); } catch (error) {
       if (!/JWT issued at future/i.test(error instanceof Error ? error.message : String(error || ''))) throw error;
@@ -1580,6 +1586,18 @@ Deno.serve(async (request) => {
     return reply(request, { error: 'Acțiune necunoscută.' }, 400);
   } catch (error) {
     const detail = error instanceof Error ? error.message : (error && typeof error === 'object' ? String((error as any).message || (error as any).details || (error as any).hint || '') : '');
+    if (requestedAction === 'bootstrap' && /JWT issued at future/i.test(detail) && requestedAccessToken) {
+      const guildResponse = await fetch(`${DISCORD_API}/users/@me/guilds`, { headers: { Authorization: `Bearer ${requestedAccessToken}` } });
+      if (guildResponse.ok) {
+        const oauthGuilds = await guildResponse.json().catch(() => []);
+        const guilds = (Array.isArray(oauthGuilds) ? oauthGuilds : []).filter((guild: any) => id(guild?.id)).map((guild: any) => ({
+          id: String(guild.id), name: clean(guild.name || guild.id, 120), organization_id: '', organization_name: clean(guild.name || guild.id, 120),
+          access_mode: 'discord_only', bot_installed: false, is_owner: Boolean(guild.owner), can_manage_access: Boolean(guild.owner),
+          owner_id: null, owner_user: null, plan: 'free', trial_ends_at: null, premium_ends_at: null, sku_id: null
+        }));
+        return reply(request, { ok: true, user: { id: String(authenticatedDiscordUser?.id || ''), username: clean(authenticatedDiscordUser?.global_name || authenticatedDiscordUser?.username || '', 120), platform_admin: false }, platform_admin: false, guilds, diagnostics: { database_degraded: true } });
+      }
+    }
     return reply(request, { error: detail || 'Eroare internă.' }, 400);
   }
 });
