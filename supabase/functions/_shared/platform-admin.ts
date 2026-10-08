@@ -18,7 +18,16 @@ export async function getPlatformAdminDiscordIds(db: any) {
 
 export async function isPlatformAdminAccount(db: any, discordId: unknown) {
   const normalizedId = String(discordId || '').trim();
-  return (await getPlatformAdminDiscordIds(db)).includes(normalizedId);
+  if (!normalizedId) return false;
+  if ((await getPlatformAdminDiscordIds(db)).includes(normalizedId)) return true;
+  // Păstrează accesul administratorilor deja validați în Supabase chiar dacă
+  // secretul de configurare a fost rotit sau lipsește temporar din funcție.
+  const { data, error } = await db.from('discovery_platform_admins').select('discord_id').eq('discord_id', normalizedId).eq('active', true).maybeSingle();
+  if (error) {
+    if (error.code === '42P01') return false;
+    throw error;
+  }
+  return Boolean(data?.discord_id);
 }
 
 export async function isPlatformUserBanned(db: any, discordId: unknown) {
