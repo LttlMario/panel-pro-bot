@@ -1611,6 +1611,9 @@ Deno.serve(async (request) => {
       const definition: any = (MODULES as any)[key] || (MODULES as any).pontaj;
       return reply(request, { ok: true, guild_name: clean(requestedBody.guild_id, 120), module: { key, ...definition, plan: 'free', can_use: true, can_configure: false, embed_channel_id: '', log_channel_id: '', data: { shifts: [], active: [], absences: [], items: [], activity: [], members: [] } } });
     }
+    if (requestedAction === 'bootstrap') {
+      return reply(request, { ok: true, platform_admin: false, user: { id: String(authenticatedDiscordUser?.id || ''), username: clean(authenticatedDiscordUser?.global_name || authenticatedDiscordUser?.username || '', 120), platform_admin: false }, guilds: [], diagnostics: { database_degraded: true, message: 'Datele serverului se reîncarcă.' } });
+    }
     return reply(request, { error: detail || 'Eroare internă.' }, 400);
   }
 });
