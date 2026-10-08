@@ -2970,7 +2970,8 @@ Deno.serve(async (request) => {
       if (module.handler === 'none') return reply(interactionMessage(`Modulul **${module.label}** este informativ și nu are încă un handler activ.`));
       return reply(customModuleModal(module, buttonAction));
     }
-    if (discordPremiumConfigured()) {
+    const isPresenceChannelAction = isPresenceEvents && (customId.startsWith('panel:presence_events:join:') || customId.startsWith('panel:presence_events:close:'));
+    if (discordPremiumConfigured() && !isPresenceChannelAction) {
       const guildId = String(interaction.guild_id || '').trim();
       if (/^\d{15,22}$/.test(guildId)) {
         const { data: guildAccess, error: guildAccessError } = await db.from('discovery_guilds').select('organization_id').eq('guild_id', guildId).eq('enabled', true).maybeSingle();
