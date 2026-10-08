@@ -1,6 +1,6 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2.112.3';
 import { getPlatformSecret } from '../_shared/platform-secrets.ts';
-import { isPlatformAdminAccount } from '../_shared/platform-admin.ts';
+import { isPlatformAdminAccount, isPlatformAdminDiscordId } from '../_shared/platform-admin.ts';
 import { requirePanelSession } from '../_shared/panel-session.ts';
 import { deliverDiscordRoute, routeCandidates, validDiscordChannelId } from '../_shared/discord-delivery.ts';
 import { mergeModuleDefinitions, readGlobalModules, sanitizeModuleOverrides } from '../_shared/global-bot-settings.ts';
@@ -810,7 +810,7 @@ Deno.serve(async (request) => {
     if (!accessToken) return reply(request, { error: 'Conectarea Discord este necesară.' }, 401);
     const discord = await discordUser(accessToken);
     authenticatedDiscordUser = discord;
-    let platformAdmin = false;
+    let platformAdmin = isPlatformAdminDiscordId(discord.id);
     try { platformAdmin = await isPlatformAdminAccount(db, discord.id); } catch (error) {
       if (!/JWT issued at future/i.test(error instanceof Error ? error.message : String(error || ''))) throw error;
     }
