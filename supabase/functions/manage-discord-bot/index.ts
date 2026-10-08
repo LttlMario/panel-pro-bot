@@ -820,7 +820,12 @@ Deno.serve(async (request) => {
     const diagnostics: Record<string, any> = {};
     if (action === 'provision_official_server' || action === 'sync_official_roles' || action === 'announce_existing_community' || action === 'update_official_statistics' || action === 'sync_official_free_games') { if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate configura serverul oficial.' }, 403); const target=clean(body.guild_id,30); if (target !== '1544703486384537603') return reply(request,{error:'Serverul oficial nu este valid.'},400); const result=action === 'provision_official_server' ? await provisionOfficialServer(db,target) : action === 'sync_official_roles' ? await syncOfficialRoles(db,target) : action === 'announce_existing_community' ? await announceExistingCommunity(db,target) : action === 'update_official_statistics' ? await updateOfficialStatistics(db,target) : await syncOfficialFreeGames(db,target); return reply(request,{ok:true,guild_id:target,result}); }
     if (action === 'bootstrap') {
-      const discoveryBotToken = await getPlatformSecret(db, 'discord_bot_token');
+      let discoveryBotToken = '';
+      try { discoveryBotToken = await getPlatformSecret(db, 'discord_bot_token'); } catch (error) {
+        const message = error instanceof Error ? error.message : String(error || '');
+        if (!/JWT issued at future/i.test(message)) throw error;
+        diagnostics.database_degraded = true;
+      }
       const botIdentityResponse = discoveryBotToken
         ? await fetch(`${DISCORD_API}/users/@me`, { headers: botHeaders(discoveryBotToken) })
         : null;
