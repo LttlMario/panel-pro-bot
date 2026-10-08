@@ -252,9 +252,17 @@ async function ownedGuilds(db: any, user: any, applicationId: string, platformAd
     const guilds = await response.json().catch(() => []);
     diagnostics.database_degraded = true;
     diagnostics.database_error = 'temporar';
-    return (Array.isArray(guilds) ? guilds : []).filter((guild: any) => id(guild?.id)).map((guild: any) => ({
+    const botToken = String(Deno.env.get('DISCORD_BOT_TOKEN') || '').trim();
+    const installed = new Set<string>();
+    if (botToken) {
+      await Promise.all((Array.isArray(guilds) ? guilds : []).filter((guild: any) => id(guild?.id)).map(async (guild: any) => {
+        const botGuild = await fetch(`${DISCORD_API}/guilds/${guild.id}`, { headers: botHeaders(botToken) }).catch(() => null);
+        if (botGuild?.ok) installed.add(String(guild.id));
+      }));
+    }
+    return (Array.isArray(guilds) ? guilds : []).filter((guild: any) => id(guild?.id) && installed.has(String(guild.id))).map((guild: any) => ({
       id: String(guild.id), name: clean(guild.name || guild.id, 120), organization_id: '', organization_name: clean(guild.name || guild.id, 120),
-      access_mode: 'discord_only', bot_installed: false, is_owner: Boolean(guild.owner), can_manage_access: Boolean(guild.owner),
+      access_mode: 'discord_only', bot_installed: true, is_owner: Boolean(guild.owner), can_manage_access: Boolean(guild.owner),
       owner_id: null, owner_user: null, plan: 'free', trial_ends_at: null, premium_ends_at: null, sku_id: null
     }));
   }
