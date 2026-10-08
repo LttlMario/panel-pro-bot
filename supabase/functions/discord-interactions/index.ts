@@ -2970,19 +2970,6 @@ Deno.serve(async (request) => {
       if (module.handler === 'none') return reply(interactionMessage(`Modulul **${module.label}** este informativ și nu are încă un handler activ.`));
       return reply(customModuleModal(module, buttonAction));
     }
-    const isPresenceChannelAction = isPresenceEvents && (customId.startsWith('panel:presence_events:join:') || customId.startsWith('panel:presence_events:close:'));
-    if (discordPremiumConfigured() && !isPresenceChannelAction) {
-      const guildId = String(interaction.guild_id || '').trim();
-      if (/^\d{15,22}$/.test(guildId)) {
-        const { data: guildAccess, error: guildAccessError } = await db.from('discovery_guilds').select('organization_id').eq('guild_id', guildId).eq('enabled', true).maybeSingle();
-        if (guildAccessError) throw guildAccessError;
-        if (guildAccess?.organization_id) {
-          const { data: premiumOrganization, error: premiumOrganizationError } = await db.from('discovery_organizations').select('access_mode').eq('id', guildAccess.organization_id).maybeSingle();
-          if (premiumOrganizationError) throw premiumOrganizationError;
-          if (premiumOrganization?.access_mode === 'discord_only' && discordPremiumModule(customId) && !(await discordPremiumAccess(db, String(guildAccess.organization_id), interaction, guildId))) return reply(discordPremiumMessage());
-        }
-      }
-    }
     if (isPresenceEvents) {
       if (isModalSubmit && customId === 'panel:presence_events:create_submit') return await handlePresenceEvent(db, interaction, customId, isButton, isModalSubmit);
       if (isButton && (customId.startsWith('panel:presence_events:join:') || customId.startsWith('panel:presence_events:close:'))) return runBackgroundAcknowledgedCommand(interaction, () => handlePresenceEvent(db, interaction, customId, isButton, isModalSubmit), 'Evenimentul nu a putut fi actualizat.');
