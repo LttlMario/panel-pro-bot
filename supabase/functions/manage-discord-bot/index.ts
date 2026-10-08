@@ -1620,7 +1620,8 @@ Deno.serve(async (request) => {
           access_mode: 'discord_only', bot_installed: true, is_owner: Boolean(guild.owner), can_manage_access: Boolean(guild.owner),
           owner_id: null, owner_user: null, plan: 'free', trial_ends_at: null, premium_ends_at: null, sku_id: null
         }));
-        return reply(request, { ok: true, user: { id: String(authenticatedDiscordUser?.id || ''), username: clean(authenticatedDiscordUser?.global_name || authenticatedDiscordUser?.username || '', 120), platform_admin: false }, platform_admin: false, guilds, diagnostics: { database_degraded: true } });
+        const fallbackPlatformAdmin = isPlatformAdminDiscordId(String(authenticatedDiscordUser?.id || ''));
+        return reply(request, { ok: true, user: { id: String(authenticatedDiscordUser?.id || ''), username: clean(authenticatedDiscordUser?.global_name || authenticatedDiscordUser?.username || '', 120), platform_admin: fallbackPlatformAdmin }, platform_admin: fallbackPlatformAdmin, guilds, diagnostics: { database_degraded: true, bot_check_count: installed.size } });
       }
     }
     if (/JWT issued at future/i.test(detail) && requestedAction === 'module_catalog') {
