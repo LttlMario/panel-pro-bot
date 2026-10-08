@@ -779,7 +779,7 @@ const presenceEventModal = () => ({ type: 9, data: { custom_id: 'panel:presence_
 ] } });
 function presenceEventEmbed(event: any, participants: any[] = [], closed = false) {
   const list = participants.length ? participants.map((row: any, index: number) => `${index + 1}. <@${String(row.discord_id)}> — ${String(row.display_name || row.discord_id)}`).join('\n') : 'Nimeni nu s-a înscris încă.';
-  return { allowed_mentions: { parse: [] }, embeds: [{ title: `${closed ? '🔒' : '📅'} ${String(event.title || 'Eveniment')} · Panel Pro`, description: String(event.details || '').trim() || 'Eveniment organizat de server.', color: closed ? 0x64748b : 0x22d3ee, fields: [
+  return { allowed_mentions: { parse: [] }, embeds: [{ title: String(event.title || event.event_type || 'Eveniment').trim().slice(0, 256) || 'Eveniment', description: String(event.details || '').trim() || 'Eveniment organizat de server.', color: closed ? 0x64748b : 0x22d3ee, fields: [
     { name: 'Tip', value: String(event.event_type || event.title || 'Eveniment').slice(0, 1024), inline: true },
     { name: 'Creat de', value: event.created_by_discord_id ? `<@${event.created_by_discord_id}>` : 'Panel Pro', inline: true },
     { name: `Participanți (${participants.length})`, value: list.slice(0, 1024), inline: false },
