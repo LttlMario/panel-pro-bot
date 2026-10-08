@@ -8,8 +8,8 @@ import { discordPremiumButton } from '../_shared/discord-premium.ts';
 
 const DISCORD_API = 'https://discord.com/api/v10';
 const OFFICIAL_GUILD_ID = '1544703486384537603';
-const MODULES: Record<string, { label: string; premium: boolean; title: string; description: string; color: number; buttons: any[]; log_key?: string }> = {
-  pontaj: { label: 'Pontaj și ture', premium: false, title: '🕒 Pontaj · Panel Pro', description: 'Apasă Start pentru a începe automat tura potrivită după ora României. Noapte: 20:00–23:00; zi: în rest.', color: 0x22c55e, buttons: [{ label: 'Start', style: 3, id: 'panel:pontaj:start' }, { label: 'Pauză', style: 2, id: 'panel:pontaj:pause' }, { label: 'Stop', style: 4, id: 'panel:pontaj:stop' }] },
+const MODULES: Record<string, { label: string; premium: boolean; title: string; description: string; color: number; buttons: any[] }> = {
+  pontaj: { label: 'Pontaj și ture', premium: false, title: '🕒 Pontaj · Panel Pro', description: 'Alege tura și folosește butoanele pentru Start, Pauză și Stop.', color: 0x22c55e, buttons: [{ label: 'Tura de zi', style: 1, id: 'panel:pontaj:shift_day' }, { label: 'Tura de noapte', style: 1, id: 'panel:pontaj:shift_night' }, { label: 'Start', style: 3, id: 'panel:pontaj:start' }, { label: 'Pauză', style: 2, id: 'panel:pontaj:pause' }, { label: 'Stop', style: 4, id: 'panel:pontaj:stop' }, { label: 'Pontajul meu', style: 1, id: 'panel:pontaj:my_stats' }] },
   requests_organization: { label: 'Învoiri organizație', premium: true, title: '📝 Învoiri · Organizație', description: 'Trimite și consultă învoirile organizației.', color: 0xf59e0b, buttons: [{ label: 'Trimite învoire', style: 1, id: 'panel:requests:organization:new' }, { label: 'Învoirile mele', style: 2, id: 'panel:requests:organization:mine' }] },
   requests_departments: { label: 'Învoiri angajați', premium: false, title: '📝 Învoiri · Angajați', description: 'Trimite și consultă învoirile angajaților.', color: 0xf59e0b, buttons: [{ label: 'Trimite învoire', style: 1, id: 'panel:requests:departments:new' }, { label: 'Învoirile mele', style: 2, id: 'panel:requests:departments:mine' }] },
   organization: { label: 'Anunțuri organizație', premium: true, title: '📢 Anunțuri · Organizație', description: 'Publică anunțuri, întrebări, sondaje, avertismente și sancțiuni pentru organizație.', color: 0x8b5cf6, buttons: [{ label: 'Publică anunț', style: 1, id: 'panel:announcements:organization:create:announcement' }, { label: 'Pune întrebare', style: 2, id: 'panel:announcements:organization:create:question' }, { label: 'Creează sondaj', style: 3, id: 'panel:announcements:organization:create:poll' }, { label: 'Avertisment', style: 4, id: 'panel:announcements:organization:create:warning' }, { label: 'Sancțiune', style: 4, id: 'panel:announcements:organization:create:sanction' }, { label: 'Istoric avertismente / sancțiuni', style: 2, id: 'panel:discipline:organization:history' }] },
@@ -20,25 +20,6 @@ const MODULES: Record<string, { label: string; premium: boolean; title: string; 
   event_reminders: { label: 'Evenimente și remindere', premium: true, title: '🗓️ Evenimente și remindere', description: 'Înregistrează evenimente și trimite remindere automate pe durata aleasă.', color: 0xf59e0b, buttons: [{ label: 'Adaugă eveniment', style: 1, id: 'panel:discovery:reminder_create' }, { label: 'Info remindere', style: 2, id: 'panel:discovery:reminder_info' }] },
   contract_identity_weekly: { label: 'Raport săptămânal contracte', premium: true, title: '📋 Raport săptămânal contracte', description: 'Generează exportul săptămânal cu numele și CNP-ul angajaților.', color: 0x14b8a6, buttons: [{ label: 'Generează raport', style: 1, id: 'panel:discovery:weekly_report' }, { label: 'Info raport', style: 2, id: 'panel:discovery:report_info' }] },
   weekly_reports: { label: 'Raport săptămânal pontaj', premium: false, title: '📊 Raport săptămânal pontaj', description: 'Trimite zilele lucrate, orele pe fiecare membru și totalul săptămânal.', color: 0x06b6d4, buttons: [{ label: 'Generează raport pontaj', style: 1, id: 'panel:discovery:weekly_shift_report' }] },
-  presence_activity: { label: 'Prezență și activitate', premium: true, title: '👥 Prezență și activitate', description: 'Vezi activitatea angajaților, turele active și istoricul prezenței.', color: 0x22c55e, buttons: [] },
-  performance: { label: 'Evaluări și performanță', premium: true, title: '🏆 Evaluări și performanță', description: 'Compară activitatea și timpul lucrat pentru evaluări interne.', color: 0xf59e0b, buttons: [] },
-  leader_dashboard: { label: 'Panou pentru lideri', premium: true, title: '📈 Panou pentru lideri', description: 'Rezumat pentru lideri cu membri, pontaje, învoiri și activitate recentă.', color: 0x8b5cf6, buttons: [] },
-  statistics_comparison: { label: 'Statistici comparative', premium: true, title: '📊 Statistici comparative', description: 'Compară activitatea serverului între perioade și module.', color: 0x06b6d4, buttons: [] },
-  audit_log: { label: 'Jurnal de audit', premium: true, title: '🔎 Jurnal de audit', description: 'Istoric al acțiunilor importante efectuate în Panel Pro.', color: 0x64748b, buttons: [] },
-  notifications: { label: 'Notificări inteligente', premium: true, title: '🔔 Notificări inteligente', description: 'Centralizează notificările și evenimentele care necesită atenție.', color: 0x3b82f6, buttons: [] },
-  tasks: { label: 'Sarcini și obiective', premium: true, title: '✅ Sarcini și obiective', description: 'Creează sarcini, atribuie responsabili și urmărește termenele.', color: 0x22c55e, log_key: 'log_tasks', buttons: [{ label: 'Adaugă sarcină', style: 1, id: 'panel:operations:tasks:open' }] },
-  internal_requests: { label: 'Cereri interne și aprobări', premium: true, title: '📨 Cereri interne și aprobări', description: 'Gestionează cereri interne cu status, aprobare și istoric.', color: 0xf59e0b, log_key: 'log_internal_requests', buttons: [{ label: 'Trimite cerere', style: 1, id: 'panel:operations:internal_requests:open' }] },
-  employee_profiles: { label: 'Dosare angajați', premium: true, title: '🗂️ Dosare angajați', description: 'Păstrează informațiile operaționale și istoricul fiecărui angajat.', color: 0x8b5cf6, log_key: 'log_employee_profiles', buttons: [{ label: 'Adaugă informație', style: 1, id: 'panel:operations:employee_profiles:open' }] },
-  schedules: { label: 'Programări și ture', premium: true, title: '🗓️ Programări și ture', description: 'Planifică ture, schimburi și disponibilități.', color: 0x06b6d4, log_key: 'log_schedules', buttons: [{ label: 'Adaugă programare', style: 1, id: 'panel:operations:schedules:open' }] },
-  payroll: { label: 'Salarii și bonusuri', premium: true, title: '💰 Salarii și bonusuri', description: 'Evidență internă pentru salarii, bonusuri și penalizări.', color: 0xf59e0b, log_key: 'log_payroll', buttons: [{ label: 'Adaugă înregistrare', style: 1, id: 'panel:operations:payroll:open' }] },
-  inventory: { label: 'Inventar organizație', premium: true, title: '📦 Inventar organizație', description: 'Gestionează obiecte, vehicule, materiale și responsabili.', color: 0x14b8a6, log_key: 'log_inventory', buttons: [{ label: 'Adaugă articol', style: 1, id: 'panel:operations:inventory:open' }] },
-  recruitment: { label: 'Recrutare', premium: true, title: '🧑‍💼 Recrutare', description: 'Primește aplicații, programează interviuri și urmărește candidații.', color: 0x3b82f6, log_key: 'log_recruitment', buttons: [{ label: 'Aplică', style: 1, id: 'panel:operations:recruitment:open' }] },
-  support_tickets: { label: 'Ticketing intern', premium: true, title: '🎫 Ticketing intern', description: 'Organizează cererile și conversațiile interne ale serverului.', color: 0x5865f2, log_key: 'log_support_tickets', buttons: [{ label: 'Deschide ticket', style: 1, id: 'panel:operations:support_tickets:open' }] },
-  forms: { label: 'Formulare personalizabile', premium: true, title: '🧾 Formulare personalizabile', description: 'Construiește formulare interne pentru cereri și procese repetitive.', color: 0x8b5cf6, log_key: 'log_forms', buttons: [{ label: 'Completează formular', style: 1, id: 'panel:operations:forms:open' }] },
-  exports: { label: 'Exporturi și arhivă', premium: true, title: '📤 Exporturi și arhivă', description: 'Pregătește exporturi pentru pontaje, cereri și activitatea organizației.', color: 0x64748b, log_key: 'log_exports', buttons: [{ label: 'Solicită export', style: 1, id: 'panel:operations:exports:open' }] },
-  backup_restore: { label: 'Backup și restaurare', premium: true, title: '💾 Backup și restaurare', description: 'Salvează și restaurează configurația modulelor și a rutelor Discord.', color: 0x64748b, log_key: 'log_backup_restore', buttons: [{ label: 'Solicită backup', style: 1, id: 'panel:operations:backup_restore:open' }] },
-  public_dashboard: { label: 'Dashboard public', premium: true, title: '🌐 Dashboard public', description: 'Publică selectiv statistici sigure pentru comunitate.', color: 0x06b6d4, log_key: 'log_public_dashboard', buttons: [{ label: 'Propune actualizare', style: 1, id: 'panel:operations:public_dashboard:open' }] },
-  dm_notifications: { label: 'Notificări DM', premium: true, title: '✉️ Notificări DM', description: 'Trimite notificări private pentru aprobări, expirări și schimbări.', color: 0x3b82f6, log_key: 'log_dm_notifications', buttons: [{ label: 'Creează notificare', style: 1, id: 'panel:operations:dm_notifications:open' }] },
   actions_organization: { label: 'Acțiuni organizație', premium: true, title: '🎯 Acțiuni · Organizație', description: 'Înregistrează și consultă acțiunile organizației.', color: 0x3b82f6, buttons: [{ label: 'Acțiune', style: 1, id: 'panel:actions:organization:create' }, { label: 'Clasament acțiuni', style: 2, id: 'panel:actions:organization:stats' }] },
   stash: { label: 'Stash', premium: true, title: '📦 Stash · Administrare', description: 'Gestionează articolele Stash. Cererile și donațiile se gestionează din embedurile lor separate.', color: 0x22c55e, buttons: [{ label: 'Adaugă în Stash', style: 3, id: 'panel:stash:create' }, { label: 'Gestionează articole', style: 2, id: 'panel:stash:manage_items' }] },
   stash_requests: { label: 'Cereri Stash', premium: true, title: '📨 Cereri Stash', description: 'Solicită articole și urmărește cererile trimise pentru aprobare.', color: 0x3b82f6, buttons: [{ label: 'Solicită articol', style: 1, id: 'panel:stash:request' }, { label: 'Cereri în așteptare', style: 2, id: 'panel:stash:pending_requests' }] },
@@ -52,13 +33,11 @@ const LOG_ROUTES: Record<string, string> = {
   organization: 'log_announcements_organization', departments: 'log_announcements_departments', pontaj: 'log_pontaj',
   requests_organization: 'log_requests_organization', requests_departments: 'log_requests_departments', contracts: 'log_contracts', contract_identity_weekly: 'log_contract_identity_weekly', weekly_reports: 'log_weekly_reports',
   actions_organization: 'log_actions_organization', marketplace: 'log_marketplace', illegal_marketplace: 'log_illegal_marketplace', stash: 'log_stash', stash_requests: 'log_stash_requests', stash_donations: 'log_stash_donations', event_reminders: 'log_event_reminders'
-  ,tasks: 'log_tasks', internal_requests: 'log_internal_requests', employee_profiles: 'log_employee_profiles', schedules: 'log_schedules', payroll: 'log_payroll', inventory: 'log_inventory', recruitment: 'log_recruitment', support_tickets: 'log_support_tickets', forms: 'log_forms', exports: 'log_exports', backup_restore: 'log_backup_restore', public_dashboard: 'log_public_dashboard', dm_notifications: 'log_dm_notifications'
 };
 const LOG_LABELS: Record<string, string> = {
   log_announcements_organization: 'Log anunțuri organizație', log_announcements_departments: 'Log anunțuri angajați', log_pontaj: 'Log pontaj',
   log_requests_organization: 'Log învoiri organizație', log_requests_departments: 'Log învoiri angajați', log_contracts: 'Log contracte', log_weekly_reports: 'Log raport săptămânal pontaj',
   log_actions_organization: 'Log acțiuni organizație', log_marketplace: 'Log Marketplace', log_illegal_marketplace: 'Log Marketplace ilegal', log_contract_identity_weekly: 'Log raport săptămânal contracte', log_stash: 'Log Stash', log_stash_requests: 'Log cereri Stash', log_stash_donations: 'Log donații Stash', log_event_reminders: 'Log evenimente și remindere'
-  ,log_tasks: 'Log sarcini', log_internal_requests: 'Log cereri interne', log_employee_profiles: 'Log dosare angajați', log_schedules: 'Log programări și ture', log_payroll: 'Log salarii și bonusuri', log_inventory: 'Log inventar', log_recruitment: 'Log recrutare', log_support_tickets: 'Log ticketing intern', log_forms: 'Log formulare', log_exports: 'Log exporturi', log_backup_restore: 'Log backup și restaurare', log_public_dashboard: 'Log dashboard public', log_dm_notifications: 'Log notificări DM'
 };
 const MODULE_EMOJIS: Record<string, string> = {
   pontaj: '🕒', requests_organization: '📝', requests_departments: '📝', organization: '📢', departments: '📢',
@@ -127,13 +106,6 @@ async function ensureDiscordOrganization(db: any, user: any, guild: any, applica
   const { data: linked, error: linkedError } = await db.from('discovery_guilds').select('organization_id,kind').eq('guild_id', guildId).eq('enabled', true).maybeSingle();
   if (linkedError) throw linkedError;
   if (linked?.organization_id) {
-    let botToken = String(Deno.env.get('DISCORD_BOT_TOKEN') || '').trim();
-    if (!botToken) {
-      try { botToken = await getPlatformSecret(db, 'discord_bot_token'); } catch (_) { return null; }
-    }
-    if (!botToken) return null;
-    const botGuildResponse = await fetch(`${DISCORD_API}/guilds/${guildId}`, { headers: botHeaders(botToken) });
-    if (!botGuildResponse.ok) return null;
     const { data: linkedOrganization, error: linkedOrganizationError } = await db.from('discovery_organizations').select('access_mode,slug').eq('id', linked.organization_id).maybeSingle();
     if (linkedOrganizationError) throw linkedOrganizationError;
     if (linkedOrganization?.access_mode === 'discord_only' || String(linkedOrganization?.slug || '').startsWith('discord-')) {
@@ -171,7 +143,7 @@ async function ensureDiscordOrganization(db: any, user: any, guild: any, applica
   return { organization_id: organizationId, kind: 'primary' };
 }
 
-async function ownedGuildsFromDatabase(db: any, user: any, applicationId: string, platformAdmin = false, diagnostics: Record<string, any> = {}) {
+async function ownedGuilds(db: any, user: any, applicationId: string, platformAdmin = false, diagnostics: Record<string, any> = {}) {
   const token = String(user.access_token);
   let guilds: any[] = [];
   if (platformAdmin) {
@@ -244,27 +216,6 @@ async function ownedGuildsFromDatabase(db: any, user: any, applicationId: string
     result.push({ id: String(guild.id), name: clean(guild.name || guild.id, 120), organization_id: String(organization?.id || linked.organization_id), organization_name: clean(organization?.name || guild.name, 120), access_mode: organization?.access_mode || 'discord_only', bot_installed: true, is_owner: isOwner, can_manage_access: Boolean(platformAdmin || isOwner || isGuildAdministrator), owner_id: platformAdmin ? String(guild.owner_id || '') : null, owner_user: platformAdmin ? (guild.owner_user || null) : null, plan: premium ? 'premium' : trial ? 'trial' : 'free', trial_ends_at: trialValue.ends_at || null, premium_ends_at: entitlement?.ends_at || null, sku_id: entitlement?.sku_id || null });
   }
   return result;
-}
-
-// Permite autentificarea chiar dacă PostgREST are temporar o problemă de
-// validare a JWT-ului intern. Datele complete se încarcă la următoarea cerere.
-async function ownedGuilds(db: any, user: any, applicationId: string, platformAdmin = false, diagnostics: Record<string, any> = {}) {
-  try {
-    return await ownedGuildsFromDatabase(db, user, applicationId, platformAdmin, diagnostics);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error || '');
-    if (!/JWT issued at future/i.test(message)) throw error;
-    const response = await fetch(`${DISCORD_API}/users/@me/guilds`, { headers: { Authorization: `Bearer ${String(user.access_token)}` } });
-    if (!response.ok) throw error;
-    const guilds = await response.json().catch(() => []);
-    diagnostics.database_degraded = true;
-    diagnostics.database_error = 'temporar';
-    return (Array.isArray(guilds) ? guilds : []).filter((guild: any) => id(guild?.id)).map((guild: any) => ({
-      id: String(guild.id), name: clean(guild.name || guild.id, 120), organization_id: '', organization_name: clean(guild.name || guild.id, 120),
-      access_mode: 'discord_only', bot_installed: false, is_owner: Boolean(guild.owner), can_manage_access: Boolean(guild.owner),
-      owner_id: null, owner_user: null, plan: 'free', trial_ends_at: null, premium_ends_at: null, sku_id: null
-    }));
-  }
 }
 
 async function reconcileInstallations(db: any) {
@@ -766,61 +717,16 @@ function payload(moduleKey: string, donation: boolean, definitions = MODULES) {
 }
 
 Deno.serve(async (request) => {
-  let requestedAction = '';
-  let requestedAccessToken = '';
-  let requestedBody: any = {};
-  let authenticatedDiscordUser: any = null;
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: headersFor(request) });
   try {
-    const rawSecretKeys = String(Deno.env.get('SUPABASE_SECRET_KEYS') || '').trim();
-    let configuredSecret = rawSecretKeys.startsWith('sb_secret_') ? rawSecretKeys : '';
-    try {
-      const parsed = JSON.parse(rawSecretKeys || '{}');
-      configuredSecret = String(parsed?.default || parsed?.service_role || configuredSecret).trim();
-    } catch (_) {}
-    const directSecret = String(Deno.env.get('PANEL_PRO_SUPABASE_SECRET_KEY') || Deno.env.get('SUPABASE_SECRET_KEY') || '').trim();
-    const key = directSecret.startsWith('sb_secret_')
-      ? directSecret
-      : configuredSecret.startsWith('sb_secret_')
-        ? configuredSecret
-        : Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || configuredSecret;
+    const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') || '{}').default;
     if (!key) throw new Error('Cheia Supabase lipsește.');
     const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
     const body = await request.json().catch(() => ({}));
-    requestedBody = body || {};
-    const action = clean(body.action, 40) || 'bootstrap';
-    requestedAction = action;
-    // Snapshot-ul public este singura rută fără autentificare Discord. Tokenul
-    // este generat de administrator și oferă doar statistici agregate, fără
-    // nume, mesaje sau date personale.
-    if (action === 'public_dashboard_snapshot') {
-      const guildId = clean(body.guild_id, 30);
-      const publicToken = clean(body.public_token, 160);
-      if (!id(guildId) || !publicToken) return reply(request, { error: 'Dashboard public invalid.' }, 400);
-      const { data: linked, error: linkedError } = await db.from('discovery_guilds').select('organization_id,guild_name,enabled').eq('guild_id', guildId).eq('enabled', true).maybeSingle();
-      if (linkedError) throw linkedError;
-      if (!linked?.organization_id) return reply(request, { error: 'Serverul nu are dashboard public activ.' }, 404);
-      const { data: setting, error: settingError } = await db.from('discovery_app_settings').select('value').eq('organization_id', linked.organization_id).eq('key', 'public_dashboard').maybeSingle();
-      if (settingError) throw settingError;
-      if (String(setting?.value?.token || '') !== publicToken || setting?.value?.enabled !== true) return reply(request, { error: 'Dashboard public dezactivat sau token invalid.' }, 403);
-      const [{ count: shiftsCount }, { count: activeShifts }, { count: absencesCount }, { count: membersCount }, { count: submissionsCount }] = await Promise.all([
-        db.from('discovery_shifts').select('id', { count: 'exact', head: true }).eq('organization_id', linked.organization_id),
-        db.from('discovery_shifts').select('id', { count: 'exact', head: true }).eq('organization_id', linked.organization_id).in('status', ['active', 'paused']),
-        db.from('discovery_absences').select('id', { count: 'exact', head: true }).eq('organization_id', linked.organization_id),
-        db.from('discovery_members').select('discord_id', { count: 'exact', head: true }).eq('organization_id', linked.organization_id).eq('active', true),
-        db.from('discovery_custom_module_submissions').select('id', { count: 'exact', head: true }).eq('organization_id', linked.organization_id).eq('guild_id', guildId),
-      ]);
-      return reply(request, { ok: true, guild_id: guildId, guild_name: clean(linked.guild_name || guildId, 120), generated_at: new Date().toISOString(), statistics: { shifts: shiftsCount || 0, active_shifts: activeShifts || 0, absences: absencesCount || 0, active_members: membersCount || 0, operational_records: submissionsCount || 0 } });
-    }
     const accessToken = clean(body.access_token, 500);
-    requestedAccessToken = accessToken;
     if (!accessToken) return reply(request, { error: 'Conectarea Discord este necesară.' }, 401);
     const discord = await discordUser(accessToken);
-    authenticatedDiscordUser = discord;
-    let platformAdmin = false;
-    try { platformAdmin = await isPlatformAdminAccount(db, discord.id); } catch (error) {
-      if (!/JWT issued at future/i.test(error instanceof Error ? error.message : String(error || ''))) throw error;
-    }
+    let platformAdmin = await isPlatformAdminAccount(db, discord.id);
     const panelSessionToken = clean(request.headers.get('x-panel-session'), 500);
     if (!platformAdmin && panelSessionToken) {
       try {
@@ -831,16 +737,12 @@ Deno.serve(async (request) => {
       }
     }
     const applicationId = id(body.application_id) ? String(body.application_id) : '1531023771211792384';
+    const action = clean(body.action, 30) || 'bootstrap';
     const personalView = clean(body.view_scope, 30) === 'personal';
     const diagnostics: Record<string, any> = {};
     if (action === 'provision_official_server' || action === 'sync_official_roles' || action === 'announce_existing_community' || action === 'update_official_statistics' || action === 'sync_official_free_games') { if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate configura serverul oficial.' }, 403); const target=clean(body.guild_id,30); if (target !== '1544703486384537603') return reply(request,{error:'Serverul oficial nu este valid.'},400); const result=action === 'provision_official_server' ? await provisionOfficialServer(db,target) : action === 'sync_official_roles' ? await syncOfficialRoles(db,target) : action === 'announce_existing_community' ? await announceExistingCommunity(db,target) : action === 'update_official_statistics' ? await updateOfficialStatistics(db,target) : await syncOfficialFreeGames(db,target); return reply(request,{ok:true,guild_id:target,result}); }
     if (action === 'bootstrap') {
-      let discoveryBotToken = '';
-      try { discoveryBotToken = await getPlatformSecret(db, 'discord_bot_token'); } catch (error) {
-        const message = error instanceof Error ? error.message : String(error || '');
-        if (!/JWT issued at future/i.test(message)) throw error;
-        diagnostics.database_degraded = true;
-      }
+      const discoveryBotToken = await getPlatformSecret(db, 'discord_bot_token');
       const botIdentityResponse = discoveryBotToken
         ? await fetch(`${DISCORD_API}/users/@me`, { headers: botHeaders(discoveryBotToken) })
         : null;
@@ -1065,157 +967,6 @@ Deno.serve(async (request) => {
     }
     const { data: settings, error: settingsError } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', selectedGuild.organization_id).maybeSingle();
     if (settingsError) throw settingsError;
-    if (action === 'module_catalog') {
-      const [customSetting, globalModules] = await Promise.all([
-        db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle(),
-        readGlobalModules(db),
-      ]);
-      if (customSetting.error) throw customSetting.error;
-      const definitions = { ...mergeModuleDefinitions(MODULES, globalModules), ...sanitizeCustomModules(customSetting.data?.custom_modules || {}) } as Record<string, any>;
-      const routes = settings?.discord_channel_routes || {};
-      const administrator = platformAdmin || selectedGuild.can_manage_access === true;
-      const userRoleIds = new Set(administrator ? [] : await memberRoleIds(db, guildId, String(discord.id)));
-      const { data: accessSetting } = await db.from('discovery_app_settings').select('value').eq('organization_id', selectedGuild.organization_id).eq('key', 'discord_activity_module_access').maybeSingle();
-      const rules = accessSetting?.value?.modules && typeof accessSetting.value.modules === 'object' ? accessSetting.value.modules : {};
-      const hasRole = (values: any) => { const ids = Array.isArray(values) ? values.map(String).filter(Boolean) : []; return !ids.length || ids.some((roleId: string) => userRoleIds.has(roleId)); };
-      const modules = Object.entries(definitions).filter(([key, definition]: [string, any]) => key !== 'status_live' && definition.active !== false).map(([key, definition]: [string, any]) => {
-        const rule = rules[key] || {}; const planAllowed = selectedGuild.plan !== 'free' || definition.premium !== true; const visible = administrator || hasRole(rule.view_role_ids); const canUse = visible && planAllowed && (administrator || hasRole(rule.use_role_ids));
-        return { key, label: definition.label, title: definition.title, description: definition.description, premium: definition.premium === true, active: definition.active !== false && routes[key]?.primary?.enabled !== false, plan_allowed: planAllowed, visible, can_use: canUse, can_manage: administrator || hasRole(rule.manage_role_ids), embed_channel_id: routes[key]?.primary?.channel_id || '', log_channel_id: definition.log_key ? routes[definition.log_key]?.primary?.channel_id || '' : '', buttons: definition.buttons || [] };
-      }).filter((module: any) => module.visible && module.plan_allowed);
-      return reply(request, { ok: true, guild_id: guildId, guild_name: selectedGuild.name, plan: selectedGuild.plan, modules });
-    }
-    if (action === 'enable_public_dashboard' || action === 'disable_public_dashboard') {
-      if (!selectedGuild.can_manage_access) return reply(request, { error: 'Doar administratorul serverului sau administratorul global poate configura dashboardul public.' }, 403);
-      const settingKey = 'public_dashboard';
-      const current = await db.from('discovery_app_settings').select('value').eq('organization_id', selectedGuild.organization_id).eq('key', settingKey).maybeSingle();
-      if (current.error) throw current.error;
-      if (action === 'disable_public_dashboard') {
-        const value = { ...(current.data?.value || {}), enabled: false, disabled_at: new Date().toISOString() };
-        const { error } = await db.from('discovery_app_settings').upsert({ organization_id: selectedGuild.organization_id, key: settingKey, value, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,key' });
-        if (error) throw error;
-        return reply(request, { ok: true, enabled: false });
-      }
-      const token = String(current.data?.value?.token || '') || `${crypto.randomUUID().replace(/-/g, '')}${crypto.randomUUID().replace(/-/g, '')}`;
-      const value = { token, enabled: true, enabled_at: current.data?.value?.enabled_at || new Date().toISOString() };
-      const { error } = await db.from('discovery_app_settings').upsert({ organization_id: selectedGuild.organization_id, key: settingKey, value, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,key' });
-      if (error) throw error;
-      return reply(request, { ok: true, enabled: true, url: `https://bot.panel-pro.ro/dashboard-public.html?guild_id=${encodeURIComponent(guildId)}&token=${encodeURIComponent(token)}` });
-    }
-    if (action === 'module_dashboard') {
-      const moduleKey = clean(body.module_key, 60);
-      const customSetting = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
-      if (customSetting.error) throw customSetting.error;
-      const definitions = { ...mergeModuleDefinitions(MODULES, await readGlobalModules(db)), ...sanitizeCustomModules(customSetting.data?.custom_modules || {}) } as Record<string, any>;
-      const definition = definitions[moduleKey];
-      if (!definition) return reply(request, { error: 'Modulul selectat nu există.' }, 404);
-      const routes = settings?.discord_channel_routes || {};
-      const planAllowed = selectedGuild.plan !== 'free' || definition.premium !== true;
-      const administrator = platformAdmin || selectedGuild.can_manage_access === true;
-      const userRoleIds = new Set(administrator ? [] : await memberRoleIds(db, guildId, String(discord.id)));
-      const { data: accessSetting } = await db.from('discovery_app_settings').select('value').eq('organization_id', selectedGuild.organization_id).eq('key', 'discord_activity_module_access').maybeSingle();
-      const rule = accessSetting?.value?.modules?.[moduleKey] || {};
-      const hasRole = (values: any) => { const ids = Array.isArray(values) ? values.map(String).filter(Boolean) : []; return !ids.length || ids.some((roleId: string) => userRoleIds.has(roleId)); };
-      const visible = administrator || hasRole(rule.view_role_ids);
-      const canUse = visible && planAllowed && (administrator || hasRole(rule.use_role_ids));
-      if (!visible) return reply(request, { error: 'Nu ai acces la această pagină pentru rolurile Discord actuale.' }, 403);
-      if (!planAllowed) return reply(request, { error: 'Acest modul necesită Premium pentru serverul selectat.' }, 402);
-      const canConfigure = administrator || (Array.isArray(rule.manage_role_ids) && rule.manage_role_ids.length > 0 && rule.manage_role_ids.some((roleId: any) => userRoleIds.has(String(roleId))));
-      const response: any = { key: moduleKey, label: definition.label, title: definition.title, description: definition.description, plan: selectedGuild.plan, can_use: canUse, can_manage: administrator || hasRole(rule.manage_role_ids), can_configure: canConfigure, embed_channel_id: routes[moduleKey]?.primary?.channel_id || '', log_channel_id: definition.log_key ? routes[definition.log_key]?.primary?.channel_id || '' : '', data: {} };
-      if (moduleKey === 'pontaj' || moduleKey === 'weekly_reports' || moduleKey === 'status_live' || moduleKey === 'presence_activity' || moduleKey === 'performance' || moduleKey === 'leader_dashboard' || moduleKey === 'statistics_comparison') {
-        const [{ data: shifts }, { data: members }] = await Promise.all([
-          db.from('discovery_shifts').select('id,discord_id,colleague_name,date,shift_type,status,start_time,end_time,duration,duration_ms,started_at,ended_at,paused_seconds').eq('organization_id', selectedGuild.organization_id).order('created_at', { ascending: false }).limit(200),
-          db.from('discovery_members').select('discord_id,panel_role,active').eq('organization_id', selectedGuild.organization_id).eq('active', true),
-        ]);
-        response.data.shifts = shifts || [];
-        response.data.members = members || [];
-        response.data.active = (shifts || []).filter((item: any) => ['active', 'paused'].includes(String(item.status)));
-      } else if (moduleKey === 'tasks' || moduleKey === 'internal_requests' || moduleKey === 'employee_profiles' || moduleKey === 'schedules' || moduleKey === 'payroll' || moduleKey === 'inventory' || moduleKey === 'recruitment' || moduleKey === 'support_tickets' || moduleKey === 'forms' || moduleKey === 'exports' || moduleKey === 'backup_restore' || moduleKey === 'public_dashboard' || moduleKey === 'dm_notifications') {
-        const storageKey = `custom_${moduleKey}`.slice(0, 40);
-        const { data: submissions } = await db.from('discovery_custom_module_submissions').select('id,subject,details,status,submitted_by_discord_id,submitted_by_name,created_at,updated_at,review_note').eq('organization_id', selectedGuild.organization_id).eq('guild_id', guildId).eq('module_key', storageKey).order('updated_at', { ascending: false }).limit(200);
-        response.data.items = (submissions || []).map((item: any) => ({ id: item.id, module_key: moduleKey, item_type: 'record', title: item.subject, description: item.details, status: item.status, owner_discord_id: item.submitted_by_discord_id, owner_name: item.submitted_by_name, metadata: { review_note: item.review_note || '' }, created_at: item.created_at, updated_at: item.updated_at }));
-      } else if (moduleKey === 'requests_departments' || moduleKey === 'requests_organization') {
-        const { data: absences } = await db.from('discovery_absences').select('id,discord_id,colleague_name,notice_type,reason,start_date,end_date,start_at,end_at,status,proof_url,created_at,updated_at').eq('organization_id', selectedGuild.organization_id).eq('request_audience', moduleKey === 'requests_organization' ? 'organization' : 'departments').order('created_at', { ascending: false }).limit(200);
-        response.data.absences = absences || [];
-      } else {
-        const { data: activity } = await db.from('discovery_audit_log').select('id,action,target_type,target_id,created_at,details').eq('organization_id', selectedGuild.organization_id).order('created_at', { ascending: false }).limit(50);
-        response.data.activity = activity || [];
-      }
-      return reply(request, { ok: true, guild_id: guildId, guild_name: selectedGuild.name, organization_id: selectedGuild.organization_id, module: response });
-    }
-    if (action === 'module_export') {
-      if (!selectedGuild.can_manage_access) return reply(request, { error: 'Exporturile sunt disponibile doar pentru administratorul serverului sau administratorul global.' }, 403);
-      const moduleKey = clean(body.module_key, 60);
-      const rows: any[] = [];
-      if (moduleKey === 'exports') {
-        const [shiftResult, absenceResult, itemResult] = await Promise.all([
-          db.from('discovery_shifts').select('colleague_name,discord_id,date,shift_type,status,duration,started_at,ended_at').eq('organization_id', selectedGuild.organization_id).order('created_at', { ascending: false }).limit(2000),
-          db.from('discovery_absences').select('colleague_name,discord_id,notice_type,reason,start_date,end_date,status,created_at').eq('organization_id', selectedGuild.organization_id).order('created_at', { ascending: false }).limit(2000),
-          db.from('discovery_custom_module_submissions').select('subject,details,status,submitted_by_name,created_at,updated_at').eq('organization_id', selectedGuild.organization_id).eq('guild_id', guildId).order('updated_at', { ascending: false }).limit(2000),
-        ]);
-        if (shiftResult.error) throw shiftResult.error; if (absenceResult.error) throw absenceResult.error; if (itemResult.error) throw itemResult.error;
-        rows.push(...(shiftResult.data || []).map((item: any) => ({ source: 'pontaj', ...item })), ...(absenceResult.data || []).map((item: any) => ({ source: 'învoiri', ...item })), ...(itemResult.data || []).map((item: any) => ({ source: 'module', ...item })));
-      } else if (moduleKey === 'pontaj' || moduleKey === 'weekly_reports' || moduleKey === 'presence_activity' || moduleKey === 'performance' || moduleKey === 'statistics_comparison') {
-        const { data, error } = await db.from('discovery_shifts').select('colleague_name,discord_id,date,shift_type,status,duration,started_at,ended_at').eq('organization_id', selectedGuild.organization_id).order('created_at', { ascending: false }).limit(2000); if (error) throw error; rows.push(...(data || []));
-      } else if (moduleKey === 'requests_departments' || moduleKey === 'requests_organization') {
-        const { data, error } = await db.from('discovery_absences').select('colleague_name,discord_id,notice_type,reason,start_date,end_date,status,created_at').eq('organization_id', selectedGuild.organization_id).eq('request_audience', moduleKey === 'requests_organization' ? 'organization' : 'departments').order('created_at', { ascending: false }).limit(2000); if (error) throw error; rows.push(...(data || []));
-      } else {
-        const storageKey = `custom_${moduleKey}`.slice(0, 40); const { data, error } = await db.from('discovery_custom_module_submissions').select('subject,details,status,submitted_by_name,created_at,updated_at').eq('organization_id', selectedGuild.organization_id).eq('guild_id', guildId).eq('module_key', storageKey).order('updated_at', { ascending: false }).limit(2000); if (error) throw error; rows.push(...(data || []));
-      }
-      const columns = [...new Set(rows.flatMap((row: any) => Object.keys(row)))]; const csvCell = (value: any) => `"${String(value ?? '').replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`; const csv = [columns.join(','), ...rows.map((row: any) => columns.map((column) => csvCell(row[column])).join(','))].join('\n');
-      return reply(request, { ok: true, module_key: moduleKey, filename: `panel-pro-${moduleKey}-${new Date().toISOString().slice(0, 10)}.csv`, csv, count: rows.length });
-    }
-    if (action === 'module_backup' || action === 'restore_module_backup') {
-      if (!selectedGuild.can_manage_access) return reply(request, { error: 'Backupurile sunt disponibile doar pentru administratorul serverului sau administratorul global.' }, 403);
-      const accessSetting = await db.from('discovery_app_settings').select('value').eq('organization_id', selectedGuild.organization_id).eq('key', 'discord_activity_module_access').maybeSingle(); if (accessSetting.error) throw accessSetting.error;
-      if (action === 'module_backup') return reply(request, { ok: true, backup: { version: 1, created_at: new Date().toISOString(), guild_id: guildId, routes: settings?.discord_channel_routes || {}, access: accessSetting.data?.value || { guild_id: guildId, modules: {} } } });
-      const backup = body.backup && typeof body.backup === 'object' ? body.backup : {}; const availableChannels = new Set((await channels(db, guildId)).map((channel: any) => String(channel.id))); const routesInput = backup.routes && typeof backup.routes === 'object' ? backup.routes : {}; const safeRoutes: Record<string, any> = {};
-      for (const [key, route] of Object.entries(routesInput)) { const channelId = clean((route as any)?.primary?.channel_id, 30); if (channelId && validDiscordChannelId(channelId) && availableChannels.has(channelId)) safeRoutes[key] = { ...(route as any), primary: { ...((route as any)?.primary || {}), channel_id: channelId, guild_id: guildId } }; }
-      const accessInput = backup.access?.modules && typeof backup.access.modules === 'object' ? backup.access.modules : {}; const availableRoleIds = new Set((await guildRoles(db, guildId)).map((role: any) => String(role.id))); const safeModules: Record<string, any> = {};
-      for (const [key, item] of Object.entries(accessInput)) { const ids = (value: any) => [...new Set(Array.isArray(value) ? value.map(String).filter((roleId: string) => availableRoleIds.has(roleId)).slice(0, 25) : [])]; safeModules[key] = { view_role_ids: ids((item as any)?.view_role_ids), use_role_ids: ids((item as any)?.use_role_ids), manage_role_ids: ids((item as any)?.manage_role_ids) }; }
-      const [routeSave, accessSave] = await Promise.all([db.from('discovery_settings').update({ discord_channel_routes: safeRoutes, updated_at: new Date().toISOString(), updated_by_discord_id: String(discord.id) }).eq('organization_id', selectedGuild.organization_id), db.from('discovery_app_settings').upsert({ organization_id: selectedGuild.organization_id, key: 'discord_activity_module_access', value: { guild_id: guildId, modules: safeModules }, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,key' })]); if (routeSave.error) throw routeSave.error; if (accessSave.error) throw accessSave.error;
-      return reply(request, { ok: true, routes: safeRoutes, access: { guild_id: guildId, modules: safeModules } });
-    }
-    if (action === 'module_items' || action === 'save_module_item' || action === 'delete_module_item') {
-      const moduleKey = clean(body.module_key, 60);
-      const operationalKeys = new Set(['tasks', 'internal_requests', 'employee_profiles', 'schedules', 'payroll', 'inventory', 'recruitment', 'support_tickets', 'forms', 'exports', 'backup_restore', 'public_dashboard', 'dm_notifications']);
-      if (!operationalKeys.has(moduleKey)) return reply(request, { error: 'Modulul nu folosește înregistrări operaționale.' }, 400);
-      if (selectedGuild.plan === 'free') return reply(request, { error: 'Acest modul necesită Premium sau Trial activ.' }, 402);
-      let canManageItems = selectedGuild.can_manage_access;
-      if (!canManageItems) {
-        const [roleIds, configuredAccess] = await Promise.all([memberRoleIds(db, guildId, String(discord.id)), db.from('discovery_app_settings').select('value').eq('organization_id', selectedGuild.organization_id).eq('key', 'discord_activity_module_access').maybeSingle()]);
-        const configuredRoles = configuredAccess.data?.value?.modules?.[moduleKey]?.manage_role_ids;
-        canManageItems = Array.isArray(configuredRoles) && configuredRoles.map(String).some((roleId: string) => roleIds.includes(roleId));
-      }
-      if (!canManageItems) return reply(request, { error: 'Nu ai rolul Discord desemnat pentru administrarea acestui modul.' }, 403);
-      const storageKey = `custom_${moduleKey}`.slice(0, 40);
-      const baseQuery = db.from('discovery_custom_module_submissions').select('id,subject,details,status,submitted_by_discord_id,submitted_by_name,created_at,updated_at,review_note').eq('organization_id', selectedGuild.organization_id).eq('guild_id', guildId).eq('module_key', storageKey);
-      if (action === 'module_items') {
-        const { data: items, error } = await baseQuery.order('updated_at', { ascending: false }).limit(200);
-        if (error) throw error;
-        return reply(request, { ok: true, module_key: moduleKey, items: (items || []).map((item: any) => ({ id: item.id, module_key: moduleKey, item_type: 'record', title: item.subject, description: item.details, status: item.status, owner_discord_id: item.submitted_by_discord_id, owner_name: item.submitted_by_name, metadata: { review_note: item.review_note || '' }, created_at: item.created_at, updated_at: item.updated_at })) });
-      }
-      const itemId = clean(body.item_id, 60);
-      if (action === 'delete_module_item') {
-        if (!/^[0-9a-f-]{20,40}$/i.test(itemId)) return reply(request, { error: 'Înregistrarea selectată nu este validă.' }, 400);
-        const { error } = await db.from('discovery_custom_module_submissions').delete().eq('id', itemId).eq('organization_id', selectedGuild.organization_id).eq('guild_id', guildId).eq('module_key', storageKey);
-        if (error) throw error;
-        return reply(request, { ok: true, deleted: itemId });
-      }
-      const title = clean(body.title, 160);
-      if (!title) return reply(request, { error: 'Titlul este obligatoriu.' }, 400);
-      const metadata = body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {};
-      const dueDate = body.due_at ? new Date(String(body.due_at)) : null;
-      if (dueDate && Number.isNaN(dueDate.getTime())) return reply(request, { error: 'Termenul introdus nu este o dată validă.' }, 400);
-      const details = [clean(body.description, 2000), Object.keys(metadata).length ? `\n\nDate: ${clean(JSON.stringify(metadata), 1800)}` : ''].join('').trim();
-      if (itemId && /^[0-9a-f-]{20,40}$/i.test(itemId)) {
-        const { data: item, error } = await db.from('discovery_custom_module_submissions').update({ subject: title, details, status: clean(body.status, 40) || 'pending', updated_at: new Date().toISOString() }).eq('id', itemId).eq('organization_id', selectedGuild.organization_id).eq('guild_id', guildId).eq('module_key', storageKey).select('*').single();
-        if (error) throw error;
-        return reply(request, { ok: true, item });
-      }
-      const { data: item, error } = await db.from('discovery_custom_module_submissions').insert({ organization_id: selectedGuild.organization_id, guild_id: guildId, module_key: storageKey, submitted_by_discord_id: String(discord.id), submitted_by_name: clean(discord.global_name || discord.username || discord.id, 120), handler: moduleKey, subject: title, details, status: clean(body.status, 40) || 'pending' }).select('*').single();
-      if (error) throw error;
-      return reply(request, { ok: true, item });
-    }
     if (action === 'dashboard_overview' || action === 'repair_guild' || action === 'auto_configure_routes' || action === 'auto_configure_guild' || action === 'set_module_enabled' || action === 'test_setup' || action === 'reset_routes') {
       const customSetting = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
       if (customSetting.error) throw customSetting.error;
@@ -1352,60 +1103,11 @@ Deno.serve(async (request) => {
       return reply(request, { ok: true, result, routes: nextRoutes, failures: delivery.failures || [] });
     }
     if (action === 'channels') return reply(request, { ok: true, channels: await channels(db, guildId), routes: settings?.discord_channel_routes || {} });
-    if (action === 'module_settings' || action === 'save_module_settings') {
-      let canConfigureModule = selectedGuild.can_manage_access;
-      if (!canConfigureModule) {
-        const [roleIds, configuredAccess] = await Promise.all([memberRoleIds(db, guildId, String(discord.id)), db.from('discovery_app_settings').select('value').eq('organization_id', selectedGuild.organization_id).eq('key', 'discord_activity_module_access').maybeSingle()]);
-        const configuredRoles = configuredAccess.data?.value?.modules?.[clean(body.module_key, 60)]?.manage_role_ids;
-        canConfigureModule = Array.isArray(configuredRoles) && configuredRoles.map(String).some((roleId: string) => roleIds.includes(roleId));
-      }
-      if (!canConfigureModule) return reply(request, { error: 'Nu ai rolul Discord desemnat pentru modificarea acestui modul.' }, 403);
-      const customSetting = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
-      if (customSetting.error) throw customSetting.error;
-      const definitions = { ...mergeModuleDefinitions(MODULES, await readGlobalModules(db)), ...sanitizeCustomModules(customSetting.data?.custom_modules || {}) } as Record<string, any>;
-      const moduleKey = clean(body.module_key, 60);
-      const definition = definitions[moduleKey];
-      if (!definition || definition.active === false || moduleKey === 'status_live') return reply(request, { error: 'Modulul selectat nu există sau nu poate fi configurat.' }, 404);
-      if (definition.premium === true && selectedGuild.plan === 'free') return reply(request, { error: 'Acest modul necesită Premium sau Trial activ.' }, 402);
-      const routeMap = { ...(settings?.discord_channel_routes || {}) } as Record<string, any>;
-      const accessSetting = await db.from('discovery_app_settings').select('value').eq('organization_id', selectedGuild.organization_id).eq('key', 'discord_activity_module_access').maybeSingle();
-      if (accessSetting.error) throw accessSetting.error;
-      const currentAccess = accessSetting.data?.value?.modules && typeof accessSetting.data.value.modules === 'object' ? accessSetting.data.value.modules : {};
-      const currentRule = currentAccess[moduleKey] || { view_role_ids: [], use_role_ids: [], manage_role_ids: [] };
-      if (action === 'module_settings') {
-        const [channelList, availableRoles] = await Promise.all([channels(db, guildId), guildRoles(db, guildId)]);
-        return reply(request, { ok: true, guild_id: guildId, module: { key: moduleKey, label: definition.label, title: definition.title, premium: definition.premium === true, embed_channel_id: routeMap[moduleKey]?.primary?.channel_id || '', log_channel_id: definition.log_key ? routeMap[definition.log_key]?.primary?.channel_id || '' : '', log_key: definition.log_key || '', access: currentRule }, channels: channelList, roles: availableRoles });
-      }
-      const channelList = await channels(db, guildId);
-      const availableChannels = new Set(channelList.map((channel: any) => String(channel.id)));
-      const embedChannelId = clean(body.embed_channel_id, 30);
-      const logChannelId = clean(body.log_channel_id, 30);
-      if (embedChannelId && (!validDiscordChannelId(embedChannelId) || !availableChannels.has(embedChannelId))) return reply(request, { error: 'Canalul principal selectat nu există pe server.' }, 400);
-      if (logChannelId && (!validDiscordChannelId(logChannelId) || !availableChannels.has(logChannelId))) return reply(request, { error: 'Canalul de log selectat nu există pe server.' }, 400);
-      if (embedChannelId) routeMap[moduleKey] = { ...(routeMap[moduleKey] || {}), primary: { ...(routeMap[moduleKey]?.primary || {}), channel_id: embedChannelId, guild_id: guildId, enabled: true } };
-      else delete routeMap[moduleKey];
-      const logKey = definition.log_key || LOG_ROUTES[moduleKey];
-      if (logKey) {
-        if (logChannelId) routeMap[logKey] = { ...(routeMap[logKey] || {}), primary: { ...(routeMap[logKey]?.primary || {}), channel_id: logChannelId, guild_id: guildId, enabled: true } };
-        else delete routeMap[logKey];
-      }
-      const availableRoleIds = new Set((await guildRoles(db, guildId)).map((role: any) => String(role.id)));
-      const roleIds = (value: any) => [...new Set(Array.isArray(value) ? value.map(String).filter((roleId: string) => availableRoleIds.has(roleId)).slice(0, 25) : [])];
-      const nextRule = { view_role_ids: roleIds(body.view_role_ids), use_role_ids: roleIds(body.use_role_ids), manage_role_ids: roleIds(body.manage_role_ids) };
-      const nextAccess = { ...currentAccess, [moduleKey]: nextRule };
-      const [routeSave, accessSave] = await Promise.all([
-        db.from('discovery_settings').update({ discord_channel_routes: routeMap, updated_at: new Date().toISOString(), updated_by_discord_id: String(discord.id) }).eq('organization_id', selectedGuild.organization_id),
-        db.from('discovery_app_settings').upsert({ organization_id: selectedGuild.organization_id, key: 'discord_activity_module_access', value: { guild_id: guildId, modules: nextAccess }, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,key' }),
-      ]);
-      if (routeSave.error) throw routeSave.error;
-      if (accessSave.error) throw accessSave.error;
-      return reply(request, { ok: true, module: { key: moduleKey, embed_channel_id: embedChannelId, log_channel_id: logChannelId, access: nextRule }, routes: routeMap });
-    }
     if (action === 'module_access' || action === 'save_module_access') {
       if (!selectedGuild.can_manage_access) return reply(request, { error: 'Acces permis doar administratorului serverului sau administratorului global.' }, 403);
       const definitions = { ...mergeModuleDefinitions(MODULES, await readGlobalModules(db)), ...sanitizeCustomModules((await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle()).data?.custom_modules || {}) } as Record<string, any>;
       const routeMap = settings?.discord_channel_routes || {};
-      const configuredKeys = new Set<string>(Object.keys(definitions).filter((key) => definitions[key]?.active !== false && key !== 'status_live'));
+      const configuredKeys = new Set<string>(Object.keys(definitions).filter((key) => Boolean(routeMap[key]?.primary?.channel_id || definitions[key]?.log_key && routeMap[definitions[key].log_key]?.primary?.channel_id)));
       const availableRoles = await guildRoles(db, guildId);
       const roleIds = new Set(availableRoles.map((role: any) => String(role.id)));
       if (action === 'save_module_access') {
@@ -1595,26 +1297,6 @@ Deno.serve(async (request) => {
     return reply(request, { error: 'Acțiune necunoscută.' }, 400);
   } catch (error) {
     const detail = error instanceof Error ? error.message : (error && typeof error === 'object' ? String((error as any).message || (error as any).details || (error as any).hint || '') : '');
-    if (requestedAction === 'bootstrap' && /JWT issued at future/i.test(detail) && requestedAccessToken) {
-      const guildResponse = await fetch(`${DISCORD_API}/users/@me/guilds`, { headers: { Authorization: `Bearer ${requestedAccessToken}` } });
-      if (guildResponse.ok) {
-        const oauthGuilds = await guildResponse.json().catch(() => []);
-        const guilds = (Array.isArray(oauthGuilds) ? oauthGuilds : []).filter((guild: any) => id(guild?.id)).map((guild: any) => ({
-          id: String(guild.id), name: clean(guild.name || guild.id, 120), organization_id: '', organization_name: clean(guild.name || guild.id, 120),
-          access_mode: 'discord_only', bot_installed: false, is_owner: Boolean(guild.owner), can_manage_access: Boolean(guild.owner),
-          owner_id: null, owner_user: null, plan: 'free', trial_ends_at: null, premium_ends_at: null, sku_id: null
-        }));
-        return reply(request, { ok: true, user: { id: String(authenticatedDiscordUser?.id || ''), username: clean(authenticatedDiscordUser?.global_name || authenticatedDiscordUser?.username || '', 120), platform_admin: false }, platform_admin: false, guilds, diagnostics: { database_degraded: true } });
-      }
-    }
-    if (/JWT issued at future/i.test(detail) && requestedAction === 'module_catalog') {
-      return reply(request, { ok: true, guild_id: clean(requestedBody.guild_id, 30), guild_name: clean(requestedBody.guild_id, 120), modules: Object.entries(MODULES).map(([key, value]: any) => ({ key, ...value, active: true, can_use: true, can_configure: false })) });
-    }
-    if (/JWT issued at future/i.test(detail) && requestedAction === 'module_dashboard') {
-      const key = clean(requestedBody.module_key, 60) || 'pontaj';
-      const definition: any = (MODULES as any)[key] || (MODULES as any).pontaj;
-      return reply(request, { ok: true, guild_name: clean(requestedBody.guild_id, 120), module: { key, ...definition, plan: 'free', can_use: true, can_configure: false, embed_channel_id: '', log_channel_id: '', data: { shifts: [], active: [], absences: [], items: [], activity: [], members: [] } } });
-    }
     return reply(request, { error: detail || 'Eroare internă.' }, 400);
   }
 });

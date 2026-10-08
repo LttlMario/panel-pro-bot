@@ -31,9 +31,7 @@
   insertSyntheticAfter('stash', 'log_stash');
   insertSyntheticAfter('stash_requests', 'log_stash_requests');
   insertSyntheticAfter('stash_donations', 'log_stash_donations');
-  insertSyntheticAfter('event_reminders', 'log_event_reminders');
-  insertSyntheticAfter('event_attendance', 'log_event_attendance');
-  const preferredRouteOrder = ['organization', 'log_announcements_organization', 'log_actions_organization', 'departments', 'log_announcements_departments', 'pontaj', 'weekly_reports', 'log_pontaj', 'requests_organization', 'log_requests_organization', 'requests_departments', 'log_requests_departments', 'contracts', 'log_contracts', 'log_contract_identity_weekly', 'event_reminders', 'log_event_reminders', 'event_attendance', 'log_event_attendance', 'status_live', 'stash', 'log_stash', 'stash_requests', 'log_stash_requests', 'stash_donations', 'log_stash_donations'];
+  const preferredRouteOrder = ['organization', 'log_announcements_organization', 'log_actions_organization', 'departments', 'log_announcements_departments', 'pontaj', 'weekly_reports', 'log_pontaj', 'requests_organization', 'log_requests_organization', 'requests_departments', 'log_requests_departments', 'contracts', 'log_contracts', 'log_contract_identity_weekly', 'status_live', 'stash', 'log_stash', 'stash_requests', 'log_stash_requests', 'stash_donations', 'log_stash_donations'];
   const preferredRoutes = preferredRouteOrder.filter((key) => routeKeys.includes(key));
   const remainingRoutes = routeKeys.filter((key) => !preferredRoutes.includes(key));
   routeKeys.splice(0, routeKeys.length, ...preferredRoutes, ...remainingRoutes);
@@ -58,8 +56,6 @@
       log_stash: 'Log stash',
       log_stash_requests: 'Log cereri stash',
       log_stash_donations: 'Log donații stash',
-      event_attendance: 'Evenimente cu prezență · Embed inițial',
-      log_event_attendance: 'Log evenimente cu prezență',
     };
     return [key, input?.closest('fieldset')?.querySelector('legend')?.textContent?.trim() || fallbackLabels[key] || key];
   }));
@@ -129,16 +125,20 @@
     allowed_mentions: { parse: [] },
     embeds: [{
       title: 'Pontaj · Panel Pro',
-      description: 'Apasă Start pentru a începe automat tura potrivită după ora României. Noapte: 20:00–23:00; zi: în rest. Pauza și oprirea rămân disponibile în timpul turei.',
+      description: 'Alege tura, apoi folosește comenzile de mai jos. Regulile și programul sunt cele configurate în panel pentru organizația activă.',
       color: 0x22d3ee,
       fields: [
-        { name: 'Tura', value: 'Se stabilește automat la apăsarea butonului Start', inline: true },
+        { name: 'Tura selectată', value: 'Neselectată', inline: true },
         { name: 'Status', value: 'Oprit', inline: true },
         { name: 'Program', value: 'Conform configurației din panel', inline: false },
       ],
       footer: { text: 'Panel Pro · Pontaj' },
     }],
     components: [
+      { type: 1, components: [
+        { type: 2, style: 1, label: 'Tura de zi', custom_id: 'panel:pontaj:shift_day' },
+        { type: 2, style: 1, label: 'Tura de noapte', custom_id: 'panel:pontaj:shift_night' },
+      ] },
       { type: 1, components: [
         { type: 2, style: 3, label: 'Start', custom_id: 'panel:pontaj:start' },
         { type: 2, style: 2, label: 'Pauză', custom_id: 'panel:pontaj:pause' },
