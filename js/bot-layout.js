@@ -3,10 +3,20 @@
 
     const page = location.pathname.split('/').pop() || 'index.html';
 
-    const token = () =>
-        sessionStorage.getItem('discovery_access_token') ||
-        sessionStorage.getItem('discord_bot_admin_token') ||
-        '';
+    const token = () => {
+        const issuedAt = Number(sessionStorage.getItem('discovery_access_at') || 0);
+        // OAuth tokens Discord-only are short-lived. Reîntoarcem utilizatorul
+        // la login înainte ca un token vechi să producă erori greu de înțeles.
+        if (issuedAt && Date.now() - issuedAt > 7 * 24 * 60 * 60 * 1000) {
+            sessionStorage.removeItem('discovery_access_token');
+            sessionStorage.removeItem('discord_bot_admin_token');
+            sessionStorage.removeItem('discovery_access_at');
+            return '';
+        }
+        return sessionStorage.getItem('discovery_access_token') ||
+            sessionStorage.getItem('discord_bot_admin_token') ||
+            '';
+    };
 
     if (page !== 'index.html' && !token()) {
         location.replace('index.html');
