@@ -1588,13 +1588,16 @@ Deno.serve(async (request) => {
     return reply(request, { error: 'Acțiune necunoscută.' }, 400);
   } catch (error) {
     const detail = error instanceof Error ? error.message : (error && typeof error === 'object' ? String((error as any).message || (error as any).details || (error as any).hint || '') : '');
-    if (requestedAction === 'bootstrap' && /JWT issued at future/i.test(detail) && requestedAccessToken) {
+    if (requestedAction === 'bootstrap' && requestedAccessToken) {
       const guildResponse = await fetch(`${DISCORD_API}/users/@me/guilds`, { headers: { Authorization: `Bearer ${requestedAccessToken}` } });
       if (guildResponse.ok) {
         const oauthGuilds = await guildResponse.json().catch(() => []);
-        const guilds = (Array.isArray(oauthGuilds) ? oauthGuilds : []).filter((guild: any) => id(guild?.id)).map((guild: any) => ({
+        const botToken = String(Deno.env.get('DISCORD_BOT_TOKEN') || '').trim();
+        const installed = new Set<string>();
+        if (botToken) await Promise.all((Array.isArray(oauthGuilds) ? oauthGuilds : []).filter((guild: any) => id(guild?.id)).map(async (guild: any) => { const response = await fetch(`${DISCORD_API}/guilds/${guild.id}`, { headers: botHeaders(botToken) }).catch(() => null); if (response?.ok) installed.add(String(guild.id)); }));
+        const guilds = (Array.isArray(oauthGuilds) ? oauthGuilds : []).filter((guild: any) => id(guild?.id) && installed.has(String(guild.id))).map((guild: any) => ({
           id: String(guild.id), name: clean(guild.name || guild.id, 120), organization_id: '', organization_name: clean(guild.name || guild.id, 120),
-          access_mode: 'discord_only', bot_installed: false, is_owner: Boolean(guild.owner), can_manage_access: Boolean(guild.owner),
+          access_mode: 'discord_only', bot_installed: true, is_owner: Boolean(guild.owner), can_manage_access: Boolean(guild.owner),
           owner_id: null, owner_user: null, plan: 'free', trial_ends_at: null, premium_ends_at: null, sku_id: null
         }));
         return reply(request, { ok: true, user: { id: String(authenticatedDiscordUser?.id || ''), username: clean(authenticatedDiscordUser?.global_name || authenticatedDiscordUser?.username || '', 120), platform_admin: false }, platform_admin: false, guilds, diagnostics: { database_degraded: true } });
