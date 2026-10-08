@@ -164,7 +164,7 @@ async function ensureDiscordOrganization(db: any, user: any, guild: any, applica
   return { organization_id: organizationId, kind: 'primary' };
 }
 
-async function ownedGuilds(db: any, user: any, applicationId: string, platformAdmin = false, diagnostics: Record<string, any> = {}) {
+async function ownedGuildsFromDatabase(db: any, user: any, applicationId: string, platformAdmin = false, diagnostics: Record<string, any> = {}) {
   const token = String(user.access_token);
   let guilds: any[] = [];
   if (platformAdmin) {
@@ -237,6 +237,27 @@ async function ownedGuilds(db: any, user: any, applicationId: string, platformAd
     result.push({ id: String(guild.id), name: clean(guild.name || guild.id, 120), organization_id: String(organization?.id || linked.organization_id), organization_name: clean(organization?.name || guild.name, 120), access_mode: organization?.access_mode || 'discord_only', bot_installed: true, is_owner: isOwner, can_manage_access: Boolean(platformAdmin || isOwner || isGuildAdministrator), owner_id: platformAdmin ? String(guild.owner_id || '') : null, owner_user: platformAdmin ? (guild.owner_user || null) : null, plan: premium ? 'premium' : trial ? 'trial' : 'free', trial_ends_at: trialValue.ends_at || null, premium_ends_at: entitlement?.ends_at || null, sku_id: entitlement?.sku_id || null });
   }
   return result;
+}
+
+// Permite autentificarea chiar dacă PostgREST are temporar o problemă de
+// validare a JWT-ului intern. Datele complete se încarcă la următoarea cerere.
+async function ownedGuilds(db: any, user: any, applicationId: string, platformAdmin = false, diagnostics: Record<string, any> = {}) {
+  try {
+    return await ownedGuildsFromDatabase(db, user, applicationId, platformAdmin, diagnostics);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error || '');
+    if (!/JWT issued at future/i.test(message)) throw error;
+    const response = await fetch(`${DISCORD_API}/users/@me/guilds`, { headers: { Authorization: `Bearer ${String(user.access_token)}` } });
+    if (!response.ok) throw error;
+    const guilds = await response.json().catch(() => []);
+    diagnostics.database_degraded = true;
+    diagnostics.database_error = 'temporar';
+    return (Array.isArray(guilds) ? guilds : []).filter((guild: any) => id(guild?.id)).map((guild: any) => ({
+      id: String(guild.id), name: clean(guild.name || guild.id, 120), organization_id: '', organization_name: clean(guild.name || guild.id, 120),
+      access_mode: 'discord_only', bot_installed: false, is_owner: Boolean(guild.owner), can_manage_access: Boolean(guild.owner),
+      owner_id: null, owner_user: null, plan: 'free', trial_ends_at: null, premium_ends_at: null, sku_id: null
+    }));
+  }
 }
 
 async function reconcileInstallations(db: any) {
@@ -781,7 +802,10 @@ Deno.serve(async (request) => {
     const accessToken = clean(body.access_token, 500);
     if (!accessToken) return reply(request, { error: 'Conectarea Discord este necesară.' }, 401);
     const discord = await discordUser(accessToken);
-    let platformAdmin = await isPlatformAdminAccount(db, discord.id);
+    let platformAdmin = false;
+    try { platformAdmin = await isPlatformAdminAccount(db, discord.id); } catch (error) {
+      if (!/JWT issued at future/i.test(error instanceof Error ? error.message : String(error || ''))) throw error;
+    }
     const panelSessionToken = clean(request.headers.get('x-panel-session'), 500);
     if (!platformAdmin && panelSessionToken) {
       try {
