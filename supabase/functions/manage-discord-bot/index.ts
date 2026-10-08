@@ -18,6 +18,7 @@ const MODULES: Record<string, { label: string; premium: boolean; title: string; 
   marketplace: { label: 'Marketplace', premium: true, title: '🛒 Marketplace', description: 'Publică și consultă anunțuri pentru vehicule, bunuri și servicii.', color: 0x2563eb, buttons: [{ label: 'Publică anunț', style: 1, id: 'panel:marketplace:legal:create' }, { label: 'Anunțurile mele', style: 2, id: 'panel:marketplace:legal:mine' }] },
   illegal_marketplace: { label: 'Marketplace ilegal', premium: true, title: '🚨 Marketplace · Ilegal', description: 'Publică și consultă anunțuri Black Market, cu acces controlat.', color: 0xef4444, buttons: [{ label: 'Publică anunț', style: 4, id: 'panel:marketplace:illegal:create' }, { label: 'Anunțurile mele', style: 2, id: 'panel:marketplace:illegal:mine' }] },
   event_reminders: { label: 'Evenimente și remindere', premium: true, title: '🗓️ Evenimente și remindere', description: 'Înregistrează evenimente și trimite remindere automate pe durata aleasă.', color: 0xf59e0b, buttons: [{ label: 'Adaugă eveniment', style: 1, id: 'panel:discovery:reminder_create' }, { label: 'Info remindere', style: 2, id: 'panel:discovery:reminder_info' }] },
+  presence_events: { label: 'Evenimente cu prezență', premium: true, title: '📅 Evenimente cu prezență', description: 'Creează evenimente, înscrie participanți și păstrează istoricul în Supabase.', color: 0x22d3ee, buttons: [{ label: 'Creează eveniment', style: 1, id: 'panel:presence_events:create' }] },
   contract_identity_weekly: { label: 'Raport săptămânal contracte', premium: true, title: '📋 Raport săptămânal contracte', description: 'Generează exportul săptămânal cu numele și CNP-ul angajaților.', color: 0x14b8a6, buttons: [{ label: 'Generează raport', style: 1, id: 'panel:discovery:weekly_report' }, { label: 'Info raport', style: 2, id: 'panel:discovery:report_info' }] },
   weekly_reports: { label: 'Raport săptămânal pontaj', premium: false, title: '📊 Raport săptămânal pontaj', description: 'Trimite zilele lucrate, orele pe fiecare membru și totalul săptămânal.', color: 0x06b6d4, buttons: [{ label: 'Generează raport pontaj', style: 1, id: 'panel:discovery:weekly_shift_report' }] },
   actions_organization: { label: 'Acțiuni organizație', premium: true, title: '🎯 Acțiuni · Organizație', description: 'Înregistrează și consultă acțiunile organizației.', color: 0x3b82f6, buttons: [{ label: 'Acțiune', style: 1, id: 'panel:actions:organization:create' }, { label: 'Clasament acțiuni', style: 2, id: 'panel:actions:organization:stats' }] },
@@ -32,16 +33,16 @@ const MODULES: Record<string, { label: string; premium: boolean; title: string; 
 const LOG_ROUTES: Record<string, string> = {
   organization: 'log_announcements_organization', departments: 'log_announcements_departments', pontaj: 'log_pontaj',
   requests_organization: 'log_requests_organization', requests_departments: 'log_requests_departments', contracts: 'log_contracts', contract_identity_weekly: 'log_contract_identity_weekly', weekly_reports: 'log_weekly_reports',
-  actions_organization: 'log_actions_organization', marketplace: 'log_marketplace', illegal_marketplace: 'log_illegal_marketplace', stash: 'log_stash', stash_requests: 'log_stash_requests', stash_donations: 'log_stash_donations', event_reminders: 'log_event_reminders'
+  actions_organization: 'log_actions_organization', marketplace: 'log_marketplace', illegal_marketplace: 'log_illegal_marketplace', stash: 'log_stash', stash_requests: 'log_stash_requests', stash_donations: 'log_stash_donations', event_reminders: 'log_event_reminders', presence_events: 'log_presence_events'
 };
 const LOG_LABELS: Record<string, string> = {
   log_announcements_organization: 'Log anunțuri organizație', log_announcements_departments: 'Log anunțuri angajați', log_pontaj: 'Log pontaj',
   log_requests_organization: 'Log învoiri organizație', log_requests_departments: 'Log învoiri angajați', log_contracts: 'Log contracte', log_weekly_reports: 'Log raport săptămânal pontaj',
-  log_actions_organization: 'Log acțiuni organizație', log_marketplace: 'Log Marketplace', log_illegal_marketplace: 'Log Marketplace ilegal', log_contract_identity_weekly: 'Log raport săptămânal contracte', log_stash: 'Log Stash', log_stash_requests: 'Log cereri Stash', log_stash_donations: 'Log donații Stash', log_event_reminders: 'Log evenimente și remindere'
+  log_actions_organization: 'Log acțiuni organizație', log_marketplace: 'Log Marketplace', log_illegal_marketplace: 'Log Marketplace ilegal', log_contract_identity_weekly: 'Log raport săptămânal contracte', log_stash: 'Log Stash', log_stash_requests: 'Log cereri Stash', log_stash_donations: 'Log donații Stash', log_event_reminders: 'Log evenimente și remindere', log_presence_events: 'Log evenimente cu prezență'
 };
 const MODULE_EMOJIS: Record<string, string> = {
   pontaj: '🕒', requests_organization: '📝', requests_departments: '📝', organization: '📢', departments: '📢',
-  contracts: '📄', marketplace: '🛒', illegal_marketplace: '🚨', event_reminders: '🗓️', contract_identity_weekly: '📋',
+  contracts: '📄', marketplace: '🛒', illegal_marketplace: '🚨', event_reminders: '🗓️', presence_events: '📅', contract_identity_weekly: '📋',
   actions_organization: '🎯', stash: '📦', stash_requests: '📨', stash_donations: '🎁', status_live: '📡',
 };
 const headersFor = (request: Request) => {
