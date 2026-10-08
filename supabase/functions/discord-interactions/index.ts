@@ -783,7 +783,7 @@ function presenceEventEmbed(event: any, participants: any[] = [], closed = false
     { name: 'Tip', value: String(event.event_type || event.title || 'Eveniment').slice(0, 1024), inline: true },
     { name: 'Creat de', value: event.created_by_discord_id ? `<@${event.created_by_discord_id}>` : 'Panel Pro', inline: true },
     { name: `Participanți (${participants.length})`, value: list.slice(0, 1024), inline: false },
-  ], footer: { text: closed ? 'Panel Pro · eveniment închis · istoricul rămâne salvat' : 'Panel Pro · apasă „Sunt prezent” pentru înscriere' }, timestamp: new Date().toISOString() }], components: closed ? [] : [{ type: 1, components: [{ type: 2, style: 3, label: '✅ Sunt prezent', custom_id: `panel:presence_events:join:${event.id}` }, { type: 2, style: 4, label: '🔒 Închide evenimentul', custom_id: `panel:presence_events:close:${event.id}` }] }] };
+  ], footer: { text: closed ? 'Panel Pro · eveniment închis · istoricul rămâne salvat' : 'Panel Pro · gestionează-ți prezența din butoanele de mai jos' }, timestamp: new Date().toISOString() }], components: closed ? [] : [{ type: 1, components: [{ type: 2, style: 3, label: '✅ Sunt prezent', custom_id: `panel:presence_events:join:${event.id}` }, { type: 2, style: 2, label: '❌ Anulează prezența', custom_id: `panel:presence_events:cancel:${event.id}` }, { type: 2, style: 4, label: '🔒 Închide evenimentul', custom_id: `panel:presence_events:close:${event.id}` }] }] };
 }
 async function presenceContext(db: any, interaction: any) {
   const guildId = String(interaction.guild_id || '').trim();
@@ -843,7 +843,7 @@ async function handlePresenceEvent(db: any, interaction: any, customId: string, 
   if (isButton && customId === 'panel:presence_events:create') return presenceEventModal();
   if (isModalSubmit && customId === 'panel:presence_events:create_submit') return runDeferredCommand(interaction, () => publishPresenceEvent(db, interaction), 'Evenimentul nu a putut fi creat.');
   const parts = customId.split(':');
-  if (!isButton || !['join', 'close'].includes(parts[2])) return interactionMessage('Acțiunea evenimentului nu este validă.');
+  if (!isButton || !['join', 'cancel', 'close'].includes(parts[2])) return interactionMessage('Acțiunea evenimentului nu este validă.');
   const eventId = String(parts[3] || '').trim();
   if (!/^[0-9a-f-]{36}$/i.test(eventId)) return interactionMessage('Evenimentul selectat nu este valid.');
   const context = await presenceContext(db, interaction);
@@ -858,6 +858,17 @@ async function handlePresenceEvent(db: any, interaction: any, customId: string, 
     const updated = await presenceParticipants(db, eventId);
     await updatePresenceMessage(db, event, updated, false);
     return interactionMessage(insertError?.code === '23505' ? 'Ești deja înscris la acest eveniment.' : 'Te-ai înscris la eveniment.');
+  }
+  if (parts[2] === 'cancel') {
+    if (event.status !== 'active') return interactionMessage('Acest eveniment este deja închis.');
+    const { data: participant, error: participantError } = await db.from('discovery_event_participants').select('id').eq('event_id', eventId).eq('discord_id', context.discordId).maybeSingle();
+    if (participantError) throw participantError;
+    if (!participant) return interactionMessage('Nu ești înscris la acest eveniment, deci nu ai ce să anulezi.');
+    const { error: deleteError } = await db.from('discovery_event_participants').delete().eq('id', participant.id).eq('event_id', eventId).eq('discord_id', context.discordId);
+    if (deleteError) throw deleteError;
+    const updated = await presenceParticipants(db, eventId);
+    await updatePresenceMessage(db, event, updated, false);
+    return interactionMessage('Prezența ta a fost anulată.');
   }
   const isManager = isDiscordManager(interaction) || String(event.created_by_discord_id || '') === context.discordId || await isGuildOwner(db, context.guildId, context.discordId);
   if (!isManager) return interactionMessage('Doar creatorul evenimentului sau un administrator îl poate închide.');
@@ -2972,7 +2983,7 @@ Deno.serve(async (request) => {
     }
     if (isPresenceEvents) {
       if (isModalSubmit && customId === 'panel:presence_events:create_submit') return await handlePresenceEvent(db, interaction, customId, isButton, isModalSubmit);
-      if (isButton && (customId.startsWith('panel:presence_events:join:') || customId.startsWith('panel:presence_events:close:'))) return runBackgroundAcknowledgedCommand(interaction, () => handlePresenceEvent(db, interaction, customId, isButton, isModalSubmit), 'Evenimentul nu a putut fi actualizat.');
+      if (isButton && (customId.startsWith('panel:presence_events:join:') || customId.startsWith('panel:presence_events:cancel:') || customId.startsWith('panel:presence_events:close:'))) return runBackgroundAcknowledgedCommand(interaction, () => handlePresenceEvent(db, interaction, customId, isButton, isModalSubmit), 'Evenimentul nu a putut fi actualizat.');
     }
     if (isBotAccess && isButton && customId === 'panel:bot_access:open') return reply(await botAccessRolePicker(db, interaction));
     if (isBotAccess && isSelect && customId === 'panel:bot_access:select') return reply(await saveBotAccessRoles(db, interaction));
