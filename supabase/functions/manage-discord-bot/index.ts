@@ -719,7 +719,19 @@ function payload(moduleKey: string, donation: boolean, definitions = MODULES) {
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: headersFor(request) });
   try {
-    const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') || '{}').default;
+    // Folosește cheia secretă modernă configurată pentru funcții. Cheia legacy
+    // poate fi emisă cu un timestamp incompatibil și provoacă „JWT issued at future”.
+    const directSecret = String(Deno.env.get('PANEL_PRO_SUPABASE_SECRET_KEY') || Deno.env.get('SUPABASE_SECRET_KEY') || '').trim();
+    let configuredSecret = '';
+    try {
+      const parsed = JSON.parse(String(Deno.env.get('SUPABASE_SECRET_KEYS') || '{}'));
+      configuredSecret = String(parsed?.default || parsed?.service_role || '').trim();
+    } catch (_) {}
+    const key = directSecret.startsWith('sb_secret_')
+      ? directSecret
+      : configuredSecret.startsWith('sb_secret_')
+        ? configuredSecret
+        : Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || configuredSecret;
     if (!key) throw new Error('Cheia Supabase lipsește.');
     const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
     const body = await request.json().catch(() => ({}));
