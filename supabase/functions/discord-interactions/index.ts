@@ -64,13 +64,13 @@ const PANEL_ROUTE_LABELS: Record<string, string> = {
   organization: 'Anunțuri organizație', departments: 'Anunțuri angajați', pontaj: 'Pontaj', log_pontaj: 'Log pontaj',
   requests_organization: 'Învoiri organizație', requests_departments: 'Învoiri angajați', log_requests_organization: 'Log învoiri organizație', log_requests_departments: 'Log învoiri angajați', log_weekly_reports: 'Log raport săptămânal pontaj',
   contracts: 'Contracte', log_contracts: 'Log contracte', marketplace: 'Marketplace', log_marketplace: 'Log Marketplace', illegal_marketplace: 'Marketplace ilegal', log_illegal_marketplace: 'Log Marketplace ilegal', actions_organization: 'Acțiuni organizație', log_actions_organization: 'Log acțiuni organizație', actions_organization_weekly: 'Log acțiuni', weekly_reports: 'Raport săptămânal pontaj', status_live: 'Status live',
-  stash: 'Stash', log_stash: 'Log Stash', stash_requests: 'Cereri Stash', log_stash_requests: 'Log cereri Stash', stash_donations: 'Donații Stash', log_stash_donations: 'Log donații Stash', event_reminders: 'Evenimente și remindere', contract_identity_weekly: 'Raport săptămânal contracte', log_contract_identity_weekly: 'Log raport săptămânal contracte',
+  stash: 'Stash', log_stash: 'Log Stash', stash_requests: 'Cereri Stash', log_stash_requests: 'Log cereri Stash', stash_donations: 'Donații Stash', log_stash_donations: 'Log donații Stash', event_reminders: 'Evenimente și remindere', event_attendance: 'Evenimente cu prezență', log_event_attendance: 'Log evenimente cu prezență', contract_identity_weekly: 'Raport săptămânal contracte', log_contract_identity_weekly: 'Log raport săptămânal contracte',
 };
 const panelRouteKeys = Object.keys(PANEL_ROUTE_LABELS);
 const PANEL_LOG_ROUTES: Record<string, string> = {
   organization: 'log_announcements_organization', departments: 'log_announcements_departments', pontaj: 'log_pontaj',
   requests_organization: 'log_requests_organization', requests_departments: 'log_requests_departments', contracts: 'log_contracts', marketplace: 'log_marketplace', illegal_marketplace: 'log_illegal_marketplace', weekly_reports: 'log_weekly_reports',
-  actions_organization: 'log_actions_organization', stash: 'log_stash', stash_requests: 'log_stash_requests', stash_donations: 'log_stash_donations', event_reminders: 'log_event_reminders', contract_identity_weekly: 'log_contract_identity_weekly',
+  actions_organization: 'log_actions_organization', stash: 'log_stash', stash_requests: 'log_stash_requests', stash_donations: 'log_stash_donations', event_reminders: 'log_event_reminders', event_attendance: 'log_event_attendance', contract_identity_weekly: 'log_contract_identity_weekly',
 };
 const isDiscordManager = (interaction: any) => {
   try { return (BigInt(String(interaction?.member?.permissions || '0')) & 40n) !== 0n; } catch { return false; }
@@ -158,6 +158,116 @@ async function createDiscoveryReminder(db: any, interaction: any) {
   return interactionMessage(`Evenimentul **${title}** a fost salvat și trimis în canalul „Log evenimente și remindere”. Reminderul va rula automat timp de **${days} zile**.`);
 }
 
+function eventAttendanceModal() {
+  const input = (custom_id: string, label: string, style: number, required: boolean, placeholder: string, max_length: number) => ({ type: 4, custom_id, label, style, required, placeholder, max_length });
+  return { type: 9, data: { custom_id: 'panel:event_attendance:create_submit', title: 'Creează eveniment cu prezență', components: [
+    { type: 1, components: [input('event_type', 'Tipul evenimentului', 1, true, 'Ex: Patrulă', 100)] },
+    { type: 1, components: [input('event_details', 'Detalii · opțional', 2, false, 'Ora, locul și alte informații', 1500)] },
+  ] } };
+}
+
+async function eventAttendanceContext(db: any, interaction: any) {
+  const guildId = String(interaction.guild_id || '').trim();
+  const channelId = String(interaction.channel_id || '').trim();
+  const user = interaction.member?.user || interaction.user || {};
+  const discordId = String(user.id || '').trim();
+  if (!/^\d{15,22}$/.test(guildId) || !/^\d{15,22}$/.test(channelId) || !/^\d{15,22}$/.test(discordId)) throw new Error('Interacțiunea Discord nu conține date valide.');
+  const { data: guild, error: guildError } = await db.from('discovery_guilds').select('organization_id,guild_id,kind,enabled').eq('guild_id', guildId).eq('enabled', true).maybeSingle();
+  if (guildError) throw guildError;
+  if (!guild?.organization_id) throw new Error('Serverul Discord nu este asociat unei organizații Panel Pro.');
+  const { data: organization, error: organizationError } = await db.from('discovery_organizations').select('id,name,active').eq('id', guild.organization_id).maybeSingle();
+  if (organizationError) throw organizationError;
+  if (!organization?.active) throw new Error('Organizația este dezactivată.');
+  const { data: packageSetting, error: packageError } = await db.from('discovery_organizations').select('access_mode').eq('id', guild.organization_id).maybeSingle();
+  if (packageError) throw packageError;
+  if (packageSetting?.access_mode === 'discord_only' && discordPremiumConfigured() && !(await discordPremiumAccess(db, String(guild.organization_id), interaction, guildId))) throw new Error('Evenimentele cu prezență sunt disponibile după activarea Premium sau în perioada Trial.');
+  const { data: settings, error: settingsError } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', guild.organization_id).maybeSingle();
+  if (settingsError) throw settingsError;
+  const target = String(guild.kind || '') === 'secondary' ? 'secondary' : 'primary';
+  const routes = settings?.discord_channel_routes || {};
+  const mainChannel = String(routes?.event_attendance?.[target]?.channel_id || '');
+  const logChannel = String(routes?.log_event_attendance?.[target]?.channel_id || '');
+  if (channelId !== mainChannel && channelId !== logChannel) throw new Error('Acest canal nu este configurat pentru evenimente cu prezență.');
+  const memberRoles = new Set((interaction.member?.roles || []).map((role: unknown) => String(role)));
+  const [{ data: mappings, error: mappingsError }, { data: member, error: memberError }] = await Promise.all([
+    db.from('discovery_role_mappings').select('discord_role_id').eq('organization_id', guild.organization_id).eq('guild_id', guildId).eq('enabled', true),
+    db.from('discovery_members').select('active').eq('organization_id', guild.organization_id).eq('discord_id', discordId).eq('active', true).maybeSingle(),
+  ]);
+  if (mappingsError) throw mappingsError;
+  if (memberError) throw memberError;
+  const platformAdmin = await isPlatformAdminAccount(db, discordId);
+  const mapped = (mappings || []).some((item: any) => memberRoles.has(String(item.discord_role_id)));
+  if (!platformAdmin && !mapped && !member) throw new Error('Nu ai acces la evenimentele cu prezență în acest server.');
+  const displayName = String(interaction.member?.nick || user.global_name || user.username || discordId).trim().slice(0, 120) || discordId;
+  return { guildId, channelId, target, discordId, displayName, organization, settings, platformAdmin, mainChannel, logChannel };
+}
+
+async function eventAttendanceState(db: any, organizationId: string, eventId: string) {
+  const { data, error } = await db.from('discovery_app_settings').select('value').eq('organization_id', organizationId).eq('key', `event_attendance:${eventId}`).maybeSingle();
+  if (error) throw error;
+  const value = data?.value && typeof data.value === 'object' ? data.value : {};
+  return { message_ids: value.message_ids && typeof value.message_ids === 'object' ? value.message_ids : {}, participants: Array.isArray(value.participants) ? value.participants : [], closed_by: String(value.closed_by || '') };
+}
+
+async function saveEventAttendanceState(db: any, organizationId: string, eventId: string, value: any) {
+  const { error } = await db.from('discovery_app_settings').upsert({ organization_id: organizationId, key: `event_attendance:${eventId}`, value, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,key' });
+  if (error) throw error;
+}
+
+function eventAttendancePayload(event: any, participants: any[], closed = false) {
+  const names = participants.length ? participants.map((item: any) => `• ${String(item.name || item.discord_id || 'Utilizator').slice(0, 80)}`).join('\n').slice(0, 1024) : 'Încă nu s-a înscris nimeni.';
+  return { allowed_mentions: { parse: [] }, embeds: [{ title: `${closed ? '🔒' : '📍'} ${String(event.title || 'Eveniment').slice(0, 220)}`, description: String(event.details || 'Fără detalii suplimentare.').slice(0, 4096), color: closed ? 0x64748b : 0x0ea5e9, fields: [{ name: 'Creat de', value: `<@${String(event.created_by_discord_id || '')}>`, inline: true }, { name: 'Status', value: closed ? 'Închis' : 'Activ', inline: true }, { name: `Participanți · ${participants.length}`, value: names, inline: false }], footer: { text: 'Panel Pro · evenimente cu prezență' }, timestamp: new Date().toISOString() }], components: closed ? [] : [{ type: 1, components: [{ type: 2, style: 3, label: '✅ Sunt prezent', custom_id: `panel:event_attendance:join:${event.id}` }, { type: 2, style: 4, label: '🔒 Închide evenimentul', custom_id: `panel:event_attendance:close:${event.id}` }] }] };
+}
+
+async function deliverEventAttendance(db: any, context: any, event: any, state: any, closed = false) {
+  const route = context.settings?.discord_channel_routes?.log_event_attendance?.[context.target];
+  if (!route?.channel_id) throw new Error('Configurează canalul „Log evenimente cu prezență” înainte de a crea evenimente.');
+  const settings = { discord_channel_routes: { log_event_attendance: { [context.target]: route } } };
+  const delivery = await deliverDiscordRoute(db, settings, 'log_event_attendance', JSON.stringify(eventAttendancePayload(event, state.participants, closed)), { messageIds: state.message_ids, postOnly: false });
+  const delivered = delivery.results.find((item: any) => item.target === context.target) || delivery.results[0];
+  if (!delivered?.id) throw new Error(delivery.failures.join(' | ') || 'Evenimentul nu a putut fi publicat în canalul de log.');
+  state.message_ids = { ...(state.message_ids || {}), [context.target]: String(delivered.id) };
+  await saveEventAttendanceState(db, context.organization.id, event.id, state);
+  return delivered;
+}
+
+async function createEventAttendance(db: any, interaction: any) {
+  const context = await eventAttendanceContext(db, interaction);
+  const values = modalValues(interaction);
+  const type = String(values.event_type || '').trim().slice(0, 100);
+  const details = String(values.event_details || '').trim().slice(0, 1500);
+  if (type.length < 2) return interactionMessage('Completează tipul evenimentului.');
+  const { data: event, error } = await db.from('discovery_events').insert({ organization_id: context.organization.id, title: type, event_type: 'attendance', event_date: new Date().toISOString().slice(0, 10), details, evidence_url: null, status: 'active', created_by_discord_id: context.discordId, updated_at: new Date().toISOString() }).select('id,title,event_type,event_date,details,status,created_by_discord_id').single();
+  if (error) throw error;
+  const state = { message_ids: {}, participants: [], closed_by: '' };
+  await deliverEventAttendance(db, context, event, state, false);
+  return interactionMessage(`Evenimentul **${type}** a fost creat în canalul de log.`);
+}
+
+async function updateEventAttendance(db: any, interaction: any, action: 'join' | 'close', eventId: string) {
+  const context = await eventAttendanceContext(db, interaction);
+  if (!/^[0-9a-f-]{36}$/i.test(eventId)) return interactionMessage('Evenimentul selectat nu este valid.');
+  const { data: event, error: eventError } = await db.from('discovery_events').select('id,organization_id,title,event_type,event_date,details,status,created_by_discord_id').eq('id', eventId).eq('organization_id', context.organization.id).maybeSingle();
+  if (eventError) throw eventError;
+  if (!event) return interactionMessage('Evenimentul nu mai există.');
+  const state = await eventAttendanceState(db, context.organization.id, eventId);
+  if (action === 'close') {
+    if (!context.platformAdmin && !isDiscordManager(interaction)) return interactionMessage('Doar ownerul sau un administrator poate închide evenimentul.');
+    if (String(event.status) !== 'active') return interactionMessage('Evenimentul este deja închis.');
+    const { error } = await db.from('discovery_events').update({ status: 'closed', updated_at: new Date().toISOString() }).eq('id', eventId).eq('organization_id', context.organization.id).eq('status', 'active');
+    if (error) throw error;
+    state.closed_by = context.discordId;
+    await deliverEventAttendance(db, context, { ...event, status: 'closed' }, state, true);
+    return interactionMessage('Evenimentul a fost închis. Istoricul și participanții au rămas salvați.');
+  }
+  if (String(event.status) !== 'active') return interactionMessage('Acest eveniment este deja închis.');
+  const existing = state.participants.find((item: any) => String(item.discord_id) === context.discordId);
+  if (existing) return interactionMessage('Ești deja înscris la acest eveniment.');
+  state.participants = [...state.participants, { discord_id: context.discordId, name: context.displayName, joined_at: new Date().toISOString() }].slice(0, 1000);
+  await deliverEventAttendance(db, context, event, state, false);
+  return interactionMessage('Prezența ta a fost înregistrată.');
+}
+
 async function ensureDiscordOnlyOrganization(db: any, interaction: any) {
   const guildId = String(interaction?.guild_id || interaction?.guild?.id || interaction?.data?.guild_id || '').trim();
   const discordId = String(interaction?.member?.user?.id || interaction?.member?.user_id || interaction?.user?.id || interaction?.user_id || '').trim();
@@ -228,6 +338,7 @@ const controlPayload = async (db: any, routeKey: string, trialText = '', include
     marketplace: { title: '🛒 Marketplace · Legal', description: 'Publică și gestionează anunțuri de vânzare, cumpărare și servicii. Imaginile se adaugă ulterior din panelul web.', color: 0x2563eb, buttons: [{ label: 'Publică anunț', style: 1, id: 'panel:marketplace:legal:create' }, { label: 'Anunțurile mele', style: 2, id: 'panel:marketplace:legal:mine' }] },
     illegal_marketplace: { title: '🚨 Marketplace · Ilegal', description: 'Publică și gestionează anunțuri Black Market. Imaginile nu sunt incluse momentan în formularul Discord.', color: 0xef4444, buttons: [{ label: 'Publică anunț', style: 1, id: 'panel:marketplace:illegal:create' }, { label: 'Anunțurile mele', style: 2, id: 'panel:marketplace:illegal:mine' }] },
     event_reminders: { title: '🗓️ Evenimente și remindere', description: 'Înregistrează evenimente și trimite remindere automate pe durata aleasă.', color: 0xf59e0b, buttons: [{ label: 'Adaugă eveniment', style: 1, id: 'panel:discovery:reminder_create' }, { label: 'Info remindere', style: 2, id: 'panel:discovery:reminder_info' }] },
+    event_attendance: { title: '📍 Evenimente cu prezență', description: 'Creează evenimente și urmărește participanții direct din Discord.', color: 0x0ea5e9, buttons: [{ label: 'Creează eveniment', style: 1, id: 'panel:event_attendance:create' }] },
     weekly_reports: { title: '📊 Raport săptămânal pontaj', description: 'Trimite zilele lucrate, orele pe fiecare membru și totalul săptămânal.', color: 0x06b6d4, premium: false, buttons: [{ label: 'Generează raport pontaj', style: 1, id: 'panel:discovery:weekly_shift_report' }] },
     contract_identity_weekly: { title: '📋 Raport săptămânal contracte', description: 'Generează exportul săptămânal cu numele și CNP-ul angajaților.', color: 0x14b8a6, buttons: [{ label: 'Generează raport', style: 1, id: 'panel:discovery:weekly_report' }, { label: 'Info raport', style: 2, id: 'panel:discovery:report_info' }] },
   };
@@ -2761,14 +2872,26 @@ Deno.serve(async (request) => {
   const isBilling = customId.startsWith('panel:billing:');
   const isDiscovery = customId.startsWith('panel:discovery:');
   const isOperations = customId.startsWith('panel:operations:');
+  const isEventAttendance = customId.startsWith('panel:event_attendance:');
   const isTicket = customId === 'panel:ticket:open' || customId === 'panel:ticket:submit' || customId.startsWith('panel:ticket:claim:') || customId.startsWith('panel:ticket:close:') || customId.startsWith('panel:ticket:notify:') || customId.startsWith('panel:ticket:transcript:') || customId.startsWith('panel:ticket:add_member:') || customId.startsWith('panel:ticket:add_member_submit:') || customId.startsWith('panel:ticket:add_member_select:') || customId.startsWith('panel:ticket:reopen:');
   const isCustom = customId.startsWith('panel:custom:') || customId.startsWith('panel:custom_submit:') || customId.startsWith('panel:custom_review:') || customId.startsWith('panel:custom_reason:');
   if (!isComponent && !isModalSubmit) return reply(interactionMessage('Acest tip de interacțiune nu este disponibil.'));
-  if (!isPontaj && !isRequests && !isContracts && !isAnnouncements && !isDiscipline && !isActions && !isStash && !isMarketplace && !isBotAccess && !isDiscovery && !isBilling && !isOperations && !isCustom && !isTicket) return reply(interactionMessage('Acest buton nu aparține unui modul Panel Pro.'));
+  if (!isPontaj && !isRequests && !isContracts && !isAnnouncements && !isDiscipline && !isActions && !isStash && !isMarketplace && !isBotAccess && !isDiscovery && !isBilling && !isOperations && !isEventAttendance && !isCustom && !isTicket) return reply(interactionMessage('Acest buton nu aparține unui modul Panel Pro.'));
   // Modalul trebuie returnat imediat; orice acces la DB înainte de răspuns poate depăși limita Discord de 3 secunde.
   if (isTicket && isButton && customId === 'panel:ticket:open') return reply(ticketModal());
   if (isTicket && isButton && customId.startsWith('panel:ticket:add_member:')) { const id = customId.slice('panel:ticket:add_member:'.length); if (!/^[0-9a-f-]{20,40}$/i.test(id)) return reply(interactionMessage('Ticketul nu este valid.')); return reply(interactionMessage('Alege membrul care trebuie adăugat în ticket.', { components: [{ type: 1, components: [{ type: 5, custom_id: `panel:ticket:add_member_select:${id}`, placeholder: 'Selectează un membru', min_values: 1, max_values: 1 }] }] })); }
   if (isBilling && isButton && customId === 'panel:billing:proof') return reply(billingProofModal());
+  if (isEventAttendance && isButton && customId === 'panel:event_attendance:create') return reply(eventAttendanceModal());
+  if (isEventAttendance && (isButton || isModalSubmit)) return runBackgroundAcknowledgedCommand(interaction, async () => {
+    const key = serviceKey();
+    if (!key) return interactionMessage('Cheia secretă Supabase lipsește.');
+    const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
+    if (isModalSubmit && customId === 'panel:event_attendance:create_submit') return createEventAttendance(db, interaction);
+    const parts = customId.split(':');
+    const action = parts[2] === 'join' ? 'join' : parts[2] === 'close' ? 'close' : '';
+    if (!action) return interactionMessage('Acțiunea evenimentului nu este validă.');
+    return updateEventAttendance(db, interaction, action as 'join' | 'close', String(parts[3] || ''));
+  }, 'Evenimentul nu a putut fi procesat.');
   if (isOperations && isButton && customId.endsWith(':open')) {
     const moduleKey = String(customId.split(':')[2] || '').trim();
     if (!operationalModuleLabels[moduleKey]) return reply(interactionMessage('Modulul operațional nu este valid.'));
