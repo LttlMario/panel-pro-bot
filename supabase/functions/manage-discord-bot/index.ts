@@ -741,15 +741,21 @@ function payload(moduleKey: string, donation: boolean, definitions = MODULES) {
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: headersFor(request) });
   try {
-    let configuredSecret = '';
+    const rawSecretKeys = String(Deno.env.get('SUPABASE_SECRET_KEYS') || '').trim();
+    let configuredSecret = rawSecretKeys.startsWith('sb_secret_') ? rawSecretKeys : '';
     try {
-      const parsed = JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') || '{}');
-      configuredSecret = String(parsed?.default || parsed?.service_role || '').trim();
+      const parsed = JSON.parse(rawSecretKeys || '{}');
+      configuredSecret = String(parsed?.default || parsed?.service_role || configuredSecret).trim();
     } catch (_) {}
     // Preferă cheia Secret modernă (sb_secret_...) când este disponibilă.
     // Cheile legacy service_role sunt JWT-uri și pot fi respinse temporar ca
     // „issued at future” atunci când ceasurile proiectului diferă.
-    const key = configuredSecret.startsWith('sb_secret_') ? configuredSecret : Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || configuredSecret;
+    const directSecret = String(Deno.env.get('SUPABASE_SECRET_KEY') || '').trim();
+    const key = directSecret.startsWith('sb_secret_')
+      ? directSecret
+      : configuredSecret.startsWith('sb_secret_')
+        ? configuredSecret
+        : Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || configuredSecret;
     if (!key) throw new Error('Cheia Supabase lipsește.');
     const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
     const body = await request.json().catch(() => ({}));
