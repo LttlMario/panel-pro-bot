@@ -31,7 +31,9 @@
   insertSyntheticAfter('stash', 'log_stash');
   insertSyntheticAfter('stash_requests', 'log_stash_requests');
   insertSyntheticAfter('stash_donations', 'log_stash_donations');
-  const preferredRouteOrder = ['organization', 'log_announcements_organization', 'log_actions_organization', 'departments', 'log_announcements_departments', 'pontaj', 'weekly_reports', 'log_pontaj', 'requests_organization', 'log_requests_organization', 'requests_departments', 'log_requests_departments', 'contracts', 'log_contracts', 'log_contract_identity_weekly', 'status_live', 'stash', 'log_stash', 'stash_requests', 'log_stash_requests', 'stash_donations', 'log_stash_donations'];
+  insertSyntheticAfter('event_reminders', 'log_event_reminders');
+  insertSyntheticAfter('event_attendance', 'log_event_attendance');
+  const preferredRouteOrder = ['organization', 'log_announcements_organization', 'log_actions_organization', 'departments', 'log_announcements_departments', 'pontaj', 'weekly_reports', 'log_pontaj', 'requests_organization', 'log_requests_organization', 'requests_departments', 'log_requests_departments', 'contracts', 'log_contracts', 'log_contract_identity_weekly', 'event_reminders', 'log_event_reminders', 'event_attendance', 'log_event_attendance', 'status_live', 'stash', 'log_stash', 'stash_requests', 'log_stash_requests', 'stash_donations', 'log_stash_donations'];
   const preferredRoutes = preferredRouteOrder.filter((key) => routeKeys.includes(key));
   const remainingRoutes = routeKeys.filter((key) => !preferredRoutes.includes(key));
   routeKeys.splice(0, routeKeys.length, ...preferredRoutes, ...remainingRoutes);
@@ -56,6 +58,8 @@
       log_stash: 'Log stash',
       log_stash_requests: 'Log cereri stash',
       log_stash_donations: 'Log donații stash',
+      event_attendance: 'Evenimente cu prezență · Embed inițial',
+      log_event_attendance: 'Log evenimente cu prezență',
     };
     return [key, input?.closest('fieldset')?.querySelector('legend')?.textContent?.trim() || fallbackLabels[key] || key];
   }));

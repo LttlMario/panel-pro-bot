@@ -18,6 +18,7 @@ const MODULES: Record<string, { label: string; premium: boolean; title: string; 
   marketplace: { label: 'Marketplace', premium: true, title: '🛒 Marketplace', description: 'Publică și consultă anunțuri pentru vehicule, bunuri și servicii.', color: 0x2563eb, buttons: [{ label: 'Publică anunț', style: 1, id: 'panel:marketplace:legal:create' }, { label: 'Anunțurile mele', style: 2, id: 'panel:marketplace:legal:mine' }] },
   illegal_marketplace: { label: 'Marketplace ilegal', premium: true, title: '🚨 Marketplace · Ilegal', description: 'Publică și consultă anunțuri Black Market, cu acces controlat.', color: 0xef4444, buttons: [{ label: 'Publică anunț', style: 4, id: 'panel:marketplace:illegal:create' }, { label: 'Anunțurile mele', style: 2, id: 'panel:marketplace:illegal:mine' }] },
   event_reminders: { label: 'Evenimente și remindere', premium: true, title: '🗓️ Evenimente și remindere', description: 'Înregistrează evenimente și trimite remindere automate pe durata aleasă.', color: 0xf59e0b, buttons: [{ label: 'Adaugă eveniment', style: 1, id: 'panel:discovery:reminder_create' }, { label: 'Info remindere', style: 2, id: 'panel:discovery:reminder_info' }] },
+  event_attendance: { label: 'Evenimente cu prezență', premium: true, title: '📍 Evenimente cu prezență', description: 'Creează evenimente și urmărește participanții direct din Discord.', color: 0x0ea5e9, log_key: 'log_event_attendance', buttons: [{ label: 'Creează eveniment', style: 1, id: 'panel:event_attendance:create' }] },
   contract_identity_weekly: { label: 'Raport săptămânal contracte', premium: true, title: '📋 Raport săptămânal contracte', description: 'Generează exportul săptămânal cu numele și CNP-ul angajaților.', color: 0x14b8a6, buttons: [{ label: 'Generează raport', style: 1, id: 'panel:discovery:weekly_report' }, { label: 'Info raport', style: 2, id: 'panel:discovery:report_info' }] },
   weekly_reports: { label: 'Raport săptămânal pontaj', premium: false, title: '📊 Raport săptămânal pontaj', description: 'Trimite zilele lucrate, orele pe fiecare membru și totalul săptămânal.', color: 0x06b6d4, buttons: [{ label: 'Generează raport pontaj', style: 1, id: 'panel:discovery:weekly_shift_report' }] },
   presence_activity: { label: 'Prezență și activitate', premium: true, title: '👥 Prezență și activitate', description: 'Vezi activitatea angajaților, turele active și istoricul prezenței.', color: 0x22c55e, buttons: [] },
@@ -51,18 +52,18 @@ const MODULES: Record<string, { label: string; premium: boolean; title: string; 
 const LOG_ROUTES: Record<string, string> = {
   organization: 'log_announcements_organization', departments: 'log_announcements_departments', pontaj: 'log_pontaj',
   requests_organization: 'log_requests_organization', requests_departments: 'log_requests_departments', contracts: 'log_contracts', contract_identity_weekly: 'log_contract_identity_weekly', weekly_reports: 'log_weekly_reports',
-  actions_organization: 'log_actions_organization', marketplace: 'log_marketplace', illegal_marketplace: 'log_illegal_marketplace', stash: 'log_stash', stash_requests: 'log_stash_requests', stash_donations: 'log_stash_donations', event_reminders: 'log_event_reminders'
+  actions_organization: 'log_actions_organization', marketplace: 'log_marketplace', illegal_marketplace: 'log_illegal_marketplace', stash: 'log_stash', stash_requests: 'log_stash_requests', stash_donations: 'log_stash_donations', event_reminders: 'log_event_reminders', event_attendance: 'log_event_attendance'
   ,tasks: 'log_tasks', internal_requests: 'log_internal_requests', employee_profiles: 'log_employee_profiles', schedules: 'log_schedules', payroll: 'log_payroll', inventory: 'log_inventory', recruitment: 'log_recruitment', support_tickets: 'log_support_tickets', forms: 'log_forms', exports: 'log_exports', backup_restore: 'log_backup_restore', public_dashboard: 'log_public_dashboard', dm_notifications: 'log_dm_notifications'
 };
 const LOG_LABELS: Record<string, string> = {
   log_announcements_organization: 'Log anunțuri organizație', log_announcements_departments: 'Log anunțuri angajați', log_pontaj: 'Log pontaj',
   log_requests_organization: 'Log învoiri organizație', log_requests_departments: 'Log învoiri angajați', log_contracts: 'Log contracte', log_weekly_reports: 'Log raport săptămânal pontaj',
-  log_actions_organization: 'Log acțiuni organizație', log_marketplace: 'Log Marketplace', log_illegal_marketplace: 'Log Marketplace ilegal', log_contract_identity_weekly: 'Log raport săptămânal contracte', log_stash: 'Log Stash', log_stash_requests: 'Log cereri Stash', log_stash_donations: 'Log donații Stash', log_event_reminders: 'Log evenimente și remindere'
+  log_actions_organization: 'Log acțiuni organizație', log_marketplace: 'Log Marketplace', log_illegal_marketplace: 'Log Marketplace ilegal', log_contract_identity_weekly: 'Log raport săptămânal contracte', log_stash: 'Log Stash', log_stash_requests: 'Log cereri Stash', log_stash_donations: 'Log donații Stash', log_event_reminders: 'Log evenimente și remindere', log_event_attendance: 'Log evenimente cu prezență'
   ,log_tasks: 'Log sarcini', log_internal_requests: 'Log cereri interne', log_employee_profiles: 'Log dosare angajați', log_schedules: 'Log programări și ture', log_payroll: 'Log salarii și bonusuri', log_inventory: 'Log inventar', log_recruitment: 'Log recrutare', log_support_tickets: 'Log ticketing intern', log_forms: 'Log formulare', log_exports: 'Log exporturi', log_backup_restore: 'Log backup și restaurare', log_public_dashboard: 'Log dashboard public', log_dm_notifications: 'Log notificări DM'
 };
 const MODULE_EMOJIS: Record<string, string> = {
   pontaj: '🕒', requests_organization: '📝', requests_departments: '📝', organization: '📢', departments: '📢',
-  contracts: '📄', marketplace: '🛒', illegal_marketplace: '🚨', event_reminders: '🗓️', contract_identity_weekly: '📋',
+  contracts: '📄', marketplace: '🛒', illegal_marketplace: '🚨', event_reminders: '🗓️', event_attendance: '📍', contract_identity_weekly: '📋',
   actions_organization: '🎯', stash: '📦', stash_requests: '📨', stash_donations: '🎁', status_live: '📡',
 };
 const headersFor = (request: Request) => {
@@ -164,7 +165,7 @@ async function ensureDiscordOrganization(db: any, user: any, guild: any, applica
   return { organization_id: organizationId, kind: 'primary' };
 }
 
-async function ownedGuildsFromDatabase(db: any, user: any, applicationId: string, platformAdmin = false, diagnostics: Record<string, any> = {}) {
+async function ownedGuilds(db: any, user: any, applicationId: string, platformAdmin = false, diagnostics: Record<string, any> = {}) {
   const token = String(user.access_token);
   let guilds: any[] = [];
   if (platformAdmin) {
@@ -237,35 +238,6 @@ async function ownedGuildsFromDatabase(db: any, user: any, applicationId: string
     result.push({ id: String(guild.id), name: clean(guild.name || guild.id, 120), organization_id: String(organization?.id || linked.organization_id), organization_name: clean(organization?.name || guild.name, 120), access_mode: organization?.access_mode || 'discord_only', bot_installed: true, is_owner: isOwner, can_manage_access: Boolean(platformAdmin || isOwner || isGuildAdministrator), owner_id: platformAdmin ? String(guild.owner_id || '') : null, owner_user: platformAdmin ? (guild.owner_user || null) : null, plan: premium ? 'premium' : trial ? 'trial' : 'free', trial_ends_at: trialValue.ends_at || null, premium_ends_at: entitlement?.ends_at || null, sku_id: entitlement?.sku_id || null });
   }
   return result;
-}
-
-// Permite autentificarea chiar dacă PostgREST are temporar o problemă de
-// validare a JWT-ului intern. Datele complete se încarcă la următoarea cerere.
-async function ownedGuilds(db: any, user: any, applicationId: string, platformAdmin = false, diagnostics: Record<string, any> = {}) {
-  try {
-    return await ownedGuildsFromDatabase(db, user, applicationId, platformAdmin, diagnostics);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error || '');
-    if (!/JWT issued at future/i.test(message)) throw error;
-    const response = await fetch(`${DISCORD_API}/users/@me/guilds`, { headers: { Authorization: `Bearer ${String(user.access_token)}` } });
-    if (!response.ok) throw error;
-    const guilds = await response.json().catch(() => []);
-    diagnostics.database_degraded = true;
-    diagnostics.database_error = 'temporar';
-    const botToken = String(Deno.env.get('DISCORD_BOT_TOKEN') || '').trim();
-    const installed = new Set<string>();
-    if (botToken) {
-      await Promise.all((Array.isArray(guilds) ? guilds : []).filter((guild: any) => id(guild?.id)).map(async (guild: any) => {
-        const botGuild = await fetch(`${DISCORD_API}/guilds/${guild.id}`, { headers: botHeaders(botToken) }).catch(() => null);
-        if (botGuild?.ok) installed.add(String(guild.id));
-      }));
-    }
-    return (Array.isArray(guilds) ? guilds : []).filter((guild: any) => id(guild?.id) && installed.has(String(guild.id))).map((guild: any) => ({
-      id: String(guild.id), name: clean(guild.name || guild.id, 120), organization_id: '', organization_name: clean(guild.name || guild.id, 120),
-      access_mode: 'discord_only', bot_installed: true, is_owner: Boolean(guild.owner), can_manage_access: Boolean(guild.owner),
-      owner_id: null, owner_user: null, plan: 'free', trial_ends_at: null, premium_ends_at: null, sku_id: null
-    }));
-  }
 }
 
 async function reconcileInstallations(db: any) {
@@ -767,30 +739,13 @@ function payload(moduleKey: string, donation: boolean, definitions = MODULES) {
 }
 
 Deno.serve(async (request) => {
-  let requestedAction = '';
-  let requestedAccessToken = '';
-  let requestedBody: any = {};
-  let authenticatedDiscordUser: any = null;
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: headersFor(request) });
   try {
-    const rawSecretKeys = String(Deno.env.get('SUPABASE_SECRET_KEYS') || '').trim();
-    let configuredSecret = rawSecretKeys.startsWith('sb_secret_') ? rawSecretKeys : '';
-    try {
-      const parsed = JSON.parse(rawSecretKeys || '{}');
-      configuredSecret = String(parsed?.default || parsed?.service_role || configuredSecret).trim();
-    } catch (_) {}
-    const directSecret = String(Deno.env.get('PANEL_PRO_SUPABASE_SECRET_KEY') || Deno.env.get('SUPABASE_SECRET_KEY') || '').trim();
-    const key = directSecret.startsWith('sb_secret_')
-      ? directSecret
-      : configuredSecret.startsWith('sb_secret_')
-        ? configuredSecret
-        : Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || configuredSecret;
+    const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') || '{}').default;
     if (!key) throw new Error('Cheia Supabase lipsește.');
     const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
     const body = await request.json().catch(() => ({}));
-    requestedBody = body || {};
     const action = clean(body.action, 40) || 'bootstrap';
-    requestedAction = action;
     // Snapshot-ul public este singura rută fără autentificare Discord. Tokenul
     // este generat de administrator și oferă doar statistici agregate, fără
     // nume, mesaje sau date personale.
@@ -814,14 +769,9 @@ Deno.serve(async (request) => {
       return reply(request, { ok: true, guild_id: guildId, guild_name: clean(linked.guild_name || guildId, 120), generated_at: new Date().toISOString(), statistics: { shifts: shiftsCount || 0, active_shifts: activeShifts || 0, absences: absencesCount || 0, active_members: membersCount || 0, operational_records: submissionsCount || 0 } });
     }
     const accessToken = clean(body.access_token, 500);
-    requestedAccessToken = accessToken;
     if (!accessToken) return reply(request, { error: 'Conectarea Discord este necesară.' }, 401);
     const discord = await discordUser(accessToken);
-    authenticatedDiscordUser = discord;
-    let platformAdmin = false;
-    try { platformAdmin = await isPlatformAdminAccount(db, discord.id); } catch (error) {
-      if (!/JWT issued at future/i.test(error instanceof Error ? error.message : String(error || ''))) throw error;
-    }
+    let platformAdmin = await isPlatformAdminAccount(db, discord.id);
     const panelSessionToken = clean(request.headers.get('x-panel-session'), 500);
     if (!platformAdmin && panelSessionToken) {
       try {
@@ -836,12 +786,7 @@ Deno.serve(async (request) => {
     const diagnostics: Record<string, any> = {};
     if (action === 'provision_official_server' || action === 'sync_official_roles' || action === 'announce_existing_community' || action === 'update_official_statistics' || action === 'sync_official_free_games') { if (!platformAdmin) return reply(request, { error: 'Doar administratorul global poate configura serverul oficial.' }, 403); const target=clean(body.guild_id,30); if (target !== '1544703486384537603') return reply(request,{error:'Serverul oficial nu este valid.'},400); const result=action === 'provision_official_server' ? await provisionOfficialServer(db,target) : action === 'sync_official_roles' ? await syncOfficialRoles(db,target) : action === 'announce_existing_community' ? await announceExistingCommunity(db,target) : action === 'update_official_statistics' ? await updateOfficialStatistics(db,target) : await syncOfficialFreeGames(db,target); return reply(request,{ok:true,guild_id:target,result}); }
     if (action === 'bootstrap') {
-      let discoveryBotToken = '';
-      try { discoveryBotToken = await getPlatformSecret(db, 'discord_bot_token'); } catch (error) {
-        const message = error instanceof Error ? error.message : String(error || '');
-        if (!/JWT issued at future/i.test(message)) throw error;
-        diagnostics.database_degraded = true;
-      }
+      const discoveryBotToken = await getPlatformSecret(db, 'discord_bot_token');
       const botIdentityResponse = discoveryBotToken
         ? await fetch(`${DISCORD_API}/users/@me`, { headers: botHeaders(discoveryBotToken) })
         : null;
@@ -1596,26 +1541,6 @@ Deno.serve(async (request) => {
     return reply(request, { error: 'Acțiune necunoscută.' }, 400);
   } catch (error) {
     const detail = error instanceof Error ? error.message : (error && typeof error === 'object' ? String((error as any).message || (error as any).details || (error as any).hint || '') : '');
-    if (requestedAction === 'bootstrap' && /JWT issued at future/i.test(detail) && requestedAccessToken) {
-      const guildResponse = await fetch(`${DISCORD_API}/users/@me/guilds`, { headers: { Authorization: `Bearer ${requestedAccessToken}` } });
-      if (guildResponse.ok) {
-        const oauthGuilds = await guildResponse.json().catch(() => []);
-        const guilds = (Array.isArray(oauthGuilds) ? oauthGuilds : []).filter((guild: any) => id(guild?.id)).map((guild: any) => ({
-          id: String(guild.id), name: clean(guild.name || guild.id, 120), organization_id: '', organization_name: clean(guild.name || guild.id, 120),
-          access_mode: 'discord_only', bot_installed: false, is_owner: Boolean(guild.owner), can_manage_access: Boolean(guild.owner),
-          owner_id: null, owner_user: null, plan: 'free', trial_ends_at: null, premium_ends_at: null, sku_id: null
-        }));
-        return reply(request, { ok: true, user: { id: String(authenticatedDiscordUser?.id || ''), username: clean(authenticatedDiscordUser?.global_name || authenticatedDiscordUser?.username || '', 120), platform_admin: false }, platform_admin: false, guilds, diagnostics: { database_degraded: true } });
-      }
-    }
-    if (/JWT issued at future/i.test(detail) && requestedAction === 'module_catalog') {
-      return reply(request, { ok: true, guild_id: clean(requestedBody.guild_id, 30), guild_name: clean(requestedBody.guild_id, 120), modules: Object.entries(MODULES).map(([key, value]: any) => ({ key, ...value, active: true, can_use: true, can_configure: false })) });
-    }
-    if (/JWT issued at future/i.test(detail) && requestedAction === 'module_dashboard') {
-      const key = clean(requestedBody.module_key, 60) || 'pontaj';
-      const definition: any = (MODULES as any)[key] || (MODULES as any).pontaj;
-      return reply(request, { ok: true, guild_name: clean(requestedBody.guild_id, 120), module: { key, ...definition, plan: 'free', can_use: true, can_configure: false, embed_channel_id: '', log_channel_id: '', data: { shifts: [], active: [], absences: [], items: [], activity: [], members: [] } } });
-    }
     return reply(request, { error: detail || 'Eroare internă.' }, 400);
   }
 });
