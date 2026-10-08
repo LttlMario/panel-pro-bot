@@ -18,7 +18,6 @@ const MODULES: Record<string, { label: string; premium: boolean; title: string; 
   marketplace: { label: 'Marketplace', premium: true, title: '🛒 Marketplace', description: 'Publică și consultă anunțuri pentru vehicule, bunuri și servicii.', color: 0x2563eb, buttons: [{ label: 'Publică anunț', style: 1, id: 'panel:marketplace:legal:create' }, { label: 'Anunțurile mele', style: 2, id: 'panel:marketplace:legal:mine' }] },
   illegal_marketplace: { label: 'Marketplace ilegal', premium: true, title: '🚨 Marketplace · Ilegal', description: 'Publică și consultă anunțuri Black Market, cu acces controlat.', color: 0xef4444, buttons: [{ label: 'Publică anunț', style: 4, id: 'panel:marketplace:illegal:create' }, { label: 'Anunțurile mele', style: 2, id: 'panel:marketplace:illegal:mine' }] },
   event_reminders: { label: 'Evenimente și remindere', premium: true, title: '🗓️ Evenimente și remindere', description: 'Înregistrează evenimente și trimite remindere automate pe durata aleasă.', color: 0xf59e0b, buttons: [{ label: 'Adaugă eveniment', style: 1, id: 'panel:discovery:reminder_create' }, { label: 'Info remindere', style: 2, id: 'panel:discovery:reminder_info' }] },
-  event_attendance: { label: 'Evenimente cu prezență', premium: true, title: '📍 Evenimente cu prezență', description: 'Creează evenimente și urmărește participanții direct din Discord.', color: 0x0ea5e9, log_key: 'log_event_attendance', buttons: [{ label: 'Creează eveniment', style: 1, id: 'panel:event_attendance:create' }] },
   contract_identity_weekly: { label: 'Raport săptămânal contracte', premium: true, title: '📋 Raport săptămânal contracte', description: 'Generează exportul săptămânal cu numele și CNP-ul angajaților.', color: 0x14b8a6, buttons: [{ label: 'Generează raport', style: 1, id: 'panel:discovery:weekly_report' }, { label: 'Info raport', style: 2, id: 'panel:discovery:report_info' }] },
   weekly_reports: { label: 'Raport săptămânal pontaj', premium: false, title: '📊 Raport săptămânal pontaj', description: 'Trimite zilele lucrate, orele pe fiecare membru și totalul săptămânal.', color: 0x06b6d4, buttons: [{ label: 'Generează raport pontaj', style: 1, id: 'panel:discovery:weekly_shift_report' }] },
   presence_activity: { label: 'Prezență și activitate', premium: true, title: '👥 Prezență și activitate', description: 'Vezi activitatea angajaților, turele active și istoricul prezenței.', color: 0x22c55e, buttons: [] },
@@ -52,18 +51,18 @@ const MODULES: Record<string, { label: string; premium: boolean; title: string; 
 const LOG_ROUTES: Record<string, string> = {
   organization: 'log_announcements_organization', departments: 'log_announcements_departments', pontaj: 'log_pontaj',
   requests_organization: 'log_requests_organization', requests_departments: 'log_requests_departments', contracts: 'log_contracts', contract_identity_weekly: 'log_contract_identity_weekly', weekly_reports: 'log_weekly_reports',
-  actions_organization: 'log_actions_organization', marketplace: 'log_marketplace', illegal_marketplace: 'log_illegal_marketplace', stash: 'log_stash', stash_requests: 'log_stash_requests', stash_donations: 'log_stash_donations', event_reminders: 'log_event_reminders', event_attendance: 'log_event_attendance'
+  actions_organization: 'log_actions_organization', marketplace: 'log_marketplace', illegal_marketplace: 'log_illegal_marketplace', stash: 'log_stash', stash_requests: 'log_stash_requests', stash_donations: 'log_stash_donations', event_reminders: 'log_event_reminders'
   ,tasks: 'log_tasks', internal_requests: 'log_internal_requests', employee_profiles: 'log_employee_profiles', schedules: 'log_schedules', payroll: 'log_payroll', inventory: 'log_inventory', recruitment: 'log_recruitment', support_tickets: 'log_support_tickets', forms: 'log_forms', exports: 'log_exports', backup_restore: 'log_backup_restore', public_dashboard: 'log_public_dashboard', dm_notifications: 'log_dm_notifications'
 };
 const LOG_LABELS: Record<string, string> = {
   log_announcements_organization: 'Log anunțuri organizație', log_announcements_departments: 'Log anunțuri angajați', log_pontaj: 'Log pontaj',
   log_requests_organization: 'Log învoiri organizație', log_requests_departments: 'Log învoiri angajați', log_contracts: 'Log contracte', log_weekly_reports: 'Log raport săptămânal pontaj',
-  log_actions_organization: 'Log acțiuni organizație', log_marketplace: 'Log Marketplace', log_illegal_marketplace: 'Log Marketplace ilegal', log_contract_identity_weekly: 'Log raport săptămânal contracte', log_stash: 'Log Stash', log_stash_requests: 'Log cereri Stash', log_stash_donations: 'Log donații Stash', log_event_reminders: 'Log evenimente și remindere', log_event_attendance: 'Log evenimente cu prezență'
+  log_actions_organization: 'Log acțiuni organizație', log_marketplace: 'Log Marketplace', log_illegal_marketplace: 'Log Marketplace ilegal', log_contract_identity_weekly: 'Log raport săptămânal contracte', log_stash: 'Log Stash', log_stash_requests: 'Log cereri Stash', log_stash_donations: 'Log donații Stash', log_event_reminders: 'Log evenimente și remindere'
   ,log_tasks: 'Log sarcini', log_internal_requests: 'Log cereri interne', log_employee_profiles: 'Log dosare angajați', log_schedules: 'Log programări și ture', log_payroll: 'Log salarii și bonusuri', log_inventory: 'Log inventar', log_recruitment: 'Log recrutare', log_support_tickets: 'Log ticketing intern', log_forms: 'Log formulare', log_exports: 'Log exporturi', log_backup_restore: 'Log backup și restaurare', log_public_dashboard: 'Log dashboard public', log_dm_notifications: 'Log notificări DM'
 };
 const MODULE_EMOJIS: Record<string, string> = {
   pontaj: '🕒', requests_organization: '📝', requests_departments: '📝', organization: '📢', departments: '📢',
-  contracts: '📄', marketplace: '🛒', illegal_marketplace: '🚨', event_reminders: '🗓️', event_attendance: '📍', contract_identity_weekly: '📋',
+  contracts: '📄', marketplace: '🛒', illegal_marketplace: '🚨', event_reminders: '🗓️', contract_identity_weekly: '📋',
   actions_organization: '🎯', stash: '📦', stash_requests: '📨', stash_donations: '🎁', status_live: '📡',
 };
 const headersFor = (request: Request) => {
@@ -741,25 +740,9 @@ function payload(moduleKey: string, donation: boolean, definitions = MODULES) {
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: headersFor(request) });
   try {
-    const rawSecretKeys = String(Deno.env.get('SUPABASE_SECRET_KEYS') || '').trim();
-    let configuredSecret = rawSecretKeys.startsWith('sb_secret_') ? rawSecretKeys : '';
-    try {
-      const parsed = JSON.parse(rawSecretKeys || '{}');
-      configuredSecret = String(parsed?.default || parsed?.service_role || configuredSecret).trim();
-    } catch (_) {}
-    // Preferă cheia Secret modernă (sb_secret_...) când este disponibilă.
-    // Cheile legacy service_role sunt JWT-uri și pot fi respinse temporar ca
-    // „issued at future” atunci când ceasurile proiectului diferă.
-    const directSecret = String(Deno.env.get('PANEL_PRO_SUPABASE_SECRET_KEY') || Deno.env.get('SUPABASE_SECRET_KEY') || '').trim();
-    const key = directSecret.startsWith('sb_secret_')
-      ? directSecret
-      : configuredSecret.startsWith('sb_secret_')
-        ? configuredSecret
-        : Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || configuredSecret;
+    const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') || '{}').default;
     if (!key) throw new Error('Cheia Supabase lipsește.');
-    const db = createClient(Deno.env.get('SUPABASE_URL')!, key, {
-      auth: { persistSession: false, autoRefreshToken: false }
-    });
+    const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
     const body = await request.json().catch(() => ({}));
     const action = clean(body.action, 40) || 'bootstrap';
     // Snapshot-ul public este singura rută fără autentificare Discord. Tokenul
