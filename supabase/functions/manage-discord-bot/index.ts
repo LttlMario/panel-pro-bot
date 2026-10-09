@@ -197,19 +197,13 @@ async function ownedGuilds(db: any, user: any, applicationId: string, platformAd
     if (error) throw error;
     if (organization?.access_mode !== 'discord_only' && !platformAdmin) continue;
     if (String(guild.id) === OFFICIAL_GUILD_ID && !platformAdmin) continue;
-    const { data: packageSetting } = await db.from('discovery_app_settings').select('key,value').eq('organization_id', linked.organization_id).in('key', ['organization_package', 'discord_trial', 'discord_bot_admin_roles', 'discord_bot_admin_users']);
+    const { data: packageSetting } = await db.from('discovery_app_settings').select('key,value').eq('organization_id', linked.organization_id).in('key', ['organization_package', 'discord_trial']);
     const packageValue = (packageSetting || []).find((item: any) => item.key === 'organization_package')?.value || {};
     const trialValue = (packageSetting || []).find((item: any) => item.key === 'discord_trial')?.value || {};
-    const adminRolesValue = (packageSetting || []).find((item: any) => item.key === 'discord_bot_admin_roles')?.value || {};
-    const adminRoleIds = Array.isArray(adminRolesValue?.role_ids) ? adminRolesValue.role_ids.map(String) : [];
-    const adminUsersValue = (packageSetting || []).find((item: any) => item.key === 'discord_bot_admin_users')?.value || {};
-    const adminUserIds = Array.isArray(adminUsersValue?.discord_ids) ? adminUsersValue.discord_ids.map(String) : [];
     const isOwner = Boolean(guild.owner);
     let isGuildAdministrator = false;
     try { isGuildAdministrator = (BigInt(String(guild.permissions || '0')) & 8n) === 8n; } catch (_) {}
-    const isRoleAdmin = !isOwner && adminRoleIds.length ? (await memberRoleIds(db, String(guild.id), String(user.id))).some((roleId: string) => adminRoleIds.includes(roleId)) : false;
-    const isUserAdmin = !isOwner && adminUserIds.includes(String(user.id));
-    if (!platformAdmin && !isOwner && !isGuildAdministrator && !isRoleAdmin && !isUserAdmin) continue;
+    if (!platformAdmin && !isOwner && !isGuildAdministrator) continue;
     await refreshGuildEntitlements(db, String(guild.id), String(organization?.id || linked.organization_id), applicationId);
     const { data: entitlement } = await db.from('discovery_guild_entitlements').select('sku_id,ends_at,active').eq('guild_id', String(guild.id)).eq('active', true).order('updated_at', { ascending: false }).limit(1).maybeSingle();
     const premium = Boolean(entitlement && (!entitlement.ends_at || Date.parse(String(entitlement.ends_at)) > Date.now()));
