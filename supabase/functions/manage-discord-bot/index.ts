@@ -305,6 +305,44 @@ async function memberRoleIds(db: any, guildId: string, discordId: string) {
   return Array.isArray(member?.roles) ? member.roles.map((value: any) => String(value)) : [];
 }
 
+async function discordChannelAccess(db: any, guildId: string, discordId: string, memberRoleIdsValue: string[], guildPermissions = '0') {
+  const botToken = await getPlatformSecret(db, 'discord_bot_token');
+  const headers = botHeaders(botToken);
+  const [rolesResponse, channelsResponse] = await Promise.all([
+    fetch(`${DISCORD_API}/guilds/${guildId}/roles`, { headers }),
+    fetch(`${DISCORD_API}/guilds/${guildId}/channels`, { headers }),
+  ]);
+  if (!rolesResponse.ok || !channelsResponse.ok) return () => true;
+  const roles = await rolesResponse.json().catch(() => []);
+  const channels = await channelsResponse.json().catch(() => []);
+  const rolePermissions = new Map((Array.isArray(roles) ? roles : []).map((role: any) => [String(role.id), BigInt(String(role.permissions || '0'))]));
+  const memberRoles = new Set(memberRoleIdsValue.map(String));
+  const administrator = (BigInt(String(guildPermissions || '0')) & 8n) !== 0n || memberRolesHasPermission(rolePermissions, memberRoles, 8n);
+  const canView = (channelId: string) => {
+    if (administrator) return true;
+    const channel = (Array.isArray(channels) ? channels : []).find((item: any) => String(item?.id || '') === String(channelId || ''));
+    if (!channel) return true;
+    let permissions = rolePermissions.get(String(guildId)) || 0n;
+    for (const roleId of memberRoles) permissions |= rolePermissions.get(roleId) || 0n;
+    const overwrites = Array.isArray(channel.permission_overwrites) ? channel.permission_overwrites : [];
+    const apply = (items: any[]) => {
+      let deny = 0n; let allow = 0n;
+      for (const item of items) { try { deny |= BigInt(String(item.deny || '0')); allow |= BigInt(String(item.allow || '0')); } catch (_) {} }
+      permissions = (permissions & ~deny) | allow;
+    };
+    apply(overwrites.filter((item: any) => String(item.id) === String(guildId)));
+    apply(overwrites.filter((item: any) => Number(item.type) === 0 && memberRoles.has(String(item.id))));
+    apply(overwrites.filter((item: any) => Number(item.type) === 1 && String(item.id) === String(discordId)));
+    return (permissions & 1024n) !== 0n;
+  };
+  return canView;
+}
+
+function memberRolesHasPermission(rolePermissions: Map<string, bigint>, memberRoles: Set<string>, bit: bigint) {
+  for (const roleId of memberRoles) if ((rolePermissions.get(roleId) || 0n) & bit) return true;
+  return false;
+}
+
 async function provisionOfficialServer(db: any, guildId: string) {
   const token = await getPlatformSecret(db, 'discord_bot_token'); const base = DISCORD_API + '/guilds/' + guildId; const headers = { ...botHeaders(token), 'Content-Type': 'application/json' };
   const api = async (path: string, body?: any) => { const r = await fetch(base + path, body ? { method: 'POST', headers, body: JSON.stringify(body) } : { headers }); const responseBody = await r.json().catch(() => ({})); if (!r.ok) throw new Error(`Discord API ${path} HTTP ${r.status}: ${String(responseBody?.message || 'Missing Permissions')}`); return responseBody; };
@@ -799,12 +837,11 @@ Deno.serve(async (request) => {
       const memberRoles = new Set((Array.isArray(member?.roles) ? member.roles : []).map(String));
       let administrator = platformAdmin;
       try { administrator = administrator || (BigInt(String(oauthGuild?.permissions || '0')) & 8n) === 8n; } catch (_) {}
-      const { data: accessSetting } = await db.from('discovery_app_settings').select('value').eq('organization_id', linked.organization_id).eq('key', 'discord_activity_module_access').maybeSingle();
-      const rules = accessSetting?.value?.modules && typeof accessSetting.value.modules === 'object' ? accessSetting.value.modules : {};
-      const hasRole = (values: any) => { const ids = Array.isArray(values) ? values.map(String).filter(Boolean) : []; return !ids.length || ids.some((roleId: string) => memberRoles.has(roleId)); };
+      const canViewChannel = await discordChannelAccess(db, activityGuildId, discord.id, [...memberRoles], String(oauthGuild?.permissions || '0'));
       const modules = configuredKeys.map((key) => {
-        const definition = definitions[key]; const rule = rules[key] || {}; const planAllowed = plan !== 'free' || definition.premium !== true;
-        const visible = administrator || hasRole(rule.view_role_ids); const canUse = visible && planAllowed && hasRole(rule.use_role_ids); const canManage = administrator || (visible && hasRole(rule.manage_role_ids));
+        const definition = definitions[key]; const planAllowed = plan !== 'free' || definition.premium !== true;
+        const embedChannelId = routes[key]?.primary?.channel_id || (definition.log_key ? routes[definition.log_key]?.primary?.channel_id || '' : '');
+        const visible = administrator || canViewChannel(embedChannelId); const canUse = visible && planAllowed; const canManage = administrator;
         return { key, label: definition.label, title: definition.title, description: definition.description, premium: definition.premium === true, active: definition.active !== false && routes[key]?.primary?.enabled !== false, plan_allowed: planAllowed, visible, can_use: canUse, can_manage: canManage, embed_channel_id: routes[key]?.primary?.channel_id || '', log_channel_id: definition.log_key ? routes[definition.log_key]?.primary?.channel_id || '' : '', buttons: definition.buttons || [] };
       }).filter((module) => module.visible);
       return reply(request, { ok: true, guild_id: activityGuildId, guild_name: clean(botGuild?.name || linked.guild_name || activityGuildId), organization_name: org?.name || linked.guild_name || activityGuildId, plan, modules, user: { id: String(discord.id), administrator } });
@@ -1115,6 +1152,7 @@ Deno.serve(async (request) => {
     }
     if (action === 'channels') return reply(request, { ok: true, channels: await channels(db, guildId), routes: settings?.discord_channel_routes || {} });
     if (action === 'module_access' || action === 'save_module_access') {
+      if (action === 'save_module_access') return reply(request, { error: 'Accesul se gestionează direct prin rolurile și permisiunile canalelor Discord. Nu se mai salvează roluri externe.' }, 410);
       if (!selectedGuild.can_manage_access) return reply(request, { error: 'Acces permis doar administratorului serverului sau administratorului global.' }, 403);
       const definitions = { ...mergeModuleDefinitions(MODULES, await readGlobalModules(db)), ...sanitizeCustomModules((await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle()).data?.custom_modules || {}) } as Record<string, any>;
       const routeMap = settings?.discord_channel_routes || {};
