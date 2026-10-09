@@ -80,7 +80,22 @@ export async function requestDiscordTarget(
       }
     } catch (_) {}
   }
-  return fetch(url, { method, headers: jsonHeaders(requestBody, headers), body: method === 'DELETE' ? undefined : requestBody });
+  // Discord applies per-route rate limits. Keep retries here so every module
+  // gets the same behaviour and a temporary 429 does not surface as a failed
+  // interaction. We only retry idempotent updates/deletes and transient 5xx.
+  const maxAttempts = method === 'POST' ? 2 : 4;
+  let lastResponse: Response | null = null;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const response = await fetch(url, { method, headers: jsonHeaders(requestBody, headers), body: method === 'DELETE' ? undefined : requestBody });
+    lastResponse = response;
+    if (response.ok || ![429, 500, 502, 503, 504].includes(response.status) || attempt === maxAttempts - 1) return response;
+    const retryAfterHeader = Number(response.headers.get('retry-after') || 0);
+    const body = await response.clone().json().catch(() => ({}));
+    const retryAfterBody = Number(body?.retry_after || 0);
+    const delay = Math.min(12000, Math.max(250, Math.round((retryAfterHeader || retryAfterBody || (0.5 * (2 ** attempt))) * 1000)));
+    await new Promise((resolve) => setTimeout(resolve, delay));
+  }
+  return lastResponse as Response;
 }
 
 export async function deliverDiscordRoute(
@@ -100,9 +115,9 @@ export async function deliverDiscordRoute(
     for (const candidate of candidates) {
       try {
         let response = await requestDiscordTarget(db, candidate, body, { messageId: requestedMessageId || (options.postOnly ? '' : candidate.message_id), headers: options.headers });
-        if (!response.ok && (requestedMessageId || candidate.message_id) && [400, 404].includes(response.status)) {
-          response = await requestDiscordTarget(db, { ...candidate, message_id: '' }, body, { headers: options.headers });
-        }
+        // An update must never silently become a new message. Falling back to
+        // POST here created duplicate embeds when Discord had already removed
+        // the old message. Callers can explicitly use postOnly for creation.
         if (!response.ok) {
           const details = await response.clone().json().catch(() => ({}));
           const discordMessage = String(details?.message || '').trim();
