@@ -802,14 +802,16 @@ const taskModal = () => ({ type: 9, data: { custom_id: 'panel:tasks:create_submi
   { type: 1, components: [{ type: 4, custom_id: 'task_title', label: 'Titlu task', style: 1, required: true, max_length: 160, placeholder: 'Ex: Pregătește raportul de tură' }] },
   { type: 1, components: [{ type: 4, custom_id: 'task_description', label: 'Descriere', style: 2, required: false, max_length: 1500, placeholder: 'Ce trebuie făcut și ce rezultat este necesar?' }] },
   { type: 1, components: [{ type: 4, custom_id: 'task_due_at', label: 'Termen · AAAA-LL-ZZ HH:MM', style: 1, required: false, max_length: 16, placeholder: 'Ex: 2026-10-12 18:00' }] },
-  { type: 1, components: [{ type: 4, custom_id: 'task_assignee', label: 'ID Discord angajat · opțional', style: 1, required: false, max_length: 22, placeholder: 'Lasă gol pentru task deschis' }] },
+  { type: 1, components: [{ type: 4, custom_id: 'task_assignee', label: 'ID-uri Discord angajați · separate prin virgulă', style: 1, required: true, max_length: 500, placeholder: 'Ex: 123456789012345678, 987654321098765432' }] },
 ] } });
-function taskStatusLabel(status: string) { return ({ pending: 'În așteptare', in_progress: 'În lucru', completed: 'Finalizat', cancelled: 'Anulat', declined: 'Refuzat' } as Record<string, string>)[status] || status; }
-function taskEmbed(task: any, privateMessage = false) {
+function taskStatusLabel(status: string) { return ({ pending: 'În așteptare', accepted: 'Acceptat', in_progress: 'În lucru', completed: 'Finalizat', cancelled: 'Anulat', declined: 'Refuzat' } as Record<string, string>)[status] || status; }
+function taskEmbed(task: any, privateMessage = false, viewerId = '') {
   const due = task.due_at ? `<t:${Math.floor(Date.parse(String(task.due_at)) / 1000)}:F>` : 'Fără termen';
-  const assignee = task.assignee_discord_id ? `<@${task.assignee_discord_id}>` : task.claimed_by_discord_id ? `<@${task.claimed_by_discord_id}>` : 'Orice angajat eligibil';
+  const recipients = Array.isArray(task.assignee_discord_ids) && task.assignee_discord_ids.length ? task.assignee_discord_ids : (task.assignee_discord_id ? [task.assignee_discord_id] : []);
+  const statuses = task.recipient_statuses && typeof task.recipient_statuses === 'object' ? task.recipient_statuses : {};
+  const assignee = recipients.length ? recipients.map((id: string) => `<@${id}> — ${taskStatusLabel(String(statuses[id] || 'pending'))}`).join('\n').slice(0, 1024) : 'Niciun angajat selectat';
   const closed = ['completed', 'cancelled', 'declined'].includes(String(task.status));
-  const components = closed ? [] : privateMessage ? [{ type: 1, components: [{ type: 2, style: 3, label: '✅ Accept task-ul', custom_id: `panel:tasks:accept:${task.id}` }, { type: 2, style: 4, label: '❌ Refuz task-ul', custom_id: `panel:tasks:decline:${task.id}` }] }] : [{ type: 1, components: [{ type: 2, style: 3, label: '🙋 Preiau task-ul', custom_id: `panel:tasks:claim:${task.id}` }, { type: 2, style: 1, label: '▶️ Încep', custom_id: `panel:tasks:start:${task.id}` }, { type: 2, style: 3, label: '✅ Finalizez', custom_id: `panel:tasks:complete:${task.id}` }, { type: 2, style: 4, label: '🗑️ Anulează', custom_id: `panel:tasks:cancel:${task.id}` }] }];
+  const components = closed || (privateMessage && viewerId && String(statuses[viewerId] || 'pending') !== 'pending') ? [] : privateMessage ? [{ type: 1, components: [{ type: 2, style: 3, label: '✅ Accept task-ul', custom_id: `panel:tasks:accept:${task.id}` }, { type: 2, style: 4, label: '❌ Refuz task-ul', custom_id: `panel:tasks:decline:${task.id}` }] }] : [];
   return { allowed_mentions: { parse: [] }, embeds: [{ title: `${privateMessage ? '📩' : '✅'} ${String(task.title || 'Task').slice(0, 256)}`, description: String(task.description || '').slice(0, 1500) || 'Fără descriere.', color: task.status === 'completed' ? 0x22c55e : task.status === 'declined' ? 0xef4444 : task.status === 'cancelled' ? 0x64748b : 0x06b6d4, fields: [{ name: 'Status', value: taskStatusLabel(String(task.status)), inline: true }, { name: 'Termen', value: due, inline: true }, { name: 'Responsabil', value: assignee, inline: true }, { name: 'Creat de', value: task.created_by_discord_id ? `<@${task.created_by_discord_id}>` : 'Panel Pro', inline: true }], footer: { text: closed ? 'Panel Pro · task închis · istoricul rămâne salvat' : privateMessage ? 'Panel Pro · răspunde folosind unul dintre butoane' : 'Panel Pro · gestionează task-ul din butoanele de mai jos' }, timestamp: new Date().toISOString() }], components };
 }
 async function sendTaskPrivateMessage(db: any, discordId: string, task: any) {
@@ -818,7 +820,7 @@ async function sendTaskPrivateMessage(db: any, discordId: string, task: any) {
   const channelResponse = await fetch(`${DISCORD_API}/users/@me/channels`, { method: 'POST', headers, body: JSON.stringify({ recipient_id: discordId }) });
   if (!channelResponse.ok) throw new Error(`Discord nu a permis deschiderea mesajului privat (HTTP ${channelResponse.status}).`);
   const channel = await channelResponse.json().catch(() => ({})); if (!id(channel?.id)) throw new Error('Discord nu a returnat un canal privat valid.');
-  const messageResponse = await fetch(`${DISCORD_API}/channels/${channel.id}/messages`, { method: 'POST', headers, body: JSON.stringify(taskEmbed(task, true)) });
+  const messageResponse = await fetch(`${DISCORD_API}/channels/${channel.id}/messages`, { method: 'POST', headers, body: JSON.stringify(taskEmbed(task, true, discordId)) });
   if (!messageResponse.ok) throw new Error(`Discord nu a permis trimiterea task-ului în mesaj privat (HTTP ${messageResponse.status}).`);
   const message = await messageResponse.json().catch(() => ({})); return { channelId: String(channel.id), messageId: String(message?.id || '') };
 }
@@ -833,17 +835,16 @@ async function taskContext(db: any, interaction: any) {
   return { guildId, channelId, discordId, organizationId: String(guild.organization_id), target, settings, main, log };
 }
 async function publishTask(db: any, interaction: any) {
-  const context = await taskContext(db, interaction); const values = modalValues(interaction); const title = String(values.task_title || '').trim().slice(0, 160); const description = String(values.task_description || '').trim().slice(0, 1500); const dueRaw = String(values.task_due_at || '').trim(); const assignee = String(values.task_assignee || '').trim();
-  if (title.length < 2) throw new Error('Completează titlul task-ului.'); if (assignee && !id(assignee)) throw new Error('ID-ul Discord al angajatului nu este valid.');
+  const context = await taskContext(db, interaction); const values = modalValues(interaction); const title = String(values.task_title || '').trim().slice(0, 160); const description = String(values.task_description || '').trim().slice(0, 1500); const dueRaw = String(values.task_due_at || '').trim(); const assigneeIds = [...new Set(String(values.task_assignee || '').split(/[\s,;]+/).map((value) => value.trim()).filter(Boolean))].slice(0, 25);
+  if (title.length < 2) throw new Error('Completează titlul task-ului.'); if (!assigneeIds.length || assigneeIds.some((value) => !id(value))) throw new Error('Introdu cel puțin un ID Discord valid pentru angajați.');
   let dueAt: string | null = null; if (dueRaw) { const parsed = new Date(dueRaw.replace(' ', 'T') + (/[zZ]|[+-]\d\d:\d\d$/.test(dueRaw) ? '' : ':00+03:00')); if (!Number.isFinite(parsed.getTime())) throw new Error('Termenul trebuie să fie în formatul AAAA-LL-ZZ HH:MM.'); dueAt = parsed.toISOString(); }
-  const { data: task, error } = await db.from('discovery_tasks').insert({ organization_id: context.organizationId, guild_id: context.guildId, title, description, due_at: dueAt, assignee_discord_id: assignee || null, created_by_discord_id: context.discordId, discord_channel_id: context.log.channel_id }).select('*').single(); if (error) throw error;
-  if (assignee) {
-    const direct = await sendTaskPrivateMessage(db, assignee, task);
-    await db.from('discovery_tasks').update({ discord_dm_channel_id: direct.channelId, discord_dm_message_id: direct.messageId, updated_at: new Date().toISOString() }).eq('id', task.id);
-    return interactionMessage(`Task-ul **${title}** a fost trimis în mesaj privat către <@${assignee}>.`);
-  }
+  const recipientStatuses = Object.fromEntries(assigneeIds.map((value) => [value, 'pending']));
+  const { data: task, error } = await db.from('discovery_tasks').insert({ organization_id: context.organizationId, guild_id: context.guildId, title, description, due_at: dueAt, assignee_discord_id: assigneeIds[0], assignee_discord_ids: assigneeIds, recipient_statuses: recipientStatuses, created_by_discord_id: context.discordId, discord_channel_id: context.log.channel_id }).select('*').single(); if (error) throw error;
   const delivery = await deliverDiscordRoute(db, context.settings, 'log_employee_tasks', JSON.stringify(taskEmbed(task)), { postOnly: true }); const sent = delivery.results?.find((item: any) => item.target === context.target) || delivery.results?.[0]; if (!sent?.id) throw new Error(delivery.failures?.join(' | ') || 'Task-ul nu a putut fi publicat în canalul de log.');
-  await db.from('discovery_tasks').update({ discord_message_id: String(sent.id), updated_at: new Date().toISOString() }).eq('id', task.id); return interactionMessage(`Task-ul **${title}** a fost creat în <#${context.log.channel_id}>.`);
+  const dmMessageIds: Record<string, any> = {}; const dmFailures: string[] = [];
+  for (const recipient of assigneeIds) { try { const direct = await sendTaskPrivateMessage(db, recipient, task); dmMessageIds[recipient] = direct; } catch (error) { dmFailures.push(`<@${recipient}>: ${error instanceof Error ? error.message : 'mesaj privat indisponibil'}`); } }
+  await db.from('discovery_tasks').update({ discord_message_id: String(sent.id), discord_dm_message_ids: dmMessageIds, updated_at: new Date().toISOString() }).eq('id', task.id);
+  return interactionMessage(dmFailures.length ? `Task-ul a fost înregistrat, dar unele mesaje private nu au putut fi trimise:\n${dmFailures.join('\n')}` : `Task-ul **${title}** a fost trimis către ${assigneeIds.length} angajați, iar acceptarea/refuzul se înregistrează în <#${context.log.channel_id}>.`);
 }
 async function taskList(db: any, interaction: any, own: boolean) { const context = await taskContext(db, interaction); const query = db.from('discovery_tasks').select('title,status,due_at,assignee_discord_id,claimed_by_discord_id').eq('organization_id', context.organizationId).eq('guild_id', context.guildId).in('status', ['pending','in_progress']).order('due_at', { ascending: true }).limit(20); if (own) query.or(`assignee_discord_id.eq.${context.discordId},claimed_by_discord_id.eq.${context.discordId}`); const { data, error } = await query; if (error) throw error; const rows = (data || []).map((task: any) => `• **${String(task.title).slice(0, 120)}** · ${taskStatusLabel(task.status)} · ${task.due_at ? `<t:${Math.floor(Date.parse(task.due_at) / 1000)}:R>` : 'fără termen'}`).join('\n') || 'Nu există task-uri active.'; return interactionMessage('', { embeds: [{ title: own ? '✅ Task-urile mele' : '✅ Task-uri active', description: rows.slice(0, 4000), color: 0x06b6d4 }] }); }
 async function handleTasks(db: any, interaction: any, customId: string, isButton: boolean, isModalSubmit: boolean) {
@@ -856,10 +857,16 @@ async function handleTasks(db: any, interaction: any, customId: string, isButton
     if (!/^[0-9a-f-]{36}$/i.test(taskId)) return interactionMessage('Task invalid.');
     const user = interaction.member?.user || interaction.user || {}; const discordId = String(user.id || '');
     const { data: task, error } = await db.from('discovery_tasks').select('*').eq('id', taskId).maybeSingle(); if (error) throw error; if (!task) return interactionMessage('Task-ul nu mai există.');
-    if (String(task.assignee_discord_id || '') !== discordId) return interactionMessage('Acest task nu ți-a fost desemnat.');
-    if (task.status !== 'pending') return interactionMessage(`Task-ul nu mai poate fi acceptat. Status: **${taskStatusLabel(String(task.status))}**.`);
-    const nextStatus = action === 'accept' ? 'in_progress' : 'declined'; const { error: updateError } = await db.from('discovery_tasks').update({ status: nextStatus, claimed_by_discord_id: action === 'accept' ? discordId : null, completed_at: null, updated_at: new Date().toISOString() }).eq('id', taskId).eq('status', 'pending'); if (updateError) throw updateError; task.status = nextStatus; task.claimed_by_discord_id = action === 'accept' ? discordId : null;
-    if (task.discord_dm_channel_id && task.discord_dm_message_id) await discordBotJson(db, 'PATCH', `${DISCORD_API}/channels/${task.discord_dm_channel_id}/messages/${task.discord_dm_message_id}`, taskEmbed(task, true));
+    const recipients = Array.isArray(task.assignee_discord_ids) && task.assignee_discord_ids.length ? task.assignee_discord_ids.map(String) : [String(task.assignee_discord_id || '')];
+    if (!recipients.includes(discordId)) return interactionMessage('Acest task nu ți-a fost desemnat.');
+    const statuses = task.recipient_statuses && typeof task.recipient_statuses === 'object' ? { ...task.recipient_statuses } : Object.fromEntries(recipients.map((id: string) => [id, 'pending']));
+    if (statuses[discordId] !== 'pending') return interactionMessage(`Ai răspuns deja la acest task: **${taskStatusLabel(String(statuses[discordId]))}**.`);
+    statuses[discordId] = action === 'accept' ? 'accepted' : 'declined';
+    const values = recipients.map((id: string) => String(statuses[id] || 'pending')); const nextStatus = values.every((value) => value === 'declined') ? 'declined' : values.some((value) => value === 'accepted') ? 'in_progress' : 'pending';
+    const { error: updateError } = await db.from('discovery_tasks').update({ status: nextStatus, recipient_statuses: statuses, claimed_by_discord_id: action === 'accept' ? discordId : task.claimed_by_discord_id, completed_at: null, updated_at: new Date().toISOString() }).eq('id', taskId); if (updateError) throw updateError; task.status = nextStatus; task.recipient_statuses = statuses; task.claimed_by_discord_id = action === 'accept' ? discordId : task.claimed_by_discord_id;
+    const dmRefs = task.discord_dm_message_ids && typeof task.discord_dm_message_ids === 'object' ? task.discord_dm_message_ids : {};
+    const dmRef = dmRefs[discordId]; if (dmRef?.channelId && dmRef?.messageId) await discordBotJson(db, 'PATCH', `${DISCORD_API}/channels/${dmRef.channelId}/messages/${dmRef.messageId}`, taskEmbed(task, true, discordId));
+    if (task.discord_channel_id && task.discord_message_id) await discordBotJson(db, 'PATCH', `${DISCORD_API}/channels/${task.discord_channel_id}/messages/${task.discord_message_id}`, taskEmbed(task, false));
     return interactionMessage(action === 'accept' ? 'Ai acceptat task-ul și a fost trecut în lucru.' : 'Ai refuzat task-ul.');
   }
   if (!['claim','start','complete','cancel'].includes(action) || !/^[0-9a-f-]{36}$/i.test(taskId)) return interactionMessage('Task invalid.');
