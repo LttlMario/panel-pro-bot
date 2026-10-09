@@ -1015,12 +1015,37 @@ Deno.serve(async (request) => {
     }
     const { data: settings, error: settingsError } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', selectedGuild.organization_id).maybeSingle();
     if (settingsError) throw settingsError;
-    if (action === 'dashboard_overview' || action === 'repair_guild' || action === 'auto_configure_routes' || action === 'auto_configure_guild' || action === 'set_module_enabled' || action === 'test_setup' || action === 'reset_routes') {
+    if (action === 'dashboard_overview' || action === 'repair_guild' || action === 'auto_configure_routes' || action === 'auto_configure_guild' || action === 'set_module_enabled' || action === 'test_setup' || action === 'reset_routes' || action === 'backup_config' || action === 'restore_config') {
       const customSetting = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
       if (customSetting.error) throw customSetting.error;
       const definitions = { ...mergeModuleDefinitions(MODULES, await readGlobalModules(db)), ...sanitizeCustomModules(customSetting.data?.custom_modules || {}) } as Record<string, any>;
       const routes = { ...(settings?.discord_channel_routes || {}) } as Record<string, any>;
       const allowedPremium = selectedGuild.plan !== 'free';
+      if (action === 'backup_config') {
+        const key = `guild_config_backups:${guildId}`;
+        const previous = await db.from('discovery_app_settings').select('value').eq('organization_id', selectedGuild.organization_id).eq('key', key).maybeSingle();
+        if (previous.error) throw previous.error;
+        const backups = Array.isArray(previous.data?.value?.backups) ? previous.data.value.backups : [];
+        const snapshot = { id: crypto.randomUUID(), guild_id: guildId, created_at: new Date().toISOString(), routes };
+        const next = [snapshot, ...backups].slice(0, 10);
+        const saved = await db.from('discovery_app_settings').upsert({ organization_id: selectedGuild.organization_id, key, value: { backups: next }, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,key' });
+        if (saved.error) throw saved.error;
+        await db.from('discovery_audit_log').insert({ organization_id: selectedGuild.organization_id, actor_discord_id: String(discord.id), action: 'guild_config_backup_created', target_type: 'guild', target_id: guildId, details: { backup_id: snapshot.id } });
+        return reply(request, { ok: true, backup: snapshot, backups: next.map((item: any) => ({ id: item.id, created_at: item.created_at })) });
+      }
+      if (action === 'restore_config') {
+        const key = `guild_config_backups:${guildId}`;
+        const saved = await db.from('discovery_app_settings').select('value').eq('organization_id', selectedGuild.organization_id).eq('key', key).maybeSingle();
+        if (saved.error) throw saved.error;
+        const backups = Array.isArray(saved.data?.value?.backups) ? saved.data.value.backups : [];
+        const requestedId = clean(body.backup_id, 80);
+        const snapshot = backups.find((item: any) => !requestedId || String(item.id) === requestedId);
+        if (!snapshot) return reply(request, { error: 'Nu există un backup pentru acest server.' }, 404);
+        const restored = await db.from('discovery_settings').update({ discord_channel_routes: snapshot.routes || {}, updated_at: new Date().toISOString(), updated_by_discord_id: String(discord.id) }).eq('organization_id', selectedGuild.organization_id);
+        if (restored.error) throw restored.error;
+        await db.from('discovery_audit_log').insert({ organization_id: selectedGuild.organization_id, actor_discord_id: String(discord.id), action: 'guild_config_backup_restored', target_type: 'guild', target_id: guildId, details: { backup_id: snapshot.id } });
+        return reply(request, { ok: true, backup_id: snapshot.id, routes: snapshot.routes || {}, message: 'Configurația a fost restaurată.' });
+      }
       if (action === 'auto_configure_guild') return reply(request, { ok: true, guild_id: guildId, plan: selectedGuild.plan, result: await autoConfigureGuild(db, guildId, selectedGuild.organization_id, selectedGuild.plan) });
       if (action === 'reset_routes') {
         const { error: resetError } = await db.from('discovery_settings').update({ discord_channel_routes: {}, updated_at: new Date().toISOString(), updated_by_discord_id: String(discord.id) }).eq('organization_id', selectedGuild.organization_id);
