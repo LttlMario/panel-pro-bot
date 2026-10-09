@@ -798,11 +798,11 @@ async function handlePresenceEvent(db: any, interaction: any, customId: string, 
   return interactionMessage('Evenimentul a fost închis. Embedul rămâne în canal și istoricul este păstrat.');
 }
 
-const taskModal = () => ({ type: 9, data: { custom_id: 'panel:tasks:create_submit', title: 'Creează task pentru angajați', components: [
+const taskAssigneePicker = () => interactionMessage('Selectează angajatul sau angajații care vor primi task-ul.', { components: [{ type: 1, components: [{ type: 5, custom_id: 'panel:tasks:assignees', placeholder: 'Alege angajații', min_values: 1, max_values: 25 }] }] });
+const taskModal = (draftId: string) => ({ type: 9, data: { custom_id: `panel:tasks:create_submit:${draftId}`, title: 'Creează task pentru angajați', components: [
   { type: 1, components: [{ type: 4, custom_id: 'task_title', label: 'Titlu task', style: 1, required: true, max_length: 160, placeholder: 'Ex: Pregătește raportul de tură' }] },
   { type: 1, components: [{ type: 4, custom_id: 'task_description', label: 'Descriere', style: 2, required: false, max_length: 1500, placeholder: 'Ce trebuie făcut și ce rezultat este necesar?' }] },
   { type: 1, components: [{ type: 4, custom_id: 'task_due_at', label: 'Termen · AAAA-LL-ZZ HH:MM', style: 1, required: false, max_length: 16, placeholder: 'Ex: 2026-10-12 18:00' }] },
-  { type: 1, components: [{ type: 4, custom_id: 'task_assignee', label: 'ID-uri Discord angajați · separate prin virgulă', style: 1, required: true, max_length: 500, placeholder: 'Ex: 123456789012345678, 987654321098765432' }] },
 ] } });
 function taskStatusLabel(status: string) { return ({ pending: 'În așteptare', accepted: 'Acceptat', in_progress: 'În lucru', completed: 'Finalizat', cancelled: 'Anulat', declined: 'Refuzat' } as Record<string, string>)[status] || status; }
 function taskEmbed(task: any, privateMessage = false, viewerId = '') {
@@ -848,20 +848,24 @@ async function taskContext(db: any, interaction: any) {
   return { guildId, channelId, discordId, organizationId: String(guild.organization_id), target, settings, main, log };
 }
 async function publishTask(db: any, interaction: any) {
-  const context = await taskContext(db, interaction); const values = modalValues(interaction); const title = String(values.task_title || '').trim().slice(0, 160); const description = String(values.task_description || '').trim().slice(0, 1500); const dueRaw = String(values.task_due_at || '').trim(); const assigneeIds = [...new Set(String(values.task_assignee || '').split(/[\s,;]+/).map((value) => value.trim()).filter(Boolean))].slice(0, 25);
-  if (title.length < 2) throw new Error('Completează titlul task-ului.'); if (!assigneeIds.length || assigneeIds.some((value) => !id(value))) throw new Error('Introdu cel puțin un ID Discord valid pentru angajați.');
+  const context = await taskContext(db, interaction); const values = modalValues(interaction); const title = String(values.task_title || '').trim().slice(0, 160); const description = String(values.task_description || '').trim().slice(0, 1500); const dueRaw = String(values.task_due_at || '').trim(); const draftId = String(interaction?.data?.custom_id || '').split(':')[3] || '';
+  const { data: draft, error: draftError } = await db.from('discovery_task_drafts').select('assignee_discord_ids').eq('id', draftId).eq('organization_id', context.organizationId).eq('guild_id', context.guildId).eq('creator_discord_id', context.discordId).gt('expires_at', new Date().toISOString()).maybeSingle(); if (draftError) throw draftError;
+  const assigneeIds = [...new Set((Array.isArray(draft?.assignee_discord_ids) ? draft.assignee_discord_ids : []).map(String).filter((value: string) => id(value)))].slice(0, 25);
+  if (title.length < 2) throw new Error('Completează titlul task-ului.'); if (!assigneeIds.length) throw new Error('Selectează cel puțin un angajat.');
   let dueAt: string | null = null; if (dueRaw) { const parsed = new Date(dueRaw.replace(' ', 'T') + (/[zZ]|[+-]\d\d:\d\d$/.test(dueRaw) ? '' : ':00+03:00')); if (!Number.isFinite(parsed.getTime())) throw new Error('Termenul trebuie să fie în formatul AAAA-LL-ZZ HH:MM.'); dueAt = parsed.toISOString(); }
   const recipientStatuses = Object.fromEntries(assigneeIds.map((value) => [value, 'pending']));
   const { data: task, error } = await db.from('discovery_tasks').insert({ organization_id: context.organizationId, guild_id: context.guildId, title, description, due_at: dueAt, assignee_discord_id: assigneeIds[0], assignee_discord_ids: assigneeIds, recipient_statuses: recipientStatuses, created_by_discord_id: context.discordId, discord_channel_id: context.log.channel_id }).select('*').single(); if (error) throw error;
   const dmMessageIds: Record<string, any> = {}; const dmFailures: string[] = [];
   for (const recipient of assigneeIds) { try { const direct = await sendTaskPrivateMessage(db, recipient, task); dmMessageIds[recipient] = direct; } catch (error) { dmFailures.push(`<@${recipient}>: ${error instanceof Error ? error.message : 'mesaj privat indisponibil'}`); } }
   await db.from('discovery_tasks').update({ discord_dm_message_ids: dmMessageIds, updated_at: new Date().toISOString() }).eq('id', task.id);
+  await db.from('discovery_task_drafts').delete().eq('id', draftId);
   return interactionMessage(dmFailures.length ? `Task-ul a fost trimis, dar unele mesaje private nu au putut fi trimise:\n${dmFailures.join('\n')}` : `Task-ul **${title}** a fost trimis către ${assigneeIds.length} angajați. Rezultatele vor apărea în <#${context.log.channel_id}>.`);
 }
 async function taskList(db: any, interaction: any, own: boolean) { const context = await taskContext(db, interaction); const query = db.from('discovery_tasks').select('title,status,due_at,assignee_discord_id,claimed_by_discord_id').eq('organization_id', context.organizationId).eq('guild_id', context.guildId).in('status', ['pending','in_progress']).order('due_at', { ascending: true }).limit(20); if (own) query.or(`assignee_discord_id.eq.${context.discordId},claimed_by_discord_id.eq.${context.discordId}`); const { data, error } = await query; if (error) throw error; const rows = (data || []).map((task: any) => `• **${String(task.title).slice(0, 120)}** · ${taskStatusLabel(task.status)} · ${task.due_at ? `<t:${Math.floor(Date.parse(task.due_at) / 1000)}:R>` : 'fără termen'}`).join('\n') || 'Nu există task-uri active.'; return interactionMessage('', { embeds: [{ title: own ? '✅ Task-urile mele' : '✅ Task-uri active', description: rows.slice(0, 4000), color: 0x06b6d4 }] }); }
+async function createTaskDraft(db: any, interaction: any) { const context = await taskContext(db, interaction); const selected = [...new Set((Array.isArray(interaction?.data?.values) ? interaction.data.values : []).map(String).filter((value: string) => id(value)))].slice(0, 25); if (!selected.length) return interactionMessage('Selectează cel puțin un angajat.'); const { data, error } = await db.from('discovery_task_drafts').insert({ organization_id: context.organizationId, guild_id: context.guildId, creator_discord_id: context.discordId, assignee_discord_ids: selected }).select('id').single(); if (error) throw error; return taskModal(String(data.id)); }
 async function handleTasks(db: any, interaction: any, customId: string, isButton: boolean, isModalSubmit: boolean) {
-  if (isButton && customId === 'panel:tasks:create') return taskModal();
-  if (isModalSubmit && customId === 'panel:tasks:create_submit') return runDeferredCommand(interaction, () => publishTask(db, interaction), 'Task-ul nu a putut fi creat.');
+  if (isButton && customId === 'panel:tasks:create') return taskAssigneePicker();
+  if (isModalSubmit && customId.startsWith('panel:tasks:create_submit:')) return runDeferredCommand(interaction, () => publishTask(db, interaction), 'Task-ul nu a putut fi creat.');
   if (isButton && customId === 'panel:tasks:mine') return runBackgroundAcknowledgedCommand(interaction, () => taskList(db, interaction, true), 'Task-urile nu au putut fi încărcate.');
   if (isButton && customId === 'panel:tasks:active') return runBackgroundAcknowledgedCommand(interaction, () => taskList(db, interaction, false), 'Task-urile nu au putut fi încărcate.');
   const parts = customId.split(':'); const action = parts[2]; const taskId = String(parts[3] || ''); if (!isButton || !['accept','decline','claim','start','complete','cancel'].includes(action) || !/^[0-9a-f-]{36}$/i.test(taskId)) return interactionMessage('Task invalid.');
@@ -2812,7 +2816,8 @@ Deno.serve(async (request) => {
   if (isTicket && isButton && customId.startsWith('panel:ticket:add_member:')) { const id = customId.slice('panel:ticket:add_member:'.length); if (!/^[0-9a-f-]{20,40}$/i.test(id)) return reply(interactionMessage('Ticketul nu este valid.')); return reply(interactionMessage('Alege membrul care trebuie adăugat în ticket.', { components: [{ type: 1, components: [{ type: 5, custom_id: `panel:ticket:add_member_select:${id}`, placeholder: 'Selectează un membru', min_values: 1, max_values: 1 }] }] })); }
   if (isBilling && isButton && customId === 'panel:billing:proof') return reply(billingProofModal());
   if (isPresenceEvents && isButton && customId === 'panel:presence_events:create') return reply(presenceEventModal());
-  if (isTasks && isButton && customId === 'panel:tasks:create') return reply(taskModal());
+  if (isTasks && isButton && customId === 'panel:tasks:create') return reply(taskAssigneePicker());
+  if (isTasks && isSelect && customId === 'panel:tasks:assignees') return reply(await createTaskDraft(db, interaction));
   if (isTasks && (isButton || isModalSubmit)) return runBackgroundAcknowledgedCommand(interaction, () => handleTasks(db, interaction, customId, isButton, isModalSubmit), 'Task-ul nu a putut fi actualizat.');
   if (isBilling && isModalSubmit && customId === 'panel:billing:proof_submit') return runBackgroundAcknowledgedCommand(interaction, async () => {
     if (String(interaction.guild_id || '') !== PAYMENT_PROOF_GUILD_ID) return interactionMessage('Formularul poate fi folosit doar în serverul oficial Panel Pro.');

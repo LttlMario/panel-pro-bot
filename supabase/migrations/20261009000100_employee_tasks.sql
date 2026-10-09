@@ -24,3 +24,16 @@ create index if not exists discovery_tasks_org_status_idx on public.discovery_ta
 create index if not exists discovery_tasks_assignee_idx on public.discovery_tasks (organization_id, assignee_discord_id, status);
 alter table public.discovery_tasks enable row level security;
 revoke all on public.discovery_tasks from anon, authenticated;
+
+create table if not exists public.discovery_task_drafts (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.discovery_organizations(id) on delete cascade,
+  guild_id text not null check (guild_id ~ '^[0-9]{15,22}$'),
+  creator_discord_id text not null check (creator_discord_id ~ '^[0-9]{15,22}$'),
+  assignee_discord_ids text[] not null default '{}',
+  expires_at timestamptz not null default (now() + interval '15 minutes'),
+  created_at timestamptz not null default now()
+);
+create index if not exists discovery_task_drafts_lookup_idx on public.discovery_task_drafts (guild_id, creator_discord_id, expires_at);
+alter table public.discovery_task_drafts enable row level security;
+revoke all on public.discovery_task_drafts from anon, authenticated;
