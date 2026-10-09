@@ -544,16 +544,9 @@ async function resolveContext(db: any, interaction: any) {
   }
   if (configuredChannel?.enabled === false || String(configuredChannel?.channel_id || '') !== channelId) throw new Error('Acest canal nu este configurat pentru panoul Pontaj al organizației. Rulează configurarea automată din Dashboard și folosește canalul 🕒・pontaj-si-ture.');
 
-  const memberRoles = new Set((interaction.member?.roles || []).map((role: unknown) => String(role)));
-  const { data: mappings, error: mappingsError } = await db.from('discovery_role_mappings').select('discord_role_id,panel_role,permission_level,priority').eq('organization_id', guild.organization_id).eq('guild_id', guildId).eq('enabled', true);
-  if (mappingsError) throw mappingsError;
-  const matchedMapping = (mappings || []).filter((mapping: any) => memberRoles.has(String(mapping.discord_role_id))).sort((left: any, right: any) => Number(right.priority || right.permission_level || 0) - Number(left.priority || left.permission_level || 0))[0] || null;
-  const { data: organizationMember, error: memberError } = await db.from('discovery_members').select('panel_role,permission_level,active').eq('organization_id', guild.organization_id).eq('discord_id', discordId).eq('active', true).maybeSingle();
-  if (memberError) throw memberError;
   const platformAdmin = await isPlatformAdminAccount(db, discordId);
-  if (!platformAdmin && !matchedMapping && !organizationMember) throw new Error('Nu ai un rol configurat pentru Pontaj în această organizație.');
   const displayName = String(interaction.member?.nick || user.global_name || user.username || discordId).trim().slice(0, 120) || discordId;
-  return { guildId, channelId, target, discordId, displayName, organization, settings, platformAdmin, role: matchedMapping?.panel_role || organizationMember?.panel_role || 'Membru' };
+  return { guildId, channelId, target, discordId, displayName, organization, settings, platformAdmin, role: 'Membru' };
 }
 
 async function resolveRequestContext(db: any, interaction: any, audience: 'organization' | 'departments') {
@@ -578,23 +571,9 @@ async function resolveRequestContext(db: any, interaction: any, audience: 'organ
     || settings?.discord_channel_routes?.requests?.[target]
     || settings?.discord_channel_routes?.[alternateRouteKey]?.[target];
   if (configuredChannel?.enabled === false || String(configuredChannel?.channel_id || '') !== channelId) throw new Error(`Acest canal nu este configurat pentru panoul Învoiri · ${audience === 'organization' ? 'Organizație' : 'Angajați'}.`);
-  const memberRoles = new Set((interaction.member?.roles || []).map((role: unknown) => String(role)));
-  const { data: mappings, error: mappingsError } = await db.from('discovery_role_mappings').select('discord_role_id,panel_role,permission_level,priority').eq('organization_id', guild.organization_id).eq('guild_id', guildId).eq('enabled', true);
-  if (mappingsError) throw mappingsError;
-  const matchedMapping = (mappings || []).filter((mapping: any) => memberRoles.has(String(mapping.discord_role_id))).sort((left: any, right: any) => Number(right.priority || right.permission_level || 0) - Number(left.priority || left.permission_level || 0))[0] || null;
-  const { data: organizationMember, error: memberError } = await db.from('discovery_members').select('panel_role,permission_level,active').eq('organization_id', guild.organization_id).eq('discord_id', discordId).eq('active', true).maybeSingle();
-  if (memberError) throw memberError;
-  const platformAdmin = await isPlatformAdminAccount(db, discordId);
-  const { data: actionSettings, error: actionError } = await db.from('discovery_app_settings').select('key,value').eq('organization_id', guild.organization_id).in('key', ['action_permissions', 'organization_package']);
-  if (actionError) throw actionError;
-  const actionSetting = (actionSettings || []).find((item: any) => item.key === 'action_permissions');
-  const discordOnly = (actionSettings || []).find((item: any) => item.key === 'organization_package')?.value?.code === 'discord';
-  const permissionKey = audience === 'organization' ? 'cereri.organization' : 'cereri.departments';
-  const allowedRoles = Array.isArray(actionSetting?.value?.[permissionKey]) ? actionSetting.value[permissionKey].map(String) : [];
-  if (!platformAdmin && !discordOnly && !memberRolesHasAny(memberRoles, allowedRoles)) throw new Error(`Nu ai permisiunea configurată pentru Învoiri · ${audience === 'organization' ? 'Organizație' : 'Angajați'}.`);
-  if (!platformAdmin && !matchedMapping && !organizationMember) throw new Error('Contul tău nu este membru activ al acestei organizații.');
   const displayName = String(interaction.member?.nick || user.global_name || user.username || discordId).trim().slice(0, 120) || discordId;
-  return { guildId, channelId, target, discordId, displayName, organization, settings, platformAdmin, audience, routeKey, logRouteKey, role: matchedMapping?.panel_role || organizationMember?.panel_role || 'Membru' };
+  const platformAdmin = await isPlatformAdminAccount(db, discordId);
+  return { guildId, channelId, target, discordId, displayName, organization, settings, platformAdmin, audience, routeKey, logRouteKey, role: 'Membru' };
 }
 
 function memberRolesHasAny(memberRoles: Set<string>, allowedRoles: string[]) {
@@ -636,37 +615,9 @@ async function resolveAnnouncementContext(db: any, interaction: any, audience: '
   const routes = announcementRoutes(audience);
   if (!channelMatches(settings, routes.control, target, channelId) && !channelMatches(settings, routes.log, target, channelId)) throw new Error(`Acest canal nu este configurat pentru panoul ${audience === 'organization' ? 'Anunțuri · Organizație' : 'Anunțuri · Angajați'}.`);
 
-  const { data: permissionSettings, error: permissionError } = await db.from('discovery_app_settings').select('key,value').eq('organization_id', guild.organization_id).in('key', ['communication_permissions', 'page_permissions', 'action_permissions', 'organization_package']);
-  if (permissionError) throw permissionError;
-  const byKey = new Map((permissionSettings || []).map((item: any) => [String(item.key), item.value]));
-  const communication = byKey.get('communication_permissions');
-  const communicationConfigured = communication && typeof communication === 'object';
-  const pagePermissions = byKey.get('page_permissions') && typeof byKey.get('page_permissions') === 'object' ? byKey.get('page_permissions') : {};
-  const actionPermissions = byKey.get('action_permissions') && typeof byKey.get('action_permissions') === 'object' ? byKey.get('action_permissions') : {};
-  const packageFeatures = resolvePackageFeatures(byKey.get('organization_package') || {});
-  const discordOnly = byKey.get('organization_package')?.code === 'discord';
-  const feature = audience === 'organization' ? 'announcements_organization' : 'announcements_departments';
-
-  const memberRoles = new Set((interaction.member?.roles || []).map((role: unknown) => String(role)));
-  const { data: mappings, error: mappingsError } = await db.from('discovery_role_mappings').select('discord_role_id,panel_role,permission_level,priority').eq('organization_id', guild.organization_id).eq('guild_id', guildId).eq('enabled', true);
-  if (mappingsError) throw mappingsError;
-  const matchedMapping = (mappings || []).filter((mapping: any) => memberRoles.has(String(mapping.discord_role_id))).sort((left: any, right: any) => Number(right.priority || right.permission_level || 0) - Number(left.priority || left.permission_level || 0))[0] || null;
-  const { data: organizationMember, error: memberError } = await db.from('discovery_members').select('panel_role,permission_level,active').eq('organization_id', guild.organization_id).eq('discord_id', discordId).eq('active', true).maybeSingle();
-  if (memberError) throw memberError;
   const platformAdmin = await isPlatformAdminAccount(db, discordId);
-  const activePanelRole = String(organizationMember?.panel_role || '').trim().toLowerCase();
-  const effectiveRoleIds = new Set<string>([...memberRoles]);
-  for (const mapping of mappings || []) {
-    if (activePanelRole && String(mapping.panel_role || '').trim().toLowerCase() === activePanelRole) effectiveRoleIds.add(String(mapping.discord_role_id));
-  }
-  const configuredRoles = communicationConfigured
-    ? (Array.isArray(communication?.[audience]?.[permission]) ? communication[audience][permission].map(String) : [])
-    : (permission === 'read' ? (Array.isArray(pagePermissions['anunturi.html']) ? pagePermissions['anunturi.html'].map(String) : []) : (Array.isArray(actionPermissions['anunturi.publish']) ? actionPermissions['anunturi.publish'].map(String) : []));
-  const hasAccess = platformAdmin || discordOnly || (packageFeatures.includes(feature) && [...effectiveRoleIds].some((roleId) => configuredRoles.includes(roleId)));
-  if (!hasAccess) throw new Error(`Nu ai permisiunea de ${permission === 'read' ? 'citire' : 'scriere'} pentru ${audience === 'organization' ? 'Anunțuri · Organizație' : 'Anunțuri · Angajați'}.`);
-  if (!platformAdmin && !matchedMapping && !organizationMember) throw new Error('Contul tău nu este membru activ al acestei organizații.');
   const displayName = String(interaction.member?.nick || user.global_name || user.username || discordId).trim().slice(0, 120) || discordId;
-  return { guildId, channelId, target, discordId, displayName, organization, settings, platformAdmin, audience, routeKey: routes.log, controlRouteKey: routes.control, logRouteKey: routes.log, role: matchedMapping?.panel_role || organizationMember?.panel_role || 'Membru' };
+  return { guildId, channelId, target, discordId, displayName, organization, settings, platformAdmin, audience, routeKey: routes.log, controlRouteKey: routes.control, logRouteKey: routes.log, role: 'Membru' };
 }
 
 async function resolveManagementContext(db: any, interaction: any, audience: 'organization' | 'departments', permission: 'read' | 'write' | 'sanction', routeKey: string, feature: string, permissionSettingKey: string, permissionKey: string) {
@@ -686,27 +637,9 @@ async function resolveManagementContext(db: any, interaction: any, audience: 'or
   const target = String(guild.kind || '') === 'secondary' ? 'secondary' : 'primary';
   const routes = announcementRoutes(audience);
   if (!channelMatches(settings, routeKey, target, channelId) && !channelMatches(settings, routes.log, target, channelId)) throw new Error(`Acest canal nu este configurat pentru ${routeKey}.`);
-  const { data: permissionSettings, error: permissionError } = await db.from('discovery_app_settings').select('key,value').eq('organization_id', guild.organization_id).in('key', ['discipline_permissions', 'action_permissions', 'organization_package']);
-  if (permissionError) throw permissionError;
-  const byKey = new Map((permissionSettings || []).map((item: any) => [String(item.key), item.value]));
-  const permissionConfig = byKey.get(permissionSettingKey);
-  const packageFeatures = resolvePackageFeatures(byKey.get('organization_package') || {});
-  const discordOnly = byKey.get('organization_package')?.code === 'discord';
-  const memberRoles = new Set((interaction.member?.roles || []).map((role: unknown) => String(role)));
-  const { data: mappings, error: mappingsError } = await db.from('discovery_role_mappings').select('discord_role_id,panel_role,priority,permission_level').eq('organization_id', guild.organization_id).eq('guild_id', guildId).eq('enabled', true);
-  if (mappingsError) throw mappingsError;
-  const { data: organizationMember, error: memberError } = await db.from('discovery_members').select('panel_role,active').eq('organization_id', guild.organization_id).eq('discord_id', discordId).eq('active', true).maybeSingle();
-  if (memberError) throw memberError;
-  const activePanelRole = String(organizationMember?.panel_role || '').trim().toLowerCase();
-  const effectiveRoleIds = new Set<string>([...memberRoles]);
-  for (const mapping of mappings || []) if (activePanelRole && String(mapping.panel_role || '').trim().toLowerCase() === activePanelRole) effectiveRoleIds.add(String(mapping.discord_role_id));
-  const configuredRoles = Array.isArray(permissionConfig?.[audience]?.[permission])
-    ? permissionConfig[audience][permission].map(String)
-    : Array.isArray(permissionConfig?.[permissionKey]) ? permissionConfig[permissionKey].map(String) : [];
   const platformAdmin = await isPlatformAdminAccount(db, discordId);
-  if (!platformAdmin && !discordOnly && (!packageFeatures.includes(feature) || ![...effectiveRoleIds].some((roleId) => configuredRoles.includes(roleId)))) throw new Error(`Nu ai permisiunea necesară pentru ${audience === 'organization' ? 'Organizație' : 'Angajați'}.`);
   const displayName = String(interaction.member?.nick || user.global_name || user.username || discordId).trim().slice(0, 120) || discordId;
-  return { guildId, channelId, target, discordId, displayName, organization, settings, platformAdmin, audience, logRouteKey: routes.log, role: mappings?.find((mapping: any) => effectiveRoleIds.has(String(mapping.discord_role_id)))?.panel_role || organizationMember?.panel_role || 'Membru' };
+  return { guildId, channelId, target, discordId, displayName, organization, settings, platformAdmin, audience, logRouteKey: routes.log, role: 'Membru' };
 }
 
 async function resolveContractContext(db: any, interaction: any, routeKey = 'contracts') {
@@ -727,30 +660,15 @@ async function resolveContractContext(db: any, interaction: any, routeKey = 'con
   if (resolvedSettingsError) throw resolvedSettingsError;
   const target = String(guild.kind || '') === 'secondary' ? 'secondary' : 'primary';
   if (!channelMatches(resolvedSettings, routeKey, target, channelId)) throw new Error(`Acest canal nu este configurat pentru panoul ${routeKey === 'log_contracts' ? 'Log contracte' : 'Contracte'}.`);
-  const [{ data: packageSetting, error: packageError }, { data: permissionSetting, error: permissionError }, { data: mappings, error: mappingsError }, { data: organizationMember, error: memberError }, platformAdmin] = await Promise.all([
+  const [{ data: packageSetting, error: packageError }, platformAdmin] = await Promise.all([
     db.from('discovery_app_settings').select('value').eq('organization_id', guild.organization_id).eq('key', 'organization_package').maybeSingle(),
-    db.from('discovery_app_settings').select('value').eq('organization_id', guild.organization_id).eq('key', 'page_permissions').maybeSingle(),
-    db.from('discovery_role_mappings').select('discord_role_id,panel_role,permission_level,priority').eq('organization_id', guild.organization_id).eq('guild_id', guildId).eq('enabled', true),
-    db.from('discovery_members').select('panel_role,active').eq('organization_id', guild.organization_id).eq('discord_id', discordId).eq('active', true).maybeSingle(),
     isPlatformAdminAccount(db, discordId),
   ]);
   if (packageError) throw packageError;
-  if (permissionError) throw permissionError;
-  if (mappingsError) throw mappingsError;
-  if (memberError) throw memberError;
   const packageFeatures = resolvePackageFeatures(packageSetting?.value || {});
-  const discordOnly = packageSetting?.value?.code === 'discord';
   if (!packageFeatures.includes('contracts')) throw new Error('Contractele nu sunt incluse în pachetul organizației.');
-  const memberRoles = new Set((interaction.member?.roles || []).map((role: unknown) => String(role)));
-  const matchedMapping = (mappings || []).filter((mapping: any) => memberRoles.has(String(mapping.discord_role_id))).sort((left: any, right: any) => Number(right.priority || right.permission_level || 0) - Number(left.priority || left.permission_level || 0))[0] || null;
-  const allowedRoles = Array.isArray(permissionSetting?.value?.['contracte.html']) ? permissionSetting.value['contracte.html'].map(String) : [];
-  const effectiveRoleIds = new Set<string>([...memberRoles]);
-  const activePanelRole = String(organizationMember?.panel_role || '').trim().toLowerCase();
-  for (const mapping of mappings || []) if (activePanelRole && String(mapping.panel_role || '').trim().toLowerCase() === activePanelRole) effectiveRoleIds.add(String(mapping.discord_role_id));
-  if (!platformAdmin && !discordOnly && allowedRoles.length && ![...effectiveRoleIds].some((roleId) => allowedRoles.includes(roleId))) throw new Error('Nu ai permisiunea configurată pentru pagina Contracte.');
-  if (!platformAdmin && !matchedMapping && !organizationMember) throw new Error('Contul tău nu este membru activ al acestei organizații.');
   const displayName = String(interaction.member?.nick || user.global_name || user.username || discordId).trim().slice(0, 120) || discordId;
-  return { guildId, channelId, target, discordId, displayName, organization: resolvedOrganization, settings: resolvedSettings, platformAdmin, role: matchedMapping?.panel_role || organizationMember?.panel_role || 'Membru', logRouteKey: 'log_contracts' };
+  return { guildId, channelId, target, discordId, displayName, organization: resolvedOrganization, settings: resolvedSettings, platformAdmin, role: 'Membru', logRouteKey: 'log_contracts' };
 }
 
 async function resolveContractActionContext(db: any, interaction: any) {
@@ -1583,9 +1501,6 @@ async function resolveMarketplaceContext(db: any, interaction: any, kind: 'legal
   if (!organization?.active) throw new Error('Organizația este dezactivată.');
   const target = String(guild.kind || '') === 'secondary' ? 'secondary' : 'primary';
   if (kind === 'legal' ? !marketplaceChannelMatches(settings, target, channelId) : !channelMatches(settings, routeKey, target, channelId)) throw new Error(`Acest canal nu este configurat pentru ${PANEL_ROUTE_LABELS[routeKey]}.`);
-  const platformAdmin = await isPlatformAdminAccount(db, discordId);
-  const discordOnly = packageSetting?.value?.code === 'discord';
-  if (!platformAdmin && !discordOnly && !isDiscordManager(interaction)) throw new Error('Nu ai permisiunea de a publica anunțuri în acest marketplace.');
   const logRouteKey = kind === 'illegal' ? 'log_illegal_marketplace' : 'log_marketplace';
   if (!settings?.discord_channel_routes?.[logRouteKey]?.[target]?.channel_id) throw new Error(`Configurează mai întâi canalul de log pentru ${PANEL_ROUTE_LABELS[routeKey]}. Anunțul nu va fi publicat în canalul embedului.`);
   const displayName = String(interaction.member?.nick || user.global_name || user.username || discordId).trim().slice(0, 120) || discordId;
@@ -1661,15 +1576,6 @@ async function resolveStashContext(db: any, interaction: any, routeKey: 'stash' 
   if (!resolvePackageFeatures(packageSetting?.value || {}).includes('stash')) throw new Error('Stash nu este inclus în pachetul organizației.');
   const target = String(guild.kind || '') === 'secondary' ? 'secondary' : 'primary';
   if (!channelMatches(settings, routeKey, target, channelId)) throw new Error(`Acest canal nu este configurat pentru panoul ${routeKey === 'stash' ? 'Stash' : routeKey === 'log_stash' ? 'Log stash' : routeKey === 'stash_requests' ? 'Cereri stash' : 'Donații stash'}.`);
-  const memberRoles = new Set((interaction.member?.roles || []).map((role: unknown) => String(role)));
-  const { data: mappings, error: mappingsError } = await db.from('discovery_role_mappings').select('discord_role_id,panel_role,priority').eq('organization_id', guild.organization_id).eq('guild_id', guildId).eq('enabled', true);
-  if (mappingsError) throw mappingsError;
-  const { data: member, error: memberError } = await db.from('discovery_members').select('panel_role').eq('organization_id', guild.organization_id).eq('discord_id', discordId).eq('active', true).maybeSingle();
-  if (memberError) throw memberError;
-  const roleIds = new Set(member?.panel_role ? [...memberRoles, ...(mappings || []).filter((row: any) => String(row.panel_role || '').toLowerCase() === String(member.panel_role).toLowerCase()).map((row: any) => String(row.discord_role_id))] : [...memberRoles]);
-  const platformAdmin = await isPlatformAdminAccount(db, discordId);
-  const configured = Array.isArray(permissionSetting?.value?.[`stash.${permission}`]) ? permissionSetting.value[`stash.${permission}`].map(String) : [];
-  if (!platformAdmin && !discordOnly && !configured.some((id: string) => roleIds.has(id))) throw new Error('Nu ai permisiunea configurată pentru această funcție Stash.');
   const displayName = String(interaction.member?.nick || user.global_name || user.username || discordId).trim().slice(0, 120) || discordId;
   return { guildId, channelId, target, discordId, displayName, organization, settings, logRouteKey: 'log_stash' };
 }
