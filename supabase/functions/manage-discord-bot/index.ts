@@ -1009,6 +1009,25 @@ Deno.serve(async (request) => {
     }
     const { data: settings, error: settingsError } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', selectedGuild.organization_id).maybeSingle();
     if (settingsError) throw settingsError;
+    if (action === 'module_catalog') {
+      const customSetting = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
+      if (customSetting.error) throw customSetting.error;
+      const definitions = { ...mergeModuleDefinitions(MODULES, await readGlobalModules(db)), ...sanitizeCustomModules(customSetting.data?.custom_modules || {}) } as Record<string, any>;
+      const routes = settings?.discord_channel_routes || {};
+      const channelList = await channels(db, guildId);
+      const memberRoles = await memberRoleIds(db, guildId, String(discord.id));
+      const canViewChannel = await discordChannelAccess(db, guildId, String(discord.id), memberRoles, String(discord.permissions || '0'));
+      const modules = Object.entries(definitions).map(([key, definition]: [string, any]) => {
+        const planAllowed = selectedGuild.plan !== 'free' || definition.premium !== true;
+        const configured = routes[key]?.primary?.channel_id || '';
+        const logKey = definition.log_key || LOG_ROUTES[key] || '';
+        const logChannel = logKey ? routes[logKey]?.primary?.channel_id || '' : '';
+        const channelExists = (channelId: string) => !channelId || channelList.some((channel: any) => String(channel.id) === String(channelId));
+        const visible = Boolean(selectedGuild.is_owner || selectedGuild.can_manage_access || platformAdmin || canViewChannel(configured || logChannel));
+        return { key, label: definition.label, description: definition.description, premium: definition.premium === true, active: definition.active !== false && routes[key]?.primary?.enabled !== false, plan_allowed: planAllowed, can_use: visible && planAllowed, can_manage: Boolean(selectedGuild.is_owner || selectedGuild.can_manage_access || platformAdmin), embed_configured: Boolean(configured && channelExists(configured)), log_configured: Boolean(logChannel && channelExists(logChannel)) };
+      }).filter((module: any) => module.visible && module.active);
+      return reply(request, { ok: true, guild_name: selectedGuild.name, plan: selectedGuild.plan, modules });
+    }
     if (action === 'dashboard_overview' || action === 'repair_guild' || action === 'auto_configure_routes' || action === 'auto_configure_guild' || action === 'set_module_enabled' || action === 'test_setup' || action === 'reset_routes' || action === 'backup_config' || action === 'restore_config') {
       const customSetting = await db.from('discovery_bot_global_settings').select('custom_modules').eq('id', 'global').maybeSingle();
       if (customSetting.error) throw customSetting.error;
