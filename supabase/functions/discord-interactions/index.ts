@@ -224,7 +224,7 @@ const controlPayload = async (db: any, routeKey: string, trialText = '', include
     requests_departments: { title: '📝 Învoiri · Angajați', description: 'Trimite și consultă învoirile angajaților.', color: 0xf59e0b, buttons: [{ label: 'Trimite învoire', style: 1, id: 'panel:requests:departments:new' }, { label: 'Învoirile mele', style: 2, id: 'panel:requests:departments:mine' }] },
     employee_tasks: { title: '✅ Task-uri · Angajați', description: 'Creează task-uri, desemnează angajați și urmărește statusul până la termen.', color: 0x06b6d4, buttons: [{ label: 'Creează task', style: 1, id: 'panel:tasks:create' }, { label: 'Task-urile mele', style: 2, id: 'panel:tasks:mine' }, { label: 'Task-uri active', style: 2, id: 'panel:tasks:active' }] },
     weekly_tasks: { title: '📋 Task-uri săptămânale · Organizație', description: 'Trimite obiective săptămânale și urmărește răspunsurile în DM și în canalul de log.', color: 0x06b6d4, buttons: [{ label: 'Creează task', style: 1, id: 'panel:tasks:create' }, { label: 'Task-urile mele', style: 2, id: 'panel:tasks:mine' }, { label: 'Task-uri active', style: 2, id: 'panel:tasks:active' }] },
-    contracts: { title: '📄 Contracte · Panel Pro', description: 'Generează și trimite contracte folosind șablonul organizației.', color: 0x14b8a6, buttons: [{ label: 'Creează contract', style: 1, id: 'panel:contracts:create' }, { label: 'Informații necesare', style: 2, id: 'panel:contracts:info' }, { label: 'Setează contractul', style: 2, id: 'panel:contracts:settings' }, { label: 'Setează adresa', style: 2, id: 'panel:contracts:address' }] },
+    contracts: { title: '📄 Contracte · Panel Pro', description: 'Selectează angajatul, iar Panel Pro îi trimite formularul privat pentru completarea contractului.', color: 0x14b8a6, buttons: [{ label: 'Trimite formular contract', style: 1, id: 'panel:contracts:create' }, { label: 'Informații necesare', style: 2, id: 'panel:contracts:info' }, { label: 'Setează contractul', style: 2, id: 'panel:contracts:settings' }, { label: 'Setează adresa', style: 2, id: 'panel:contracts:address' }] },
       status_live: { title: '📡 Status live · Panel Pro', description: 'Acest embed este actualizat automat la fiecare minut cu pontajele și pauzele active. Configurează canalul Status live, apoi pornește sincronizarea din pagina Status live.', color: 0x06b6d4, buttons: [] },
     stash: { title: '📦 Stash · Administrare', description: 'Gestionează articolele Stash. Cererile și donațiile se gestionează din embedurile lor separate.', color: 0x22c55e, buttons: [{ label: 'Adaugă în Stash', style: 3, id: 'panel:stash:create' }, { label: 'Gestionează articole', style: 2, id: 'panel:stash:manage_items' }] },
     stash_requests: { title: '📨 Cereri Stash', description: 'Solicită articole și urmărește cererile trimise pentru aprobare.', color: 0x3b82f6, buttons: [{ label: 'Solicită articol', style: 1, id: 'panel:stash:request' }, { label: 'Cereri în așteptare', style: 2, id: 'panel:stash:pending_requests' }] },
@@ -686,6 +686,40 @@ async function resolveContractActionContext(db: any, interaction: any) {
   catch (_) { return await resolveContractContext(db, interaction, 'log_contracts'); }
 }
 
+async function resolveContractRequestContext(db: any, interaction: any, requestId: string) {
+  const discordId = String((interaction?.user || interaction?.member?.user || {}).id || '').trim();
+  if (!/^\d{15,22}$/.test(discordId) || !/^[0-9a-f-]{36}$/i.test(requestId)) throw new Error('Cererea de contract nu este validă.');
+  const { data: request, error: requestError } = await db.from('discovery_contract_requests').select('*').eq('id', requestId).eq('employee_discord_id', discordId).eq('status', 'pending').maybeSingle();
+  if (requestError) throw requestError;
+  if (!request) throw new Error('Formularul nu mai este disponibil sau a fost deja completat.');
+  const [{ data: organization, error: organizationError }, { data: settings, error: settingsError }] = await Promise.all([
+    db.from('discovery_organizations').select('id,name,active').eq('id', request.organization_id).maybeSingle(),
+    db.from('discovery_settings').select('discord_channel_routes,panel_public_url').eq('organization_id', request.organization_id).maybeSingle(),
+  ]);
+  if (organizationError) throw organizationError;
+  if (settingsError) throw settingsError;
+  if (!organization?.active) throw new Error('Organizația este dezactivată.');
+  return { request, guildId: String(request.guild_id), channelId: String(request.dm_channel_id || interaction.channel_id || ''), target: String(request.target || 'primary') === 'secondary' ? 'secondary' : 'primary', discordId, employeeDiscordId: discordId, managerDiscordId: String(request.manager_discord_id), managerDisplayName: String(request.manager_name || 'Manager'), displayName: 'Angajat', organization, settings, platformAdmin: false, role: 'Membru', logRouteKey: 'log_contracts', contractRequestId: String(request.id) };
+}
+
+async function handleContractTargetSelect(db: any, context: any, employeeDiscordId: string) {
+  if (!/^\d{15,22}$/.test(employeeDiscordId)) return interactionMessage('Angajatul selectat nu este valid.');
+  const { data: pending, error: pendingError } = await db.from('discovery_contract_requests').select('id').eq('organization_id', context.organization.id).eq('employee_discord_id', employeeDiscordId).eq('status', 'pending').maybeSingle();
+  if (pendingError) throw pendingError;
+  if (pending) return interactionMessage('Această persoană are deja un formular de contract în așteptare.');
+  const { data: request, error: requestError } = await db.from('discovery_contract_requests').insert({ organization_id: context.organization.id, guild_id: context.guildId, target: context.target, manager_discord_id: context.discordId, manager_name: context.displayName, employee_discord_id: employeeDiscordId }).select('*').single();
+  if (requestError) throw requestError;
+  try {
+    const dm = await sendContractPrivateMessage(db, request, context.organization);
+    const { error: updateError } = await db.from('discovery_contract_requests').update({ dm_channel_id: dm.channelId, dm_message_id: dm.messageId, updated_at: new Date().toISOString() }).eq('id', request.id);
+    if (updateError) throw updateError;
+  } catch (error) {
+    await db.from('discovery_contract_requests').update({ status: 'cancelled', updated_at: new Date().toISOString() }).eq('id', request.id);
+    throw error;
+  }
+  return interactionMessage(`Formularul privat pentru contract a fost trimis către <@${employeeDiscordId}>.`, { allowed_mentions: { users: [] } });
+}
+
 function modalValues(interaction: any) {
   const values: Record<string, any> = {};
   for (const row of interaction?.data?.components || []) {
@@ -1045,13 +1079,42 @@ function disciplineTargetPicker(audience: 'organization' | 'departments', kind: 
 }
 
 function contractModal() {
-  const input = (custom_id: string, label: string, placeholder: string, max_length: number, required = true, value = '') => ({ type: 4, custom_id, label: String(label).slice(0, 45), style: 1, required, placeholder: String(placeholder || '').slice(0, 100), max_length, ...(value ? { value } : {}) });
-  return { type: 9, data: { custom_id: 'panel:contracts:submit', title: 'Generează contract', components: [
-    { type: 1, components: [input('employee_name', 'Nume și prenume', 'Introdu numele și prenumele', 120)] },
-    { type: 1, components: [input('cnp', 'CNP angajat', 'Introdu CNP-ul angajatului', 120)] },
-    { type: 1, components: [input('phone', 'Număr de telefon', '07xx xxx xxx', 80)] },
-    { type: 1, components: [input('start_date', 'Data începerii (opțional)', 'zz.ll.aaaa', 10, false, romanianDisplayDate())] },
+  return contractTargetPicker();
+}
+
+function contractTargetPicker() {
+  return { type: 4, data: { content: 'Selectează angajatul căruia îi trimiți formularul privat pentru contract.', flags: 64, components: [{ type: 1, components: [{ type: 5, custom_id: 'panel:contracts:target', placeholder: 'Selectează angajatul de pe server', min_values: 1, max_values: 1 }] }] } };
+}
+
+function contractEmployeeModal(requestId: string) {
+  const input = (custom_id: string, label: string, placeholder: string, max_length: number) => ({ type: 4, custom_id, label, style: 1, required: true, placeholder, max_length });
+  return { type: 9, data: { custom_id: `panel:contracts:form_submit:${requestId}`, title: 'Completează datele contractului', components: [
+    { type: 1, components: [input('employee_name', 'Nume și prenume', 'Introdu numele complet', 120)] },
+    { type: 1, components: [input('cnp', 'CNP', 'Introdu CNP-ul', 120)] },
+    { type: 1, components: [input('phone', 'Număr de telefon', 'Ex: 07xx xxx xxx', 40)] },
+    { type: 1, components: [input('iban', 'IBAN', 'Ex: RO00AAAA0000000000000000', 40)] },
   ] } };
+}
+
+function contractRequestMessage(request: any, organization: any) {
+  return { allowed_mentions: { parse: [] }, embeds: [{ title: '📄 Formular contract', description: `**${request.manager_name}** ți-a trimis formularul pentru contract. Completează datele personale, iar contractul final va fi publicat automat în canalul de log al organizației **${organization.name}**.`, color: 0x14b8a6, fields: [
+    { name: '🏢 Organizație', value: String(organization.name || '—'), inline: true },
+    { name: '👔 Manager', value: String(request.manager_name || '—'), inline: true },
+    { name: '🔒 Confidențialitate', value: 'Datele sunt folosite pentru generarea contractului și sunt trimise în logul configurat de organizație.', inline: false },
+  ], footer: { text: 'Panel Pro · Contracte' }, timestamp: new Date().toISOString() }], components: [{ type: 1, components: [{ type: 2, style: 1, label: 'Completează formularul', custom_id: `panel:contracts:form:${String(request.id)}` }] }] };
+}
+
+async function sendContractPrivateMessage(db: any, request: any, organization: any) {
+  const token = await getPlatformSecret(db, 'discord_bot_token');
+  if (!token) throw new Error('Tokenul botului Discord nu este configurat.');
+  const headers = { Authorization: `Bot ${token}`, 'Content-Type': 'application/json' };
+  const channelResponse = await fetch(`${DISCORD_API}/users/@me/channels`, { method: 'POST', headers, body: JSON.stringify({ recipient_id: String(request.employee_discord_id) }) });
+  const channel = await channelResponse.json().catch(() => ({}));
+  if (!channelResponse.ok || !channel?.id) throw new Error('Formularul nu a putut fi trimis în DM. Verifică dacă persoana permite mesajele private.');
+  const messageResponse = await fetch(`${DISCORD_API}/channels/${channel.id}/messages`, { method: 'POST', headers, body: JSON.stringify(contractRequestMessage(request, organization)) });
+  const message = await messageResponse.json().catch(() => ({}));
+  if (!messageResponse.ok || !message?.id) throw new Error('Cererea a fost salvată, dar formularul nu a putut fi trimis în DM.');
+  return { channelId: String(channel.id), messageId: String(message.id) };
 }
 
 function contractSettingsModal() {
@@ -1061,7 +1124,7 @@ function contractSettingsModal() {
     { type: 1, components: [input('position', 'Funcție implicită', 1, false, 'Ex: Angajat', 100)] },
     { type: 1, components: [input('salary', 'Salariu implicit', 1, false, 'Ex: 100 lei/lună', 120)] },
     { type: 1, components: [input('schedule', 'Program implicit', 1, false, 'Ex: 20:00-23:00', 120)] },
-    { type: 1, components: [input('template', 'Șablon contract · variabile', 2, true, 'Folosește {{COMPANY}}, {{ADDRESS}}, {{MANAGER}}, {{POSITION}}, {{SALARY}}, {{PROGRAM}}, {{START_DATE}}, {{CONTRACT_NUMBER}} pentru date automate. La generare se cer doar {{EMPLOYEE_NAME}}, {{CNP}} și {{PHONE}}.', 4000)] },
+    { type: 1, components: [input('template', 'Șablon contract · variabile', 2, true, 'Folosește variabilele automate. Angajatul completează {{EMPLOYEE_NAME}}, {{CNP}}, {{PHONE}} și {{IBAN}} în DM.', 4000)] },
   ] } };
 }
 
@@ -1070,15 +1133,15 @@ function contractAddressModal() {
 }
 
 function contractInfoMessage() {
-  return interactionMessage('', { embeds: [{ title: 'ℹ️ Cum configurezi contractul', description: 'În șablon, folosește exact variabilele de mai jos între acolade duble. La generare, botul le înlocuiește automat cu datele organizației și ale angajatului.', color: 0x14b8a6, fields: [
+  return interactionMessage('', { embeds: [{ title: 'ℹ️ Cum funcționează contractele', description: 'Managerul selectează angajatul direct din Discord, iar Panel Pro îi trimite un formular privat în DM. Angajatul completează datele, apoi contractul este generat automat și publicat în canalul configurat pentru Log contracte.', color: 0x14b8a6, fields: [
     { name: 'Date completate automat', value: '`{{COMPANY}}` companie\n`{{ADDRESS}}` adresă\n`{{MANAGER}}` manager\n`{{POSITION}}` funcție\n`{{SALARY}}` salariu\n`{{PROGRAM}}` program\n`{{START_DATE}}` data începerii\n`{{CONTRACT_NUMBER}}` număr contract', inline: true },
-    { name: 'Date cerute la generare', value: '`{{EMPLOYEE_NAME}}` nume și prenume\n`{{CNP}}` CNP\n`{{PHONE}}` număr de telefon', inline: true },
-    { name: 'Exemplu', value: 'Angajat: `{{EMPLOYEE_NAME}}`\nCNP: `{{CNP}}`\nTelefon: `{{PHONE}}`\nSalariu: `{{SALARY}}`', inline: false },
+    { name: 'Date completate de angajat în DM', value: '`{{EMPLOYEE_NAME}}` nume și prenume\n`{{CNP}}` CNP\n`{{PHONE}}` telefon\n`{{IBAN}}` IBAN', inline: true },
+    { name: 'Flux automat', value: 'Managerul alege angajatul → formular privat în DM → contract generat → publicare în Log contracte → buton pentru copierea contractului.', inline: false },
   ], footer: { text: 'Panel Pro · Contracte Discord' } }] });
 }
 
 function contractTemplateVariables() {
-  return new Set(['{{COMPANY}}', '{{ADDRESS}}', '{{MANAGER}}', '{{EMPLOYEE_NAME}}', '{{CNP}}', '{{PHONE}}', '{{POSITION}}', '{{SALARY}}', '{{PROGRAM}}', '{{START_DATE}}', '{{CONTRACT_NUMBER}}']);
+  return new Set(['{{COMPANY}}', '{{ADDRESS}}', '{{MANAGER}}', '{{EMPLOYEE_NAME}}', '{{CNP}}', '{{PHONE}}', '{{IBAN}}', '{{POSITION}}', '{{SALARY}}', '{{PROGRAM}}', '{{START_DATE}}', '{{CONTRACT_NUMBER}}']);
 }
 
 async function handleContractSettingsSubmit(db: any, context: any, interaction: any, values: Record<string, any>) {
@@ -1305,6 +1368,7 @@ Adresă: {{ADDRESS}}.
 Angajat: {{EMPLOYEE_NAME}}
 CNP: {{CNP}}
 Telefon: {{PHONE}}
+IBAN: {{IBAN}}
 
 Funcție: {{POSITION}}
 Salariu: {{SALARY}}
@@ -1343,7 +1407,8 @@ function contractEmbed(contract: any, organization: any, title: string, instruct
   const fields = [
     { name: '👤 Angajat', value: contract.employee_name, inline: true },
     { name: '🪪 CNP', value: contract.cnp, inline: true },
-    { name: '📞 Telefon', value: contract.phone, inline: true },
+    { name: '📞 Telefon', value: contract.phone || '—', inline: true },
+    { name: '🏦 IBAN', value: contract.iban || '—', inline: true },
     { name: '💼 Funcție', value: contract.position, inline: true },
     { name: '💰 Salariu', value: contract.salary, inline: true },
     { name: '🕒 Program', value: contract.schedule, inline: true },
@@ -1374,21 +1439,23 @@ function contractCopyModal(contract: any) {
 }
 
 async function loadSavedContract(db: any, context: any, contractId: string) {
-  const { data: contract, error: contractError } = await db.from('discovery_contracts').select('id,employee_id,contract_number,contract_text,phone,position,salary,schedule,start_date,created_by_discord_id,discord_message_id,discord_message_ids').eq('organization_id', context.organization.id).eq('id', contractId).maybeSingle();
+  const { data: contract, error: contractError } = await db.from('discovery_contracts').select('id,employee_id,contract_number,contract_text,phone,iban,position,salary,schedule,start_date,created_by_discord_id,discord_message_id,discord_message_ids').eq('organization_id', context.organization.id).eq('id', contractId).maybeSingle();
   if (contractError) throw contractError;
   if (!contract) return null;
-  const { data: employee, error: employeeError } = await db.from('discovery_employees').select('full_name,cnp,discord_id').eq('organization_id', context.organization.id).eq('id', contract.employee_id).maybeSingle();
+  const { data: employee, error: employeeError } = await db.from('discovery_employees').select('full_name,cnp,discord_id,phone,iban').eq('organization_id', context.organization.id).eq('id', contract.employee_id).maybeSingle();
   if (employeeError) throw employeeError;
-  return { ...contract, employee_name: employee?.full_name || 'Angajat', cnp: employee?.cnp || '—', manager: context.displayName };
+  return { ...contract, employee_name: employee?.full_name || 'Angajat', cnp: employee?.cnp || '—', phone: contract.phone || employee?.phone || '—', iban: contract.iban || employee?.iban || '—', manager: context.managerDisplayName || context.displayName };
 }
 
 async function handleContractSubmit(db: any, context: any, values: Record<string, any>) {
   const employeeName = contractValue(values.employee_name, '');
   const cnp = contractValue(values.cnp, '');
   const phone = contractValue(values.phone, '');
+  const iban = contractValue(values.iban, '');
   if (!employeeName) return interactionMessage('Numele și prenumele sunt obligatorii.');
   if (!cnp) return interactionMessage('CNP-ul angajatului este obligatoriu.');
   if (!phone) return interactionMessage('Numărul de telefon al angajatului este obligatoriu.');
+  if (!iban) return interactionMessage('IBAN-ul este obligatoriu.');
   const { data: templateSetting, error: templateError } = await db.from('discovery_app_settings').select('value').eq('organization_id', context.organization.id).eq('key', 'contract_template').maybeSingle();
   if (templateError) throw templateError;
   const custom = templateSetting?.value && typeof templateSetting.value === 'object' ? templateSetting.value : {};
@@ -1403,6 +1470,7 @@ async function handleContractSubmit(db: any, context: any, values: Record<string
     employee_name: employeeName,
     cnp,
     phone,
+    iban,
     position: contractValue(defaults.position, 'Angajat'),
     salary: contractValue(defaults.salary, '100 lei/lună'),
     schedule: contractValue(defaults.schedule, '20:00-23:00'),
@@ -1418,6 +1486,7 @@ async function handleContractSubmit(db: any, context: any, values: Record<string
     EMPLOYEE_NAME: contract.employee_name,
     CNP: contract.cnp,
     PHONE: contract.phone,
+    IBAN: contract.iban,
     POSITION: contract.position,
     SALARY: contract.salary,
     PROGRAM: contract.schedule,
@@ -1426,24 +1495,37 @@ async function handleContractSubmit(db: any, context: any, values: Record<string
   });
   contract.contract_text = contractText;
   const now = new Date().toISOString();
-  const { data: existingEmployee, error: existingEmployeeError } = await db.from('discovery_employees').select('id').eq('organization_id', context.organization.id).eq('cnp', contract.cnp).maybeSingle();
-  if (existingEmployeeError) throw existingEmployeeError;
+  const employeeDiscordId = String(context.employeeDiscordId || context.discordId || '').trim();
+  const [{ data: employeeByCnp, error: employeeByCnpError }, { data: employeeByDiscord, error: employeeByDiscordError }] = await Promise.all([
+    db.from('discovery_employees').select('id,discord_id,cnp').eq('organization_id', context.organization.id).eq('cnp', contract.cnp).maybeSingle(),
+    employeeDiscordId ? db.from('discovery_employees').select('id,discord_id,cnp').eq('organization_id', context.organization.id).eq('discord_id', employeeDiscordId).maybeSingle() : Promise.resolve({ data: null, error: null }),
+  ]);
+  if (employeeByCnpError) throw employeeByCnpError;
+  if (employeeByDiscordError) throw employeeByDiscordError;
+  if (employeeByCnp?.id && employeeByDiscord?.id && String(employeeByCnp.id) !== String(employeeByDiscord.id)) return interactionMessage('CNP-ul introdus este deja asociat altui angajat din organizație. Verifică datele înainte de a genera contractul.');
+  const existingEmployee = employeeByDiscord || employeeByCnp;
   let employee: any;
   if (existingEmployee?.id) {
-    const { data: updatedEmployee, error: updateEmployeeError } = await db.from('discovery_employees').update({ full_name: contract.employee_name, active: true, updated_at: now }).eq('organization_id', context.organization.id).eq('id', existingEmployee.id).select('id').single();
+    const { data: updatedEmployee, error: updateEmployeeError } = await db.from('discovery_employees').update({ full_name: contract.employee_name, cnp: contract.cnp, discord_id: employeeDiscordId || null, phone: contract.phone, iban: contract.iban, active: true, updated_at: now }).eq('organization_id', context.organization.id).eq('id', existingEmployee.id).select('id').single();
     if (updateEmployeeError) throw updateEmployeeError;
     employee = updatedEmployee;
   } else {
-    const { data: insertedEmployee, error: employeeError } = await db.from('discovery_employees').insert({ organization_id: context.organization.id, full_name: contract.employee_name, cnp: contract.cnp, active: true, updated_at: now }).select('id').single();
+    const { data: insertedEmployee, error: employeeError } = await db.from('discovery_employees').insert({ organization_id: context.organization.id, full_name: contract.employee_name, cnp: contract.cnp, discord_id: employeeDiscordId || null, phone: contract.phone, iban: contract.iban, active: true, updated_at: now }).select('id').single();
     if (employeeError) throw employeeError;
     employee = insertedEmployee;
   }
-  const { data: saved, error: contractError } = await db.from('discovery_contracts').insert({ organization_id: context.organization.id, employee_id: employee.id, contract_number: contract.contract_number, contract_text: contractText, phone: contract.phone, position: contract.position, salary: contract.salary, schedule: contract.schedule, start_date: contract.start_date, created_by_discord_id: context.discordId }).select('id').single();
+  const { data: saved, error: contractError } = await db.from('discovery_contracts').insert({ organization_id: context.organization.id, employee_id: employee.id, contract_number: contract.contract_number, contract_text: contractText, phone: contract.phone, iban: contract.iban, position: contract.position, salary: contract.salary, schedule: contract.schedule, start_date: contract.start_date, created_by_discord_id: context.managerDiscordId || context.discordId }).select('id').single();
   if (contractError) {
     if (contractError.code === '23505') return interactionMessage('Numărul contractului există deja. Încearcă din nou.');
     throw contractError;
   }
-  return interactionMessage(`Contractul **${contract.contract_number}** a fost generat și salvat. Apasă **Copiază contractul** pentru a vedea și copia textul complet, apoi apasă **Trimite contractul**.`, { embeds: [contractEmbed(contract, context.organization, 'Contract generat', '', false)], components: contractComponents(String(saved.id)) });
+  if (context.contractRequestId) {
+    const published = await handleContractPublish(db, context, String(saved.id));
+    const { error: requestError } = await db.from('discovery_contract_requests').update({ status: 'completed', contract_id: saved.id, completed_at: now, updated_at: now }).eq('id', context.contractRequestId).eq('status', 'pending');
+    if (requestError) throw requestError;
+    return interactionMessage(`Contractul **${contract.contract_number}** a fost completat și trimis automat în canalul configurat pentru **Log contracte**.`, published?.data?.components ? { components: published.data.components } : {});
+  }
+  return interactionMessage(`Contractul **${contract.contract_number}** a fost generat și salvat. Copiază-l, apoi apasă **Trimite contractul**.`, { embeds: [contractEmbed(contract, context.organization, 'Contract generat', '', false)], components: contractComponents(String(saved.id)) });
 }
 
 async function handleContractPublish(db: any, context: any, contractId: string) {
@@ -1452,9 +1534,14 @@ async function handleContractPublish(db: any, context: any, contractId: string) 
   if (contract.discord_message_id) return interactionMessage('Contractul este deja publicat în Log contracte.');
   const destinations = routeCandidates(context.settings, context.logRouteKey);
   if (!destinations.some((item: any) => item.candidates.length)) return interactionMessage(`Contractul **${contract.contract_number}** este generat, dar canalul „Log contracte” nu este configurat.`);
+  const actionComponents = [{ type: 1, components: [
+    { type: 2, style: 1, label: 'Copiază contractul', custom_id: `panel:contracts:copy:${String(contract.id)}` },
+    { type: 2, style: 2, label: 'Adaugă imaginile necesare', custom_id: `panel:contracts:images-info:${String(contract.id)}`, disabled: true },
+  ] }];
   const payload = JSON.stringify({
     allowed_mentions: { parse: [] },
-    embeds: [contractEmbed(contract, context.organization, 'Contract nou', 'Atașează imaginile cu buletinul și contractul sub acest mesaj.', false)]
+    embeds: [contractEmbed(contract, context.organization, 'Contract nou', 'Atașează imaginile cu buletinul și contractul sub acest mesaj.')],
+    components: actionComponents,
   });
   const delivery = await deliverDiscordRoute(db, context.settings, context.logRouteKey, payload, { postOnly: true });
   const messageIds = Object.fromEntries((delivery.results || []).filter((item: any) => item.id).map((item: any) => [String(item.target), String(item.id)]));
@@ -2875,6 +2962,11 @@ Deno.serve(async (request) => {
   // a Discord și utilizatorul vede „Panel Pro didn't respond in time”.
   if (isContracts && isButton) {
     const contractAction = String(customId.split(':')[2] || '');
+    if (contractAction === 'form') {
+      const requestId = String(customId.split(':')[3] || '').trim();
+      if (!/^[0-9a-f-]{36}$/i.test(requestId)) return reply(interactionMessage('Formularul de contract nu este valid.'));
+      return reply(contractEmployeeModal(requestId));
+    }
     if (contractAction === 'info') return reply(contractInfoMessage());
     if (contractAction === 'settings') {
       if (!isDiscordManager(interaction)) return reply(interactionMessage('Doar ownerul serverului sau un administrator cu Manage Server poate seta contractul.'));
@@ -2897,7 +2989,24 @@ Deno.serve(async (request) => {
         return reply(interactionMessage(readableError(error, 'Contractul nu a putut fi încărcat.')));
       }
     }
-    if (contractAction === 'create') return reply(contractModal());
+    if (contractAction === 'create') return reply(contractTargetPicker());
+  }
+  // Formularul este completat în DM, unde Discord nu trimite guild_id.
+  // Procesăm această interacțiune înainte de verificarea serverului sursă.
+  if (isContracts && isModalSubmit && customId.split(':')[2] === 'form_submit') {
+    const requestId = String(customId.split(':')[3] || '').trim();
+    const deferred = await deferInteraction(interaction, false);
+    let result;
+    try {
+      const key = serviceKey();
+      if (!key) throw new Error('Cheia secretă Supabase lipsește.');
+      const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
+      const context = await resolveContractRequestContext(db, interaction, requestId);
+      result = await handleContractSubmit(db, context, modalValues(interaction));
+    } catch (error) { console.error('[discord-interactions] contract DM form failed', error); result = interactionMessage(readableError(error, 'Contractul nu a putut fi completat.')); }
+    const followupId = await sendFollowup(deferred.applicationId, deferred.interactionToken, result);
+    if (followupId && !result?.data?.components?.length) { await new Promise((resolve) => setTimeout(resolve, 5000)); await deleteFollowup(deferred.applicationId, deferred.interactionToken, followupId); }
+    return new Response(null, { status: 204 });
   }
   // Formularele Anunțuri și meniul disciplinar se deschid imediat; validarea
   // drepturilor se repetă la trimitere, după ce Discord a primit răspunsul.
@@ -3285,6 +3394,20 @@ Deno.serve(async (request) => {
       if (followupId) { await new Promise((resolve) => setTimeout(resolve, 5000)); await deleteFollowup(deferred.applicationId, deferred.interactionToken, followupId); }
       return new Response(null, { status: 204 });
     }
+    if (isContracts && isSelect) {
+      const parts = customId.split(':');
+      if (parts[2] !== 'target') return reply(interactionMessage('Selectorul Contracte nu este valid.'));
+      const employeeDiscordId = String(interaction?.data?.values?.[0] || '').trim();
+      const deferred = await deferInteraction(interaction, false);
+      let result;
+      try {
+        const context = await resolveContractContext(db, interaction);
+        result = await handleContractTargetSelect(db, context, employeeDiscordId);
+      } catch (error) { console.error('[discord-interactions] contract target failed', error); result = interactionMessage(readableError(error, 'Formularul privat nu a putut fi trimis.')); }
+      const followupId = await sendFollowup(deferred.applicationId, deferred.interactionToken, result);
+      if (followupId) { await new Promise((resolve) => setTimeout(resolve, 5000)); await deleteFollowup(deferred.applicationId, deferred.interactionToken, followupId); }
+      return new Response(null, { status: 204 });
+    }
     if (isContracts && isButton) {
       const parts = customId.split(':');
       if (parts[2] === 'info') return reply(contractInfoMessage());
@@ -3328,6 +3451,18 @@ Deno.serve(async (request) => {
     }
     if (isContracts && isModalSubmit) {
       const parts = customId.split(':');
+      if (parts[2] === 'form_submit') {
+        const requestId = String(parts[3] || '').trim();
+        const deferred = await deferInteraction(interaction, false);
+        let result;
+        try {
+          const context = await resolveContractRequestContext(db, interaction, requestId);
+          result = await handleContractSubmit(db, context, modalValues(interaction));
+        } catch (error) { console.error('[discord-interactions] contract form failed', error); result = interactionMessage(readableError(error, 'Contractul nu a putut fi completat.')); }
+        const followupId = await sendFollowup(deferred.applicationId, deferred.interactionToken, result);
+        if (followupId && !result?.data?.components?.length) { await new Promise((resolve) => setTimeout(resolve, 5000)); await deleteFollowup(deferred.applicationId, deferred.interactionToken, followupId); }
+        return new Response(null, { status: 204 });
+      }
       if (parts[2] === 'settings_submit') {
         const deferred = contractDeferred || await deferInteraction(interaction, false);
         let result;
