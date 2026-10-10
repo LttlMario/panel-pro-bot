@@ -1161,7 +1161,7 @@ async function handleContractSettingsSubmit(db: any, context: any, interaction: 
   const currentDefaults = currentValue.defaults && typeof currentValue.defaults === 'object' ? currentValue.defaults : {};
   const { error } = await db.from('discovery_app_settings').upsert({ organization_id: context.organization.id, key: 'contract_template', value: { title, template, defaults: { ...currentDefaults, position, salary: salary || null, schedule } }, updated_at: new Date().toISOString() }, { onConflict: 'organization_id,key' });
   if (error) throw error;
-  return interactionMessage(`Șablonul **${title}** a fost salvat. La generare se completează automat organizația, managerul, funcția, salariul, programul, data și numărul contractului; angajatul completează numele, CNP-ul și telefonul.`);
+  return interactionMessage(`Șablonul **${title}** a fost salvat. La generare se completează automat organizația, managerul, funcția, salariul, programul, data și numărul contractului; angajatul completează numele, CNP-ul, telefonul și IBAN-ul în DM.`);
 }
 
 function disciplineModal(audience: 'organization' | 'departments', kind: 'warning' | 'sanction', targetId = '', targetLabel = '') {
