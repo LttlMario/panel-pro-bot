@@ -742,8 +742,11 @@ async function provisionDemoCategory(db: any, guildId: string) {
 
 function payload(moduleKey: string, donation: boolean, definitions = MODULES) {
   const definition = definitions[moduleKey];
+  const buttons = definition.buttons.some((button: any) => String(button.id || '').startsWith('panel:module_info:') || /info|instrucțiuni/i.test(String(button.label || '')))
+    ? definition.buttons
+    : [...definition.buttons, { label: 'ℹ️ Instrucțiuni', style: 2, id: `panel:module_info:${moduleKey}` }];
   const rows: any[] = [];
-  for (let index = 0; index < definition.buttons.length; index += 5) rows.push({ type: 1, components: definition.buttons.slice(index, index + 5).map((button: any) => {
+  for (let index = 0; index < buttons.length; index += 5) rows.push({ type: 1, components: buttons.slice(index, index + 5).map((button: any) => {
     if (button.type === 'link' && /^https?:\/\//i.test(button.url || '')) return { type: 2, style: 5, label: button.label, url: button.url };
     if (button.type === 'select') return { type: 3, custom_id: button.id, placeholder: button.label, min_values: 1, max_values: 1, options: (button.options || []).slice(0, 25).map((option: any) => ({ label: option.label, value: option.value, ...(option.description ? { description: option.description } : {}) })) };
     return { type: 2, style: button.style === 5 ? 1 : button.style, label: button.label, custom_id: button.id };

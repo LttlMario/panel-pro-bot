@@ -21,6 +21,32 @@ const reply = (data: unknown, status = 200) => new Response(JSON.stringify(data)
 // dar Discord nu mai redă sunet pentru răspunsul interacțiunii.
 const SILENT_EPHEMERAL_FLAGS = 64;
 const interactionMessage = (content: string, extra: Record<string, unknown> = {}) => ({ type: 4, data: { content, flags: SILENT_EPHEMERAL_FLAGS, ...extra } });
+const moduleInfoMessage = (moduleKey: string) => {
+  const guides: Record<string, string> = {
+    organization: '**Publică anunț** — mesaj normal. **Pune întrebare** — întrebare pentru membri. **Creează sondaj** — colectează voturi. Avertismentele și sancțiunile respectă permisiunile configurate.',
+    departments: 'Anunțuri, întrebări și sondaje pentru angajați. Rezultatele sunt publicate în canalele configurate pentru această categorie.',
+    pontaj: '**Start** începe tura, **Pauză** o suspendă, **Stop** o încheie, iar **Pontajul meu** afișează statisticile personale. Rezultatele ajung în Log pontaj.',
+    requests_organization: '**Trimite învoire** creează cererea. **Învoirile mele** afișează statusul. Aprobarea și respingerea ajung în Log învoiri organizație.',
+    requests_departments: '**Trimite învoire** creează cererea. **Învoirile mele** afișează statusul. Rezultatul ajunge în Log învoiri angajați.',
+    contracts: 'Managerul selectează angajatul, acesta completează în DM numele, CNP-ul, telefonul și IBAN-ul, iar contractul este generat automat în Log contracte. Setările modifică șablonul și adresa firmei.',
+    employee_tasks: 'Creează task-uri pentru angajați, urmărește task-urile primite sau active și primește răspunsurile în Log task-uri angajați.',
+    weekly_tasks: 'Creează obiectivul săptămânal pentru organizație. Răspunsurile sunt trimise în DM și apar în Log task-uri săptămânale organizație.',
+    tasks: 'Creează task-ul, selectează destinatarii și termenul-limită. Destinatarii răspund în DM, iar rezultatele apar în canalul de log.',
+    proposals: '**Propunere organizație** și **Propunere angajați** creează idei separate. **Susțin** și **Contra** actualizează voturile în embed. Ștergerea este disponibilă persoanelor autorizate.',
+    marketplace: '**Publică anunț** creează oferta. **Anunțurile mele** gestionează anunțurile proprii. Rezultatul ajunge în Marketplace și în logul configurat.',
+    illegal_marketplace: 'Publică și gestionează anunțuri în Marketplace ilegal. Accesul și logul sunt separate de Marketplace legal.',
+    actions_organization: '**Acțiune** înregistrează activitatea și participanții. **Clasament acțiuni** afișează statisticile. Rezultatul ajunge în log.',
+    stash: '**Adaugă în Stash** creează un articol. Cererile și donațiile se gestionează prin embedurile lor separate.',
+    stash_requests: '**Solicită articol** trimite cererea. **Cereri în așteptare** afișează cererile și statusul.',
+    stash_donations: '**Donează articol** trimite o donație. **Donații în așteptare** permite verificarea și aprobarea.',
+    event_reminders: '**Adaugă eveniment** creează un reminder. **Info remindere** explică durata și trimiterea automată.',
+    presence_events: '**Creează eveniment** publică evenimentul. Participanții se înscriu din embed, iar lista se actualizează în log.',
+    weekly_reports: '**Generează raport pontaj** centralizează orele și publică raportul în canalul de log.',
+    contract_identity_weekly: '**Generează raport** creează exportul contractelor. **Info raport** explică datele incluse.',
+    wheel_timer: '**Am dat la roată** pornește timerul personal de 6 ore. Countdown-ul se actualizează automat.',
+  };
+  return interactionMessage('', { embeds: [{ title: `ℹ️ Instrucțiuni · ${PANEL_ROUTE_LABELS[moduleKey] || moduleKey || 'Modul'}`, description: guides[moduleKey] || 'Folosește butoanele din embed pentru a începe. Dacă o acțiune nu funcționează, verifică accesul la modul, canalul configurat și permisiunile botului.', color: 0x5865f2, footer: { text: 'Panel Pro · instrucțiuni modul' } }] });
+};
 const PAYMENT_PROOF_GUILD_ID = '1544703486384537603';
 const PAYMENT_PROOF_CHANNEL_ID = '1547891455006085170';
 const demoModal = (action: string) => ({ type: 9, data: { custom_id: `panel:demo:submit:${action.slice(0, 40)}`, title: '🧪 Demo Panel Pro', components: [
@@ -242,6 +268,7 @@ const controlPayload = async (db: any, routeKey: string, trialText = '', include
   const base = definitions[routeKey] || { title: `⚙️ ${PANEL_ROUTE_LABELS[routeKey] || 'Panel Pro'}`, description: 'Embed de administrare Panel Pro.', color: 0x5865f2, buttons: [] };
   const override = (await readGlobalModules(db))[routeKey] || {};
   const definition = { ...base, ...override, buttons: Array.isArray(override.buttons) ? override.buttons.map((button: any, index: number) => ({ ...base.buttons[index], ...button })).filter((button: any) => button?.id) : base.buttons };
+  if (definition.buttons.length && !definition.buttons.some((button: any) => String(button.id || '').startsWith('panel:module_info:') || /info|instrucțiuni/i.test(String(button.label || '')))) definition.buttons = [...definition.buttons, { label: 'ℹ️ Instrucțiuni', style: 2, id: `panel:module_info:${routeKey}` }];
     const components: any[] = [];
     for (let index = 0; index < definition.buttons.length && components.length < 4; index += 5) {
       components.push({ type: 1, components: definition.buttons.slice(index, index + 5).map((button: any) => ({ type: 2, style: button.style, label: button.label, custom_id: button.id })) });
@@ -2902,6 +2929,7 @@ Deno.serve(async (request) => {
   const isButton = isComponent && Number(interaction?.data?.component_type || 2) === 2;
   const isSelect = isComponent && [3, 5, 6].includes(Number(interaction?.data?.component_type || 0));
   const isModalSubmit = Number(interaction?.type) === 5;
+  if (isButton && customId.startsWith('panel:module_info:')) return reply(moduleInfoMessage(customId.slice('panel:module_info:'.length)));
   // Demo-urile sunt complet izolate: răspund direct în Discord și nu inițializează clientul Supabase.
   if (customId.startsWith('panel:demo:')) return reply(demoInteraction(interaction, customId, isButton, isModalSubmit));
   const isPontaj = customId.startsWith('panel:pontaj:');
