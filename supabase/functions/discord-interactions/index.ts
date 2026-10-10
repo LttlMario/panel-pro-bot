@@ -2976,18 +2976,16 @@ Deno.serve(async (request) => {
     if (contractAction === 'copy') {
       const contractId = String(customId.split(':')[3] || '').trim();
       if (!/^[0-9a-f-]{36}$/i.test(contractId)) return reply(interactionMessage('Contractul selectat nu este valid.'));
-      try {
+      return runBackgroundAcknowledgedCommand(interaction, async () => {
         const key = serviceKey();
         if (!key) throw new Error('Cheia secretă Supabase lipsește.');
         const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
         await ensureDiscordOnlyOrganization(db, interaction);
         const context = await resolveContractActionContext(db, interaction);
         const contract = await loadSavedContract(db, context, contractId);
-        if (!contract) return reply(interactionMessage('Contractul nu mai există în istoricul organizației.'));
-        return reply(contractCopyModal(contract));
-      } catch (error) {
-        return reply(interactionMessage(readableError(error, 'Contractul nu a putut fi încărcat.')));
-      }
+        if (!contract) return interactionMessage('Contractul nu mai există în istoricul organizației.');
+        return interactionMessage(`**Contract ${contract.contract_number}**\n\n\`\`\`text\n${String(contract.contract_text || '').slice(0, 3900)}\n\`\`\`\n\nSelectează textul cu Ctrl+A și copiază-l cu Ctrl+C.`);
+      }, 'Contractul nu a putut fi încărcat.');
     }
     if (contractAction === 'create') return reply(contractTargetPicker());
   }
