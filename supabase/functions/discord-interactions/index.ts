@@ -5,6 +5,8 @@ import { getPlatformSecret } from '../_shared/platform-secrets.ts';
 import { deliverDiscordRoute, requestDiscordTarget, routeCandidates } from '../_shared/discord-delivery.ts';
 import { discordPremiumAccess, discordPremiumButton, discordPremiumConfigured, discordPremiumMessage, discordPremiumModule } from '../_shared/discord-premium.ts';
 import { readGlobalModules } from '../_shared/global-bot-settings.ts';
+import { handleDiscoveryProposals, proposalModal } from './discovery-proposals.ts';
+import { handleWheel } from './discovery-wheel.ts';
 
 const DISCORD_PUBLIC_KEY = () => String(Deno.env.get('DISCORD_PUBLIC_KEY') || Deno.env.get('DISCORD_APPLICATION_PUBLIC_KEY') || '').trim();
 const DISCORD_API = 'https://discord.com/api/v10';
@@ -66,15 +68,18 @@ const commandOptions = (interaction: any) => Array.isArray(commandSubcommand(int
 const commandOption = (interaction: any, name: string) => commandOptions(interaction).find((option: any) => option?.name === name)?.value;
 const PANEL_ROUTE_LABELS: Record<string, string> = {
   organization: 'Anunțuri organizație', departments: 'Anunțuri angajați', pontaj: 'Pontaj', log_pontaj: 'Log pontaj',
-  requests_organization: 'Învoiri organizație', requests_departments: 'Învoiri angajați', employee_tasks: 'Task-uri angajați', log_employee_tasks: 'Log task-uri angajați', log_requests_organization: 'Log învoiri organizație', log_requests_departments: 'Log învoiri angajați', log_weekly_reports: 'Log raport săptămânal pontaj',
+  requests_organization: 'Învoiri organizație', requests_departments: 'Învoiri angajați', employee_tasks: 'Task-uri angajați', log_employee_tasks: 'Log task-uri angajați', weekly_tasks: 'Task-uri săptămânale organizație', log_weekly_tasks: 'Log task-uri săptămânale organizație', log_requests_organization: 'Log învoiri organizație', log_requests_departments: 'Log învoiri angajați', log_weekly_reports: 'Log raport săptămânal pontaj',
   contracts: 'Contracte', log_contracts: 'Log contracte', marketplace: 'Marketplace', log_marketplace: 'Log Marketplace', illegal_marketplace: 'Marketplace ilegal', log_illegal_marketplace: 'Log Marketplace ilegal', actions_organization: 'Acțiuni organizație', log_actions_organization: 'Log acțiuni organizație', actions_organization_weekly: 'Log acțiuni', weekly_reports: 'Raport săptămânal pontaj', status_live: 'Status live',
   stash: 'Stash', log_stash: 'Log Stash', stash_requests: 'Cereri Stash', log_stash_requests: 'Log cereri Stash', stash_donations: 'Donații Stash', log_stash_donations: 'Log donații Stash', event_reminders: 'Evenimente și remindere', log_event_reminders: 'Log evenimente și remindere', presence_events: 'Evenimente cu prezență', log_presence_events: 'Log evenimente cu prezență', contract_identity_weekly: 'Raport săptămânal contracte', log_contract_identity_weekly: 'Log raport săptămânal contracte',
+  proposals: 'Propuneri', log_proposals: 'Log propuneri',
+  wheel_timer: 'Roată · timer personal',
 };
 const panelRouteKeys = Object.keys(PANEL_ROUTE_LABELS);
 const PANEL_LOG_ROUTES: Record<string, string> = {
   organization: 'log_announcements_organization', departments: 'log_announcements_departments', pontaj: 'log_pontaj',
-  requests_organization: 'log_requests_organization', requests_departments: 'log_requests_departments', employee_tasks: 'log_employee_tasks', contracts: 'log_contracts', marketplace: 'log_marketplace', illegal_marketplace: 'log_illegal_marketplace', weekly_reports: 'log_weekly_reports',
+  requests_organization: 'log_requests_organization', requests_departments: 'log_requests_departments', employee_tasks: 'log_employee_tasks', weekly_tasks: 'log_weekly_tasks', contracts: 'log_contracts', marketplace: 'log_marketplace', illegal_marketplace: 'log_illegal_marketplace', weekly_reports: 'log_weekly_reports',
   actions_organization: 'log_actions_organization', stash: 'log_stash', stash_requests: 'log_stash_requests', stash_donations: 'log_stash_donations', event_reminders: 'log_event_reminders', presence_events: 'log_presence_events', contract_identity_weekly: 'log_contract_identity_weekly',
+  proposals: 'log_proposals',
 };
 const isDiscordManager = (interaction: any) => {
   try { return (BigInt(String(interaction?.member?.permissions || '0')) & 40n) !== 0n; } catch { return false; }
@@ -218,6 +223,7 @@ const controlPayload = async (db: any, routeKey: string, trialText = '', include
     requests_organization: { title: '📝 Învoiri · Organizație', description: 'Trimite și consultă învoirile organizației.', color: 0xf59e0b, buttons: [{ label: 'Trimite învoire', style: 1, id: 'panel:requests:organization:new' }, { label: 'Învoirile mele', style: 2, id: 'panel:requests:organization:mine' }] },
     requests_departments: { title: '📝 Învoiri · Angajați', description: 'Trimite și consultă învoirile angajaților.', color: 0xf59e0b, buttons: [{ label: 'Trimite învoire', style: 1, id: 'panel:requests:departments:new' }, { label: 'Învoirile mele', style: 2, id: 'panel:requests:departments:mine' }] },
     employee_tasks: { title: '✅ Task-uri · Angajați', description: 'Creează task-uri, desemnează angajați și urmărește statusul până la termen.', color: 0x06b6d4, buttons: [{ label: 'Creează task', style: 1, id: 'panel:tasks:create' }, { label: 'Task-urile mele', style: 2, id: 'panel:tasks:mine' }, { label: 'Task-uri active', style: 2, id: 'panel:tasks:active' }] },
+    weekly_tasks: { title: '📋 Task-uri săptămânale · Organizație', description: 'Trimite obiective săptămânale și urmărește răspunsurile în DM și în canalul de log.', color: 0x06b6d4, buttons: [{ label: 'Creează task', style: 1, id: 'panel:tasks:create' }, { label: 'Task-urile mele', style: 2, id: 'panel:tasks:mine' }, { label: 'Task-uri active', style: 2, id: 'panel:tasks:active' }] },
     contracts: { title: '📄 Contracte · Panel Pro', description: 'Generează și trimite contracte folosind șablonul organizației.', color: 0x14b8a6, buttons: [{ label: 'Creează contract', style: 1, id: 'panel:contracts:create' }, { label: 'Informații necesare', style: 2, id: 'panel:contracts:info' }, { label: 'Setează contractul', style: 2, id: 'panel:contracts:settings' }, { label: 'Setează adresa', style: 2, id: 'panel:contracts:address' }] },
       status_live: { title: '📡 Status live · Panel Pro', description: 'Acest embed este actualizat automat la fiecare minut cu pontajele și pauzele active. Configurează canalul Status live, apoi pornește sincronizarea din pagina Status live.', color: 0x06b6d4, buttons: [] },
     stash: { title: '📦 Stash · Administrare', description: 'Gestionează articolele Stash. Cererile și donațiile se gestionează din embedurile lor separate.', color: 0x22c55e, buttons: [{ label: 'Adaugă în Stash', style: 3, id: 'panel:stash:create' }, { label: 'Gestionează articole', style: 2, id: 'panel:stash:manage_items' }] },
@@ -227,8 +233,11 @@ const controlPayload = async (db: any, routeKey: string, trialText = '', include
     marketplace: { title: '🛒 Marketplace · Legal', description: 'Publică și gestionează anunțuri de vânzare, cumpărare și servicii. Imaginile se adaugă ulterior din panelul web.', color: 0x2563eb, buttons: [{ label: 'Publică anunț', style: 1, id: 'panel:marketplace:legal:create' }, { label: 'Anunțurile mele', style: 2, id: 'panel:marketplace:legal:mine' }] },
     illegal_marketplace: { title: '🚨 Marketplace · Ilegal', description: 'Publică și gestionează anunțuri Black Market. Imaginile nu sunt incluse momentan în formularul Discord.', color: 0xef4444, buttons: [{ label: 'Publică anunț', style: 1, id: 'panel:marketplace:illegal:create' }, { label: 'Anunțurile mele', style: 2, id: 'panel:marketplace:illegal:mine' }] },
     event_reminders: { title: '🗓️ Evenimente și remindere', description: 'Înregistrează evenimente și trimite remindere automate pe durata aleasă.', color: 0xf59e0b, buttons: [{ label: 'Adaugă eveniment', style: 1, id: 'panel:discovery:reminder_create' }, { label: 'Info remindere', style: 2, id: 'panel:discovery:reminder_info' }] },
+    presence_events: { title: '🟢 Evenimente cu prezență', description: 'Creează un eveniment, iar embedul din canalul de log se actualizează cu participanții.', color: 0x22c55e, buttons: [{ label: 'Creează eveniment', style: 1, id: 'panel:presence_events:create' }] },
     weekly_reports: { title: '📊 Raport săptămânal pontaj', description: 'Trimite zilele lucrate, orele pe fiecare membru și totalul săptămânal.', color: 0x06b6d4, premium: false, buttons: [{ label: 'Generează raport pontaj', style: 1, id: 'panel:discovery:weekly_shift_report' }] },
     contract_identity_weekly: { title: '📋 Raport săptămânal contracte', description: 'Generează exportul săptămânal cu numele și CNP-ul angajaților.', color: 0x14b8a6, buttons: [{ label: 'Generează raport', style: 1, id: 'panel:discovery:weekly_report' }, { label: 'Info raport', style: 2, id: 'panel:discovery:report_info' }] },
+    proposals: { title: '💡 Propuneri', description: 'Trimite idei și permite membrilor să voteze direct în embed.', color: 0xa855f7, buttons: [{ label: 'Propunere organizație', style: 1, id: 'panel:proposals:organization:create' }, { label: 'Propunere angajați', style: 1, id: 'panel:proposals:departments:create' }] },
+    wheel_timer: { title: '🎡 Roată · timer personal', description: 'Timer individual de 6 ore. Fiecare membru își poate porni propriul timer.', color: 0x06b6d4, buttons: [{ label: 'Am dat la roată', style: 1, id: 'panel:wheel:start' }] },
   };
   const base = definitions[routeKey] || { title: `⚙️ ${PANEL_ROUTE_LABELS[routeKey] || 'Panel Pro'}`, description: 'Embed de administrare Panel Pro.', color: 0x5865f2, buttons: [] };
   const override = (await readGlobalModules(db))[routeKey] || {};
@@ -842,10 +851,15 @@ async function taskContext(db: any, interaction: any) {
   if (!id(guildId) || !id(discordId)) throw new Error('Interacțiunea Discord nu conține date valide.');
   const { data: guild, error: guildError } = await db.from('discovery_guilds').select('organization_id,kind').eq('guild_id', guildId).eq('enabled', true).maybeSingle(); if (guildError) throw guildError; if (!guild?.organization_id) throw new Error('Serverul Discord nu este asociat unei organizații Panel Pro.');
   const { data: settings, error: settingsError } = await db.from('discovery_settings').select('discord_channel_routes').eq('organization_id', guild.organization_id).maybeSingle(); if (settingsError) throw settingsError;
-  const target = String(guild.kind || '') === 'secondary' ? 'secondary' : 'primary'; const routes = settings?.discord_channel_routes || {}; const main = routes?.employee_tasks?.[target] || {}; const log = routes?.log_employee_tasks?.[target] || {};
-  if (!main.channel_id || !log.channel_id) throw new Error('Configurează canalul principal și canalul de log pentru Task-uri angajați.');
-  if (channelId && channelId !== String(main.channel_id) && channelId !== String(log.channel_id)) throw new Error('Acest canal nu este configurat pentru Task-uri angajați.');
-  return { guildId, channelId, discordId, organizationId: String(guild.organization_id), target, settings, main, log };
+  const target = String(guild.kind || '') === 'secondary' ? 'secondary' : 'primary'; const routes = settings?.discord_channel_routes || {};
+  const employeeMain = routes?.employee_tasks?.[target] || {}; const employeeLog = routes?.log_employee_tasks?.[target] || {};
+  const weeklyMain = routes?.weekly_tasks?.[target] || {}; const weeklyLog = routes?.log_weekly_tasks?.[target] || {};
+  const isWeekly = channelId && (channelId === String(weeklyMain.channel_id || '') || channelId === String(weeklyLog.channel_id || ''));
+  const taskType = isWeekly ? 'organization_weekly' : 'employee';
+  const main = isWeekly ? weeklyMain : employeeMain; const log = isWeekly ? weeklyLog : employeeLog;
+  if (!main.channel_id || !log.channel_id) throw new Error(`Configurează canalul principal și canalul de log pentru ${isWeekly ? 'Task-uri săptămânale organizație' : 'Task-uri angajați'}.`);
+  if (channelId && channelId !== String(main.channel_id) && channelId !== String(log.channel_id)) throw new Error(`Acest canal nu este configurat pentru ${isWeekly ? 'Task-uri săptămânale organizație' : 'Task-uri angajați'}.`);
+  return { guildId, channelId, discordId, organizationId: String(guild.organization_id), target, settings, main, log, taskType };
 }
 async function publishTask(db: any, interaction: any) {
   const context = await taskContext(db, interaction); const values = modalValues(interaction); const title = String(values.task_title || '').trim().slice(0, 160); const description = String(values.task_description || '').trim().slice(0, 1500); const dueRaw = String(values.task_due_at || '').trim(); const draftId = String(interaction?.data?.custom_id || '').split(':')[3] || '';
@@ -854,15 +868,15 @@ async function publishTask(db: any, interaction: any) {
   if (title.length < 2) throw new Error('Completează titlul task-ului.'); if (!assigneeIds.length) throw new Error('Selectează cel puțin un angajat.');
   let dueAt: string | null = null; if (dueRaw) { const parsed = new Date(dueRaw.replace(' ', 'T') + (/[zZ]|[+-]\d\d:\d\d$/.test(dueRaw) ? '' : ':00+03:00')); if (!Number.isFinite(parsed.getTime())) throw new Error('Termenul trebuie să fie în formatul AAAA-LL-ZZ HH:MM.'); dueAt = parsed.toISOString(); }
   const recipientStatuses = Object.fromEntries(assigneeIds.map((value) => [value, 'pending']));
-  const { data: task, error } = await db.from('discovery_tasks').insert({ organization_id: context.organizationId, guild_id: context.guildId, title, description, due_at: dueAt, assignee_discord_id: assigneeIds[0], assignee_discord_ids: assigneeIds, recipient_statuses: recipientStatuses, created_by_discord_id: context.discordId, discord_channel_id: context.log.channel_id }).select('*').single(); if (error) throw error;
+  const { data: task, error } = await db.from('discovery_tasks').insert({ organization_id: context.organizationId, guild_id: context.guildId, task_type: context.taskType, title, description, due_at: dueAt, assignee_discord_id: assigneeIds[0], assignee_discord_ids: assigneeIds, recipient_statuses: recipientStatuses, created_by_discord_id: context.discordId, discord_channel_id: context.log.channel_id }).select('*').single(); if (error) throw error;
   const dmMessageIds: Record<string, any> = {}; const dmFailures: string[] = [];
   for (const recipient of assigneeIds) { try { const direct = await sendTaskPrivateMessage(db, recipient, task); dmMessageIds[recipient] = direct; } catch (error) { dmFailures.push(`<@${recipient}>: ${error instanceof Error ? error.message : 'mesaj privat indisponibil'}`); } }
   await db.from('discovery_tasks').update({ discord_dm_message_ids: dmMessageIds, updated_at: new Date().toISOString() }).eq('id', task.id);
   await db.from('discovery_task_drafts').delete().eq('id', draftId);
   return interactionMessage(dmFailures.length ? `Task-ul a fost trimis, dar unele mesaje private nu au putut fi trimise:\n${dmFailures.join('\n')}` : `Task-ul **${title}** a fost trimis către ${assigneeIds.length} angajați. Rezultatele vor apărea în <#${context.log.channel_id}>.`);
 }
-async function taskList(db: any, interaction: any, own: boolean) { const context = await taskContext(db, interaction); const query = db.from('discovery_tasks').select('title,status,due_at,assignee_discord_id,claimed_by_discord_id').eq('organization_id', context.organizationId).eq('guild_id', context.guildId).in('status', ['pending','in_progress']).order('due_at', { ascending: true }).limit(20); if (own) query.or(`assignee_discord_id.eq.${context.discordId},claimed_by_discord_id.eq.${context.discordId}`); const { data, error } = await query; if (error) throw error; const rows = (data || []).map((task: any) => `• **${String(task.title).slice(0, 120)}** · ${taskStatusLabel(task.status)} · ${task.due_at ? `<t:${Math.floor(Date.parse(task.due_at) / 1000)}:R>` : 'fără termen'}`).join('\n') || 'Nu există task-uri active.'; return interactionMessage('', { embeds: [{ title: own ? '✅ Task-urile mele' : '✅ Task-uri active', description: rows.slice(0, 4000), color: 0x06b6d4 }] }); }
-async function createTaskDraft(db: any, interaction: any) { const context = await taskContext(db, interaction); const selected = [...new Set((Array.isArray(interaction?.data?.values) ? interaction.data.values : []).map(String).filter((value: string) => id(value)))].slice(0, 25); if (!selected.length) return interactionMessage('Selectează cel puțin un angajat.'); const { data, error } = await db.from('discovery_task_drafts').insert({ organization_id: context.organizationId, guild_id: context.guildId, creator_discord_id: context.discordId, assignee_discord_ids: selected }).select('id').single(); if (error) throw error; return taskModal(String(data.id)); }
+async function taskList(db: any, interaction: any, own: boolean) { const context = await taskContext(db, interaction); const query = db.from('discovery_tasks').select('title,status,due_at,assignee_discord_id,claimed_by_discord_id').eq('organization_id', context.organizationId).eq('guild_id', context.guildId).eq('task_type', context.taskType).in('status', ['pending','in_progress']).order('due_at', { ascending: true }).limit(20); if (own) query.or(`assignee_discord_id.eq.${context.discordId},claimed_by_discord_id.eq.${context.discordId}`); const { data, error } = await query; if (error) throw error; const rows = (data || []).map((task: any) => `• **${String(task.title).slice(0, 120)}** · ${taskStatusLabel(task.status)} · ${task.due_at ? `<t:${Math.floor(Date.parse(task.due_at) / 1000)}:R>` : 'fără termen'}`).join('\n') || 'Nu există task-uri active.'; return interactionMessage('', { embeds: [{ title: own ? '✅ Task-urile mele' : '✅ Task-uri active', description: rows.slice(0, 4000), color: 0x06b6d4 }] }); }
+async function createTaskDraft(db: any, interaction: any) { const context = await taskContext(db, interaction); const selected = [...new Set((Array.isArray(interaction?.data?.values) ? interaction.data.values : []).map(String).filter((value: string) => id(value)))].slice(0, 25); if (!selected.length) return interactionMessage('Selectează cel puțin un angajat.'); const { data, error } = await db.from('discovery_task_drafts').insert({ organization_id: context.organizationId, guild_id: context.guildId, task_type: context.taskType, creator_discord_id: context.discordId, assignee_discord_ids: selected }).select('id').single(); if (error) throw error; return taskModal(String(data.id)); }
 async function handleTasks(db: any, interaction: any, customId: string, isButton: boolean, isModalSubmit: boolean) {
   if (isButton && customId === 'panel:tasks:create') return taskAssigneePicker();
   if (isModalSubmit && customId.startsWith('panel:tasks:create_submit:')) return runDeferredCommand(interaction, () => publishTask(db, interaction), 'Task-ul nu a putut fi creat.');
@@ -894,11 +908,9 @@ async function handleTasks(db: any, interaction: any, customId: string, isButton
   return interactionMessage(action === 'claim' ? 'Task-ul a fost preluat și trecut în lucru.' : action === 'start' ? 'Task-ul a fost trecut în lucru.' : action === 'complete' ? 'Task-ul a fost marcat ca finalizat.' : 'Task-ul a fost anulat.');
 }
 
-const communityReactionChoices = ['✅', '❌', '👍', '❤️', '🤔'];
-
 function communityPostComponents(post: any, options: any[] = []) {
   const audience = post.audience === 'departments' ? 'departments' : 'organization';
-  const rows: any[] = [{ type: 1, components: communityReactionChoices.map((reaction, index) => ({ type: 2, style: 2, label: reaction, custom_id: `panel:announcements:${audience}:react:${post.id}:${index}` })) }];
+  const rows: any[] = [];
   if (post.post_type === 'poll') {
     const pollOptions = options.slice(0, 10);
     for (let index = 0; index < pollOptions.length; index += 5) {
@@ -906,13 +918,14 @@ function communityPostComponents(post: any, options: any[] = []) {
     }
   }
   rows.push({ type: 1, components: [
+    { type: 2, style: 3, label: '✅ Am citit', custom_id: `panel:announcements:${audience}:read:${post.id}` },
     { type: 2, style: 2, label: 'Editează', custom_id: `panel:announcements:${audience}:edit:${post.id}` },
     { type: 2, style: 4, label: 'Șterge', custom_id: `panel:announcements:${audience}:delete:${post.id}` },
   ] });
   return rows.slice(0, 5);
 }
 
-function communityPostEmbed(post: any, options: any[] = [], votes: any[] = [], reactions: any[] = [], settings: any = {}) {
+function communityPostEmbed(post: any, options: any[] = [], votes: any[] = [], reactions: any[] = [], reads: any[] = [], settings: any = {}) {
   const audience = post.audience === 'departments' ? 'Angajați' : 'Organizație';
   const site = String(settings?.panel_public_url || 'https://panel-pro.ro').replace(/\/$/, '');
   const postUrl = `${site}/anunturi.html?post=${post.id}`;
@@ -925,8 +938,8 @@ function communityPostEmbed(post: any, options: any[] = [], votes: any[] = [], r
       return `▫️ ${String(option.option_text || 'Opțiune').slice(0, 80)} — ${count} (${percentage}%)`;
     }).join('\n').slice(0, 1024) || 'Încă nu există opțiuni.' });
   }
-  fields.push({ name: 'Reacții', value: communityReactionChoices.map((reaction) => `${reaction} ${reactions.filter((item: any) => item.reaction === reaction).length}`).join(' · '), inline: false });
-  fields.push({ name: post.post_type === 'poll' ? 'Votare' : 'Interacțiuni', value: post.post_type === 'poll' ? 'Alege o opțiune de mai jos.' : 'Folosește reacțiile de mai jos pentru a răspunde.', inline: false });
+  fields.push({ name: `✅ Au citit (${reads.length})`, value: reads.length ? reads.map((item: any) => `• ${String(item.display_name || item.user_discord_id)}`).join('\n').slice(0, 1024) : 'Nimeni nu a confirmat încă.', inline: false });
+  fields.push({ name: post.post_type === 'poll' ? 'Votare' : 'Confirmare', value: post.post_type === 'poll' ? 'Alege o opțiune de mai jos.' : 'Folosește butonul „Am citit” pentru a confirma că ai văzut anunțul.', inline: false });
   return {
     title: String(post.title || 'Comunicare').slice(0, 256),
     description: String(post.content || '—').slice(0, 4096),
@@ -942,19 +955,21 @@ async function loadCommunityPost(db: any, organizationId: string, postId: string
   const { data: post, error: postError } = await db.from('discovery_community_posts').select('*').eq('organization_id', organizationId).eq('id', postId).maybeSingle();
   if (postError) throw postError;
   if (!post) throw new Error('Postarea nu mai există în organizația activă.');
-  const [optionsResult, votesResult, reactionsResult] = await Promise.all([
+  const [optionsResult, votesResult, reactionsResult, readsResult] = await Promise.all([
     db.from('discovery_poll_options').select('id,post_id,option_text,position').eq('organization_id', organizationId).eq('post_id', postId).order('position'),
     db.from('discovery_poll_votes').select('post_id,option_id,user_discord_id').eq('organization_id', organizationId).eq('post_id', postId),
     db.from('discovery_reactions').select('post_id,user_discord_id,reaction').eq('organization_id', organizationId).eq('post_id', postId),
+    db.from('discovery_community_post_reads').select('post_id,user_discord_id,display_name,read_at').eq('organization_id', organizationId).eq('post_id', postId).order('read_at', { ascending: true }),
   ]);
   if (optionsResult.error) throw optionsResult.error;
   if (votesResult.error) throw votesResult.error;
   if (reactionsResult.error) throw reactionsResult.error;
-  return { post, options: optionsResult.data || [], votes: votesResult.data || [], reactions: reactionsResult.data || [] };
+  if (readsResult.error) throw readsResult.error;
+  return { post, options: optionsResult.data || [], votes: votesResult.data || [], reactions: reactionsResult.data || [], reads: readsResult.data || [] };
 }
 
 function communityPayload(data: any) {
-  return JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [communityPostEmbed(data.post, data.options, data.votes, data.reactions, data.settings)], components: communityPostComponents(data.post, data.options) });
+  return JSON.stringify({ allowed_mentions: { parse: [] }, embeds: [communityPostEmbed(data.post, data.options, data.votes, data.reactions, data.reads, data.settings)], components: communityPostComponents(data.post, data.options) });
 }
 
 function communityMessageRefs(post: any) {
@@ -2094,6 +2109,14 @@ async function handleAnnouncementButton(db: any, interaction: any, context: any,
   const data = await loadCommunityPost(db, String(context.organization.id), postId);
   if (data.post.audience !== context.audience) throw new Error('Postarea nu aparține acestei categorii.');
 
+  if (action === 'read') {
+    const { error } = await db.from('discovery_community_post_reads').upsert({ post_id: postId, organization_id: context.organization.id, user_discord_id: context.discordId, display_name: context.displayName, read_at: new Date().toISOString() }, { onConflict: 'post_id,user_discord_id' });
+    if (error) throw error;
+    const refreshed = await loadCommunityPost(db, String(context.organization.id), postId);
+    await requestDiscordTarget(db, { target: context.target, transport: 'bot', channel_id: context.channelId }, communityPayload({ ...refreshed, settings: context.settings }), { method: 'PATCH', messageId: String(interaction.message?.id || '') });
+    return interactionMessage('Confirmarea a fost înregistrată, iar embedul a fost actualizat.');
+  }
+
   if (action === 'react') {
     const reactionIndex = Number(parts[5]);
     const reaction = communityReactionChoices[reactionIndex];
@@ -2807,18 +2830,26 @@ Deno.serve(async (request) => {
   const isDiscovery = customId.startsWith('panel:discovery:');
   const isPresenceEvents = customId.startsWith('panel:presence_events:');
   const isTasks = customId.startsWith('panel:tasks:');
+  const isProposals = customId.startsWith('panel:proposals:');
+  const isWheel = customId.startsWith('panel:wheel:');
   const isTicket = customId === 'panel:ticket:open' || customId === 'panel:ticket:submit' || customId.startsWith('panel:ticket:claim:') || customId.startsWith('panel:ticket:close:') || customId.startsWith('panel:ticket:notify:') || customId.startsWith('panel:ticket:transcript:') || customId.startsWith('panel:ticket:add_member:') || customId.startsWith('panel:ticket:add_member_submit:') || customId.startsWith('panel:ticket:add_member_select:') || customId.startsWith('panel:ticket:reopen:');
   const isCustom = customId.startsWith('panel:custom:') || customId.startsWith('panel:custom_submit:') || customId.startsWith('panel:custom_review:') || customId.startsWith('panel:custom_reason:');
   if (!isComponent && !isModalSubmit) return reply(interactionMessage('Acest tip de interacțiune nu este disponibil.'));
-  if (!isPontaj && !isRequests && !isContracts && !isAnnouncements && !isDiscipline && !isActions && !isStash && !isMarketplace && !isBotAccess && !isDiscovery && !isPresenceEvents && !isTasks && !isBilling && !isCustom && !isTicket) return reply(interactionMessage('Acest buton nu aparține unui modul Panel Pro.'));
+  if (!isPontaj && !isRequests && !isContracts && !isAnnouncements && !isDiscipline && !isActions && !isStash && !isMarketplace && !isBotAccess && !isDiscovery && !isPresenceEvents && !isTasks && !isProposals && !isWheel && !isBilling && !isCustom && !isTicket) return reply(interactionMessage('Acest buton nu aparține unui modul Panel Pro.'));
   // Modalul trebuie returnat imediat; orice acces la DB înainte de răspuns poate depăși limita Discord de 3 secunde.
   if (isTicket && isButton && customId === 'panel:ticket:open') return reply(ticketModal());
   if (isTicket && isButton && customId.startsWith('panel:ticket:add_member:')) { const id = customId.slice('panel:ticket:add_member:'.length); if (!/^[0-9a-f-]{20,40}$/i.test(id)) return reply(interactionMessage('Ticketul nu este valid.')); return reply(interactionMessage('Alege membrul care trebuie adăugat în ticket.', { components: [{ type: 1, components: [{ type: 5, custom_id: `panel:ticket:add_member_select:${id}`, placeholder: 'Selectează un membru', min_values: 1, max_values: 1 }] }] })); }
   if (isBilling && isButton && customId === 'panel:billing:proof') return reply(billingProofModal());
   if (isPresenceEvents && isButton && customId === 'panel:presence_events:create') return reply(presenceEventModal());
   if (isTasks && isButton && customId === 'panel:tasks:create') return reply(taskAssigneePicker());
+  if (isProposals && isButton && customId.endsWith(':create')) {
+    const audience = customId.split(':')[2] === 'departments' ? 'departments' : 'organization';
+    return reply(proposalModal(audience));
+  }
   if (isTasks && isSelect && customId === 'panel:tasks:assignees') return reply(await createTaskDraft(db, interaction));
   if (isTasks && (isButton || isModalSubmit)) return runBackgroundAcknowledgedCommand(interaction, () => handleTasks(db, interaction, customId, isButton, isModalSubmit), 'Task-ul nu a putut fi actualizat.');
+  if (isProposals && (isButton || isModalSubmit)) return runBackgroundAcknowledgedCommand(interaction, () => handleDiscoveryProposals(db, interaction, customId, isButton, isModalSubmit), 'Propunerea nu a putut fi procesată.');
+  if (isWheel && isButton && customId === 'panel:wheel:start') return runBackgroundAcknowledgedCommand(interaction, () => handleWheel(db, interaction), 'Timerul Roată nu a putut fi pornit.');
   if (isBilling && isModalSubmit && customId === 'panel:billing:proof_submit') return runBackgroundAcknowledgedCommand(interaction, async () => {
     if (String(interaction.guild_id || '') !== PAYMENT_PROOF_GUILD_ID) return interactionMessage('Formularul poate fi folosit doar în serverul oficial Panel Pro.');
     const values = modalValues(interaction);
