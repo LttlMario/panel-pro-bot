@@ -33,6 +33,7 @@ Deno.serve(async (request) => {
     const internalSyncSecret = String(Deno.env.get('INTERNAL_COMMAND_SYNC_SECRET') || '').trim();
     const internalSync = Boolean(internalSyncSecret) && String(request.headers.get('x-internal-command-sync') || '') === internalSyncSecret;
     let session: any = null;
+    if (internalSync) session = { discord_id: 'internal-command-sync', organization_id: null };
     if (!internalSync) {
       try { session = await requirePanelSession(db, request, 0, true); } catch (_) {}
       if (!session && body.access_token) { const response = await fetch('https://discord.com/api/v10/users/@me', { headers: { Authorization: `Bearer ${String(body.access_token).slice(0, 500)}` } }); const user = response.ok ? await response.json().catch(() => ({})) : null; if (user?.id) session = { discord_id: String(user.id), organization_id: null }; }
