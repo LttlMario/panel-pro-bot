@@ -98,6 +98,13 @@
                 </a>
 
                 <a
+                    class="${page === 'organizatii.html' ? 'active' : ''}"
+                    href="organizatii.html"
+                >
+                    🏢 Organizații
+                </a>
+
+                <a
                     class="${page === 'configurare-bot.html' ? 'active' : ''}"
                     href="configurare-bot.html"
                 >
