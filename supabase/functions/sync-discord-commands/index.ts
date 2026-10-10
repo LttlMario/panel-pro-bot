@@ -30,10 +30,14 @@ Deno.serve(async (request) => {
     if (!key) throw new Error('Cheia secretă Supabase lipsește.');
     const db = createClient(Deno.env.get('SUPABASE_URL')!, key);
     const body = await request.json().catch(() => ({}));
+    const internalSyncSecret = String(Deno.env.get('INTERNAL_COMMAND_SYNC_SECRET') || '').trim();
+    const internalSync = Boolean(internalSyncSecret) && String(request.headers.get('x-internal-command-sync') || '') === internalSyncSecret;
     let session: any = null;
-    try { session = await requirePanelSession(db, request, 0, true); } catch (_) {}
-    if (!session && body.access_token) { const response = await fetch('https://discord.com/api/v10/users/@me', { headers: { Authorization: `Bearer ${String(body.access_token).slice(0, 500)}` } }); const user = response.ok ? await response.json().catch(() => ({})) : null; if (user?.id) session = { discord_id: String(user.id), organization_id: null }; }
-    if (!session || !(await isPlatformAdminAccount(db, session.discord_id))) return reply(request, { error: 'Acces permis doar administratorului platformei.' }, 403);
+    if (!internalSync) {
+      try { session = await requirePanelSession(db, request, 0, true); } catch (_) {}
+      if (!session && body.access_token) { const response = await fetch('https://discord.com/api/v10/users/@me', { headers: { Authorization: `Bearer ${String(body.access_token).slice(0, 500)}` } }); const user = response.ok ? await response.json().catch(() => ({})) : null; if (user?.id) session = { discord_id: String(user.id), organization_id: null }; }
+      if (!session || !(await isPlatformAdminAccount(db, session.discord_id))) return reply(request, { error: 'Acces permis doar administratorului platformei.' }, 403);
+    }
     const botToken = await getPlatformSecret(db, 'discord_bot_token');
     if (!botToken) return reply(request, { error: 'Tokenul botului Discord nu este configurat.' }, 409);
     // Discovery are Application ID separat de botul Panel Pro. Nu alegem
