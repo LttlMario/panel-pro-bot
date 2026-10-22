@@ -147,3 +147,7 @@ verify_jwt = false
 
 [functions.sync-official-free-games]
 verify_jwt = false
+
+[functions.process-giveaways]
+verify_jwt = false
+
